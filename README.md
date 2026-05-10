@@ -2,18 +2,35 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# **AURA**
 
-This contains everything you need to run your app locally.
+AURA is a proactive, context-aware companion featuring an advanced sensing architecture. By deeply integrating with Gemini Live, it uses acoustic telemetry and relational memory to dynamically adapt its conversational depth and provide a truly intelligent voice experience.
 
-View your app in AI Studio: https://ai.studio/apps/de9d6791-d642-4bc6-94e3-25c1c6036bdc
+## ✨ Key Features
+- **Real-Time Conversational Sensing:** Dynamic adaptation using audio telemetry (RMS, pause durations).
+- **Relational Memory:** Persistent accumulation of emotional context across sessions.
+- **Stable Gemini Live Integration:** Reliable, high-fidelity real-time voice interactions using `gemini-2.0-flash-live-001`.
 
-## Run Locally
+## 🚀 Getting Started
 
-**Prerequisites:** Node.js
+**Prerequisites:** 
+- Node.js
+- Python 3.x (for backend analysis)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Installation:**
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Set up environment variables
+# Add your Gemini API Key in .env.local:
+# VITE_GEMINI_API_KEY="your-api-key"
+
+# 3. Run the application
+npm run dev
+```
+
+## 🧠 Architecture
+- **Frontend:** React, TypeScript, Vite, tailwindcss.
+- **Backend/Cognitive Engine:** Python, WebSockets, Supabase (for persistent storage and auth).
+- **Core AI:** Gemini Realtime API (`gemini-2.0-flash-live-001`).
