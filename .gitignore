@@ -18,7 +18,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
-
+.agent_context
+.session_state.md
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
