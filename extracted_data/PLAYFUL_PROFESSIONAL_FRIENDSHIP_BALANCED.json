@@ -1,0 +1,273 @@
+{
+  "ideology": "PLAYFUL_PROFESSIONAL_FRIENDSHIP_BALANCED",
+  "keyword_map": {
+    "money": [
+      "paise",
+      "wallet",
+      "hisaab",
+      "rupaye"
+    ],
+    "urgency": [
+      "urgent",
+      "deadline",
+      "jaldi",
+      "last",
+      "date",
+      "5 min",
+      "8:55",
+      "ab",
+      "phir"
+    ],
+    "bonding": [
+      "bhai",
+      "yaar",
+      "saale",
+      "bhadwe",
+      "love",
+      "dosti",
+      "best",
+      "friend",
+      "madarchod",
+      "betichod",
+      "chutiya",
+      "bhadwi",
+      "haramkhor"
+    ],
+    "task": [
+      "office",
+      "kaam",
+      "project",
+      "appraisal",
+      "meeting",
+      "notes",
+      "presentation",
+      "deck",
+      "slide",
+      "standup",
+      "review",
+      "self",
+      "hike",
+      "cycle"
+    ],
+    "emotional": [
+      "chinta",
+      "happy",
+      "seriously",
+      "sach",
+      "confidence",
+      "handsome",
+      "positive",
+      "daraati",
+      "notice",
+      "pasand"
+    ],
+    "general": [
+      "cafe",
+      "Neha",
+      "Tamanna",
+      "chai",
+      "khaana",
+      "maggi",
+      "LinkedIn",
+      "story",
+      "reply",
+      "theek",
+      "pakka",
+      "kal",
+      "raat",
+      "baat"
+    ]
+  },
+  "exchanges": [
+    {
+      "in": "Kal last date hai",
+      "out": "Haan toh kal karunga",
+      "act": "ALERT",
+      "tags": [
+        "procrastination",
+        "work"
+      ]
+    },
+    {
+      "in": "Chai pine chalein kya",
+      "out": "Paise nahi hain mere paas",
+      "act": "AVOIDANCE",
+      "tags": [
+        "money",
+        "social"
+      ]
+    },
+    {
+      "in": "Seriously yaar appraisal cycle aa rahi hai kaam theek karna padega",
+      "out": "Sab ho jaayega",
+      "act": "ASSERTION",
+      "tags": [
+        "optimism",
+        "career"
+      ]
+    },
+    {
+      "in": "Abe uska naam pata hai tujhe",
+      "out": "Kiski",
+      "act": "QUESTION",
+      "tags": [
+        "gossip",
+        "curiosity"
+      ]
+    },
+    {
+      "in": "Neha ko bol",
+      "out": "Main bolun kyun",
+      "act": "AVOIDANCE",
+      "tags": [
+        "deflection",
+        "romance"
+      ]
+    },
+    {
+      "in": "Bhai tu sach mein best hai",
+      "out": "Haan haan jaanta hoon",
+      "act": "ASSERTION",
+      "tags": [
+        "ego",
+        "bonding"
+      ]
+    },
+    {
+      "in": "Bhej",
+      "out": "Ruk",
+      "act": "REQUEST",
+      "tags": [
+        "task",
+        "delay"
+      ]
+    },
+    {
+      "in": "Teri maa",
+      "out": "[laughing]",
+      "act": "JOKE",
+      "tags": [
+        "banter",
+        "insult"
+      ]
+    },
+    {
+      "in": "Tu join karega toh main bhi karungi",
+      "out": "Main toh karunga",
+      "act": "AGREEMENT",
+      "tags": [
+        "dependency",
+        "work"
+      ]
+    },
+    {
+      "in": "Maggi laaunga",
+      "out": "Perfect",
+      "act": "AGREEMENT",
+      "tags": [
+        "food",
+        "bonding"
+      ]
+    },
+    {
+      "in": "Bhai ek kaam kar",
+      "out": "Kya",
+      "act": "QUESTION",
+      "tags": [
+        "task",
+        "anticipation"
+      ]
+    },
+    {
+      "in": "Handsome hai bhai tu",
+      "out": "[laughing at her] saali leg pull kar rahi hai",
+      "act": "JOKE",
+      "tags": [
+        "compliment",
+        "teasing"
+      ]
+    },
+    {
+      "in": "Uth saale warna dono late honge",
+      "out": "Tu join kar main baad mein hoon",
+      "act": "ALERT",
+      "tags": [
+        "urgency",
+        "laziness"
+      ]
+    },
+    {
+      "in": "Ek chai meri bhi bol",
+      "out": "Paisa de",
+      "act": "REQUEST",
+      "tags": [
+        "transactional",
+        "banter"
+      ]
+    },
+    {
+      "in": "Tamanna ne LinkedIn pe connect request bheja",
+      "out": "[laughing] tera scene",
+      "act": "JOKE",
+      "tags": [
+        "social_media",
+        "romance"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "act": "REQUEST",
+      "templates": [
+        "Bhej",
+        "Theek hai raat mein karenge",
+        "Main kyun"
+      ]
+    },
+    {
+      "act": "ASSERTION",
+      "templates": [
+        "Haan bhai",
+        "Sab ho jaayega",
+        "Nahi yaar"
+      ]
+    },
+    {
+      "act": "JOKE",
+      "templates": [
+        "Bhadwe",
+        "Teri zindagi ka bahana koi nahi de sakta",
+        "Chal hat"
+      ]
+    },
+    {
+      "act": "QUESTION",
+      "templates": [
+        "Kya",
+        "Itna coincidence hota hai kya",
+        "Kyun karoon"
+      ]
+    },
+    {
+      "act": "ALERT",
+      "templates": [
+        "Jaldi",
+        "Kal last date hai",
+        "Uth saale warna dono late honge"
+      ]
+    },
+    {
+      "act": "AGREEMENT",
+      "templates": [
+        "Ok",
+        "Theek hai bhai lagaunga",
+        "Haan haan bilkul"
+      ]
+    }
+  ],
+  "signature": {
+    "avg_response_words": 4,
+    "implicit_percentage": 78,
+    "dominant_act": "JOKE"
+  }
+}

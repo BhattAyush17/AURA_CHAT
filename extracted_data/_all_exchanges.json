@@ -1,0 +1,662 @@
+[
+  {
+    "in": "Canteen chal",
+    "out": "Paisa nahi hai mere paas",
+    "act": "AVOIDANCE",
+    "tags": [
+      "hangout",
+      "money"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_000"
+  },
+  {
+    "in": "Kal last date hai",
+    "out": "Ha to kal karunga",
+    "act": "ASSERTION",
+    "tags": [
+      "urgency",
+      "procrastination"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_001"
+  },
+  {
+    "in": "Teri zindagi ka bahana to koi nahi de sakta",
+    "out": "Madarchod [laughing]",
+    "act": "JOKE",
+    "tags": [
+      "insult",
+      "humor"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_002"
+  },
+  {
+    "in": "Ek chai mere liye bhi bol",
+    "out": "Paisa de",
+    "act": "REQUEST",
+    "tags": [
+      "food",
+      "money"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_003"
+  },
+  {
+    "in": "Handsome hai bhai tu",
+    "out": "[laughing] saala leg pull kar raha hai",
+    "act": "JOKE",
+    "tags": [
+      "compliment",
+      "sarcasm"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_004"
+  },
+  {
+    "in": "Tu jaayega to main bhi jaunga",
+    "out": "Main to jaunga",
+    "act": "AGREEMENT",
+    "tags": [
+      "dependency",
+      "routine"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_005"
+  },
+  {
+    "in": "Abe uska naam pata hai tujhe",
+    "out": "Lagaa le tu khud",
+    "act": "AVOIDANCE",
+    "tags": [
+      "crush",
+      "curiosity"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_006"
+  },
+  {
+    "in": "Uth saale warna dono late hoge",
+    "out": "Tu ja main baad mein aata hoon",
+    "act": "ALERT",
+    "tags": [
+      "urgency",
+      "laziness"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_007"
+  },
+  {
+    "in": "Main quit kar doon kya",
+    "out": "Kar de",
+    "act": "ASSERTION",
+    "tags": [
+      "career",
+      "drama"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_008"
+  },
+  {
+    "in": "Tu sun leta hai na properly",
+    "out": "Haan",
+    "act": "AGREEMENT",
+    "tags": [
+      "emotional",
+      "validation"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_009"
+  },
+  {
+    "in": "Bhai sun... ye jo reel hai na...",
+    "out": "Tu walk kar rahi hai",
+    "act": "ASSERTION",
+    "tags": [
+      "observation",
+      "distraction"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_010"
+  },
+  {
+    "in": "Next move kya hona chahiye",
+    "out": "Tu pooch mujhse nahi",
+    "act": "AVOIDANCE",
+    "tags": [
+      "advice",
+      "romance"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_011"
+  },
+  {
+    "in": "Copied assignment pakdi jaayegi toh dono ka maal ho jaayega",
+    "out": "Smart hai tu kabhi kabhi",
+    "act": "ASSERTION",
+    "tags": [
+      "caution",
+      "praise"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_012"
+  },
+  {
+    "in": "Paisa de",
+    "out": "Pichla hisaab baad mein",
+    "act": "AVOIDANCE",
+    "tags": [
+      "debt",
+      "deflection"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_013"
+  },
+  {
+    "in": "Tu thoda alag hai usme",
+    "out": "Haan... main bolta kam hoon",
+    "act": "ASSERTION",
+    "tags": [
+      "personality",
+      "bonding"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_014"
+  },
+  {
+    "in": "Bhadwe itna sookha reaction",
+    "out": "Kya bolu",
+    "act": "QUESTION",
+    "tags": [
+      "reaction",
+      "dry_humor"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_015"
+  },
+  {
+    "in": "Main na… aaj fir se late uth gayi",
+    "out": "Wah bhai",
+    "act": "JOKE",
+    "tags": [
+      "sarcasm",
+      "habit"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_016"
+  },
+  {
+    "in": "Kabhi kabhi na… ghar yaad aata hai",
+    "out": "Hmm… haan aata hai",
+    "act": "AGREEMENT",
+    "tags": [
+      "vulnerability",
+      "homesickness"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_017"
+  },
+  {
+    "in": "Kal group study pakka",
+    "out": "Theek hai",
+    "act": "AGREEMENT",
+    "tags": [
+      "planning",
+      "study"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_018"
+  },
+  {
+    "in": "Abe exam schedule aaya",
+    "out": "Bhej",
+    "act": "REQUEST",
+    "tags": [
+      "academic",
+      "urgency"
+    ],
+    "ideology": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT",
+    "id": "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT_019"
+  },
+  {
+    "in": "Did you see the email about the project deadline",
+    "out": "Haan, I saw it this morning",
+    "act": "QUESTION",
+    "tags": [
+      "work",
+      "status"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_000"
+  },
+  {
+    "in": "We might need to coordinate thoda on a few things",
+    "out": "Haan that makes sense",
+    "act": "ASSERTION",
+    "tags": [
+      "collaboration",
+      "agreement"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_001"
+  },
+  {
+    "in": "Let me know when you’re free to discuss",
+    "out": "Tomorrow afternoon should be fine",
+    "act": "REQUEST",
+    "tags": [
+      "scheduling",
+      "planning"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_002"
+  },
+  {
+    "in": "Are you planning to attend the team lunch on Saturday",
+    "out": "Hmm, not sure abhi",
+    "act": "QUESTION",
+    "tags": [
+      "social",
+      "uncertainty"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_003"
+  },
+  {
+    "in": "New client kaafi demanding hai",
+    "out": "Haan that’s usually the case",
+    "act": "ASSERTION",
+    "tags": [
+      "client",
+      "empathy"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_004"
+  },
+  {
+    "in": "Have you completed the documentation part",
+    "out": "Almost done, kal tak ho jana chahiye",
+    "act": "QUESTION",
+    "tags": [
+      "task",
+      "timeline"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_005"
+  },
+  {
+    "in": "You’ll present your part ya I should",
+    "out": "I can present, that’s fine",
+    "act": "REQUEST",
+    "tags": [
+      "ownership",
+      "meeting"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_006"
+  },
+  {
+    "in": "Can you send me the client update from last meeting",
+    "out": "Haan sure, I’ll forward it",
+    "act": "REQUEST",
+    "tags": [
+      "request",
+      "action"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_007"
+  },
+  {
+    "in": "Lag raha hai team reshuffle ho sakta hai",
+    "out": "Haan, especially with the new project coming in",
+    "act": "ALERT",
+    "tags": [
+      "rumor",
+      "insight"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_008"
+  },
+  {
+    "in": "Do you think humein additional support milega ya workload increase hoga",
+    "out": "Honestly, lag raha hai workload hi increase hoga",
+    "act": "QUESTION",
+    "tags": [
+      "concern",
+      "realism"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_009"
+  },
+  {
+    "in": "Backup plan bhi ready rakhna chahiye",
+    "out": "Yes, rollback option ready hona chahiye",
+    "act": "ASSERTION",
+    "tags": [
+      "risk",
+      "planning"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_010"
+  },
+  {
+    "in": "They look slightly off compared to yesterday",
+    "out": "Haan I checked that too",
+    "act": "ALERT",
+    "tags": [
+      "issue",
+      "observation"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_011"
+  },
+  {
+    "in": "20 thoda optimistic lag raha hai",
+    "out": "…right, that’s true",
+    "act": "AGREEMENT",
+    "tags": [
+      "disagreement",
+      "alignment"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_012"
+  },
+  {
+    "in": "Dry run karna chahiye kya ek baar",
+    "out": "Ideally haan",
+    "act": "QUESTION",
+    "tags": [
+      "process",
+      "quality"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_013"
+  },
+  {
+    "in": "Agar issue aaya toh single person handle nahi kar payega",
+    "out": "…haan, that’s valid",
+    "act": "ALERT",
+    "tags": [
+      "risk",
+      "validation"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_014"
+  },
+  {
+    "in": "Thoda break mil jayega sabko",
+    "out": "Haan, needed hai",
+    "act": "JOKE",
+    "tags": [
+      "bonding",
+      "relief"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_015"
+  },
+  {
+    "in": "Reporting format change hua hai na is month",
+    "out": "Haan I noticed that",
+    "act": "QUESTION",
+    "tags": [
+      "process",
+      "change"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_016"
+  },
+  {
+    "in": "I’ll complete it today",
+    "out": "Good",
+    "act": "AGREEMENT",
+    "tags": [
+      "commitment",
+      "acknowledgment"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_017"
+  },
+  {
+    "in": "Ping kar dena agar kuch urgent ho",
+    "out": "Sure",
+    "act": "ASSERTION",
+    "tags": [
+      "support",
+      "availability"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_018"
+  },
+  {
+    "in": "Catch up later",
+    "out": "Yes, talk later",
+    "act": "AGREEMENT",
+    "tags": [
+      "closing",
+      "professional"
+    ],
+    "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+    "id": "FORMAL_PROFESSIONAL_COLLABORATIVE_019"
+  },
+  {
+    "in": "Honestly, thoda tough chal rahi hai",
+    "out": "Tough kaise",
+    "act": "QUESTION",
+    "tags": [
+      "empathy",
+      "probing"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_000"
+  },
+  {
+    "in": "Mujhe lagta hai main sahi jagah par nahi hoon",
+    "out": "Samjha na thoda aur",
+    "act": "REQUEST",
+    "tags": [
+      "attentive",
+      "listening"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_001"
+  },
+  {
+    "in": "Main khud se bolta rehta hoon ki bas stick out kar le",
+    "out": "Woh aawaaz ignore karna mushkil hota hai",
+    "act": "ASSERTION",
+    "tags": [
+      "validation",
+      "grounded"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_002"
+  },
+  {
+    "in": "Tu kaise itna sahi bol deti hai",
+    "out": "Nahi yaar… hamesha nahi hota",
+    "act": "AGREEMENT",
+    "tags": [
+      "humility",
+      "honesty"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_003"
+  },
+  {
+    "in": "Tu kab se itni sorted ho gayi",
+    "out": "Sorted nahi hoon. Bas… tujhe dhyaan se sun leti hoon",
+    "act": "JOKE",
+    "tags": [
+      "light",
+      "genuine"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_004"
+  },
+  {
+    "in": "Actually haan, kuch bothering mujhe",
+    "out": "Take your time, sab suna jayega",
+    "act": "AGREEMENT",
+    "tags": [
+      "safe_space",
+      "patient"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_005"
+  },
+  {
+    "in": "My parents ke divorce ki baat chal rahi hai",
+    "out": "That's understandable. Aur tujhe kaisa feel ho raha hai",
+    "act": "ASSERTION",
+    "tags": [
+      "compassion",
+      "focus"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_006"
+  },
+  {
+    "in": "What if they blame me",
+    "out": "Would they",
+    "act": "QUESTION",
+    "tags": [
+      "reality_check",
+      "gentle"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_007"
+  },
+  {
+    "in": "I'm catastrophizing",
+    "out": "Haan thoda. But it's okay, it's natural given the circumstance",
+    "act": "ASSERTION",
+    "tags": [
+      "normalizing",
+      "supportive"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_008"
+  },
+  {
+    "in": "Tu busy hai?",
+    "out": "Nahi, kya hua",
+    "act": "QUESTION",
+    "tags": [
+      "availability",
+      "concern"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_009"
+  },
+  {
+    "in": "I feel like mujhe parents se baat karni chahiye",
+    "out": "Haan… good instinct hai ye. Bas… ensure karna tu ready ho",
+    "act": "AGREEMENT",
+    "tags": [
+      "guidance",
+      "balanced"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_010"
+  },
+  {
+    "in": "Tu so gayi kya?",
+    "out": "Nahi. Bas phone side mein rakha tha thodi der. Kya hua",
+    "act": "ASSERTION",
+    "tags": [
+      "presence",
+      "open"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_011"
+  },
+  {
+    "in": "Aadat achi hai ya buri",
+    "out": "Hmm, Aadat achi hai ya buri",
+    "act": "JOKE",
+    "tags": [
+      "teasing",
+      "playful"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_012"
+  },
+  {
+    "in": "Am I overdoing it",
+    "out": "Tu answer kya feel karta hai",
+    "act": "QUESTION",
+    "tags": [
+      "reflection",
+      "non-judgmental"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_013"
+  },
+  {
+    "in": "But tu kabhi feel karti hai ki main zyada ho jaata hoon emotionally",
+    "out": "Nahi. Kabhi kabhi intense hota hai, but “too much” nahi",
+    "act": "ASSERTION",
+    "tags": [
+      "clarity",
+      "reassurance"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_014"
+  },
+  {
+    "in": "Tu khud se zyada strict hai",
+    "out": "I know",
+    "act": "AGREEMENT",
+    "tags": [
+      "self-awareness",
+      "vulnerability"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_015"
+  },
+  {
+    "in": "Will it hurt",
+    "out": "Probably haan. Lekin hurt karna processing ka part hai",
+    "act": "ALERT",
+    "tags": [
+      "honesty",
+      "reframing"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_016"
+  },
+  {
+    "in": "Tu kab explore karegi ye",
+    "out": "Dheere dheere start karungi. Dekhti hoon kaise jaata hai",
+    "act": "ASSERTION",
+    "tags": [
+      "pacing",
+      "tentative"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_017"
+  },
+  {
+    "in": "Tu kya sochta hai… hum aise hi close rahenge",
+    "out": "Agar hum aise hi show up karte rahe na… toh haan, rahenge",
+    "act": "ASSERTION",
+    "tags": [
+      "commitment",
+      "realistic"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_018"
+  },
+  {
+    "in": "Ja kuch kha le pehle",
+    "out": "Haan… papa talk kar lete hain phir",
+    "act": "AGREEMENT",
+    "tags": [
+      "practical",
+      "care"
+    ],
+    "ideology": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE",
+    "id": "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE_019"
+  }
+]

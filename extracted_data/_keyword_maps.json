@@ -1,0 +1,204 @@
+{
+  "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT": {
+    "money": [
+      "paisa",
+      "hisaab",
+      "rupaye"
+    ],
+    "urgency": [
+      "jaldi",
+      "late",
+      "time",
+      "alarm",
+      "last",
+      "date",
+      "min"
+    ],
+    "bonding": [
+      "bhai",
+      "laughing",
+      "reel",
+      "bakchodi",
+      "best",
+      "friend",
+      "love",
+      "story",
+      "instagram"
+    ],
+    "task": [
+      "assignment",
+      "notes",
+      "project",
+      "class",
+      "job",
+      "kaam",
+      "office",
+      "study",
+      "lab",
+      "attendance",
+      "submit"
+    ],
+    "emotional": [
+      "boring",
+      "seriously",
+      "ghar",
+      "mummy",
+      "guilt",
+      "confidence",
+      "positivity",
+      "drama"
+    ],
+    "general": [
+      "kya",
+      "nahi",
+      "haan",
+      "theek",
+      "chal",
+      "ruk",
+      "tu",
+      "bata",
+      "acha",
+      "bye",
+      "saale",
+      "bhadwe",
+      "chutiya"
+    ]
+  },
+  "FORMAL_PROFESSIONAL_COLLABORATIVE": {
+    "money": [],
+    "urgency": [
+      "deadline",
+      "Friday",
+      "tomorrow",
+      "today",
+      "now",
+      "early",
+      "soon",
+      "urgent"
+    ],
+    "bonding": [
+      "lunch",
+      "weekend",
+      "coffee",
+      "place",
+      "relaxed",
+      "sleep",
+      "food"
+    ],
+    "task": [
+      "work",
+      "client",
+      "project",
+      "meeting",
+      "data",
+      "team",
+      "check",
+      "sync",
+      "update",
+      "deploy",
+      "migration",
+      "config",
+      "rollback",
+      "alert",
+      "documentation",
+      "report",
+      "feedback",
+      "form",
+      "workload",
+      "support",
+      "ready",
+      "done",
+      "help"
+    ],
+    "emotional": [
+      "concerned",
+      "pressure",
+      "irritate",
+      "stress",
+      "frustration",
+      "manageable",
+      "busy"
+    ],
+    "general": [
+      "time",
+      "plan",
+      "makes",
+      "sense",
+      "same",
+      "here",
+      "exactly",
+      "right",
+      "true",
+      "sure",
+      "later",
+      "catch",
+      "up",
+      "Haan",
+      "Yeah"
+    ]
+  },
+  "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE": {
+    "money": [
+      "job",
+      "salary",
+      "stability",
+      "work"
+    ],
+    "urgency": [
+      "abhi",
+      "jaldi",
+      "time",
+      "start",
+      "overnight"
+    ],
+    "bonding": [
+      "friend",
+      "trust",
+      "care",
+      "together",
+      "share",
+      "open",
+      "best",
+      "close",
+      "real"
+    ],
+    "task": [
+      "decision",
+      "research",
+      "process",
+      "handle",
+      "logic",
+      "ladder",
+      "execute",
+      "steps"
+    ],
+    "emotional": [
+      "feel",
+      "dar",
+      "guilt",
+      "heavy",
+      "weird",
+      "scary",
+      "hurt",
+      "relief",
+      "anxiety",
+      "vulnerable",
+      "confused",
+      "exhausting",
+      "numb",
+      "intensity"
+    ],
+    "general": [
+      "baat",
+      "samajh",
+      "normal",
+      "difference",
+      "perspective",
+      "situation",
+      "reason",
+      "instinct",
+      "space",
+      "sorted"
+    ]
+  }
+}

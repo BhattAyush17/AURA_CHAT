@@ -1,0 +1,152 @@
+{
+  "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT": [
+    {
+      "act": "REQUEST",
+      "templates": [
+        "Bhej",
+        "Raat ko send karta hoon",
+        "Nahi dunga"
+      ]
+    },
+    {
+      "act": "ASSERTION",
+      "templates": [
+        "Theek hai",
+        "Dekha jaayega",
+        "Bakwaas hai"
+      ]
+    },
+    {
+      "act": "JOKE",
+      "templates": [
+        "Bhadwe",
+        "Teri maa alarm hai meri",
+        "Chup kar"
+      ]
+    },
+    {
+      "act": "QUESTION",
+      "templates": [
+        "Kya",
+        "Tu bata",
+        "Tujhe kya matlab"
+      ]
+    },
+    {
+      "act": "ALERT",
+      "templates": [
+        "Jaldi",
+        "5 min",
+        "Mat bhej"
+      ]
+    },
+    {
+      "act": "AGREEMENT",
+      "templates": [
+        "Ok",
+        "Aa jaunga",
+        "Fair deal nahi hai"
+      ]
+    }
+  ],
+  "FORMAL_PROFESSIONAL_COLLABORATIVE": [
+    {
+      "act": "REQUEST",
+      "templates": [
+        "Let me know when you’re free to discuss",
+        "Tomorrow afternoon should be fine",
+        "Hmm, not sure abhi"
+      ]
+    },
+    {
+      "act": "ASSERTION",
+      "templates": [
+        "Haan that makes sense",
+        "I’ll let you know",
+        "Honestly, lag raha hai workload hi increase hoga"
+      ]
+    },
+    {
+      "act": "JOKE",
+      "templates": [
+        "Thoda break mil jayega sabko",
+        "Weekend pe thoda reset karne ka plan hai",
+        "Consistency maintain karna tough hota hai"
+      ]
+    },
+    {
+      "act": "QUESTION",
+      "templates": [
+        "It’s next Friday, right",
+        "I’ll check and let you know",
+        "Not sure abhi, still deciding"
+      ]
+    },
+    {
+      "act": "ALERT",
+      "templates": [
+        "They look slightly off",
+        "I’ll check with the team once",
+        "Mujhe laga sequence theek hai mostly"
+      ]
+    },
+    {
+      "act": "AGREEMENT",
+      "templates": [
+        "Exactly",
+        "Haan, that works",
+        "True, but situation pe depend karta hai"
+      ]
+    }
+  ],
+  "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE": [
+    {
+      "act": "REQUEST",
+      "templates": [
+        "Samjha na thoda aur",
+        "Take your time, sab suna jayega",
+        "Notice kar"
+      ]
+    },
+    {
+      "act": "ASSERTION",
+      "templates": [
+        "Woh aawaaz ignore karna mushkil hota hai",
+        "That's understandable",
+        "Intensity matlab tu real hai"
+      ]
+    },
+    {
+      "act": "JOKE",
+      "templates": [
+        "Sorted nahi hoon",
+        "Both [laughing]",
+        "Aadat achi hai ya buri"
+      ]
+    },
+    {
+      "act": "QUESTION",
+      "templates": [
+        "Tough kaise",
+        "Kis baat ka exactly",
+        "Tu answer kya feel karta hai"
+      ]
+    },
+    {
+      "act": "ALERT",
+      "templates": [
+        "Probably haan",
+        "Risky hai",
+        "Ye overnight nahi hoga"
+      ]
+    },
+    {
+      "act": "AGREEMENT",
+      "templates": [
+        "Haan… good instinct hai ye",
+        "Bilkul sahi hai",
+        "Same"
+      ]
+    }
+  ]
+}

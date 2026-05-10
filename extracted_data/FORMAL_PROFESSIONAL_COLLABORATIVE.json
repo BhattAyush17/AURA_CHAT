@@ -1,0 +1,313 @@
+{
+  "ideology": "FORMAL_PROFESSIONAL_COLLABORATIVE",
+  "keyword_map": {
+    "money": [],
+    "urgency": [
+      "deadline",
+      "Friday",
+      "tomorrow",
+      "today",
+      "now",
+      "early",
+      "soon",
+      "urgent"
+    ],
+    "bonding": [
+      "lunch",
+      "weekend",
+      "coffee",
+      "place",
+      "relaxed",
+      "sleep",
+      "food"
+    ],
+    "task": [
+      "work",
+      "client",
+      "project",
+      "meeting",
+      "data",
+      "team",
+      "check",
+      "sync",
+      "update",
+      "deploy",
+      "migration",
+      "config",
+      "rollback",
+      "alert",
+      "documentation",
+      "report",
+      "feedback",
+      "form",
+      "workload",
+      "support",
+      "ready",
+      "done",
+      "help"
+    ],
+    "emotional": [
+      "concerned",
+      "pressure",
+      "irritate",
+      "stress",
+      "frustration",
+      "manageable",
+      "busy"
+    ],
+    "general": [
+      "time",
+      "plan",
+      "makes",
+      "sense",
+      "same",
+      "here",
+      "exactly",
+      "right",
+      "true",
+      "sure",
+      "later",
+      "catch",
+      "up",
+      "Haan",
+      "Yeah"
+    ]
+  },
+  "exchanges": [
+    {
+      "in": "Did you see the email about the project deadline",
+      "out": "Haan, I saw it this morning",
+      "act": "QUESTION",
+      "tags": [
+        "work",
+        "status"
+      ]
+    },
+    {
+      "in": "We might need to coordinate thoda on a few things",
+      "out": "Haan that makes sense",
+      "act": "ASSERTION",
+      "tags": [
+        "collaboration",
+        "agreement"
+      ]
+    },
+    {
+      "in": "Let me know when you’re free to discuss",
+      "out": "Tomorrow afternoon should be fine",
+      "act": "REQUEST",
+      "tags": [
+        "scheduling",
+        "planning"
+      ]
+    },
+    {
+      "in": "Are you planning to attend the team lunch on Saturday",
+      "out": "Hmm, not sure abhi",
+      "act": "QUESTION",
+      "tags": [
+        "social",
+        "uncertainty"
+      ]
+    },
+    {
+      "in": "New client kaafi demanding hai",
+      "out": "Haan that’s usually the case",
+      "act": "ASSERTION",
+      "tags": [
+        "client",
+        "empathy"
+      ]
+    },
+    {
+      "in": "Have you completed the documentation part",
+      "out": "Almost done, kal tak ho jana chahiye",
+      "act": "QUESTION",
+      "tags": [
+        "task",
+        "timeline"
+      ]
+    },
+    {
+      "in": "You’ll present your part ya I should",
+      "out": "I can present, that’s fine",
+      "act": "REQUEST",
+      "tags": [
+        "ownership",
+        "meeting"
+      ]
+    },
+    {
+      "in": "Can you send me the client update from last meeting",
+      "out": "Haan sure, I’ll forward it",
+      "act": "REQUEST",
+      "tags": [
+        "request",
+        "action"
+      ]
+    },
+    {
+      "in": "Lag raha hai team reshuffle ho sakta hai",
+      "out": "Haan, especially with the new project coming in",
+      "act": "ALERT",
+      "tags": [
+        "rumor",
+        "insight"
+      ]
+    },
+    {
+      "in": "Do you think humein additional support milega ya workload increase hoga",
+      "out": "Honestly, lag raha hai workload hi increase hoga",
+      "act": "QUESTION",
+      "tags": [
+        "concern",
+        "realism"
+      ]
+    },
+    {
+      "in": "Backup plan bhi ready rakhna chahiye",
+      "out": "Yes, rollback option ready hona chahiye",
+      "act": "ASSERTION",
+      "tags": [
+        "risk",
+        "planning"
+      ]
+    },
+    {
+      "in": "They look slightly off compared to yesterday",
+      "out": "Haan I checked that too",
+      "act": "ALERT",
+      "tags": [
+        "issue",
+        "observation"
+      ]
+    },
+    {
+      "in": "20 thoda optimistic lag raha hai",
+      "out": "…right, that’s true",
+      "act": "AGREEMENT",
+      "tags": [
+        "disagreement",
+        "alignment"
+      ]
+    },
+    {
+      "in": "Dry run karna chahiye kya ek baar",
+      "out": "Ideally haan",
+      "act": "QUESTION",
+      "tags": [
+        "process",
+        "quality"
+      ]
+    },
+    {
+      "in": "Agar issue aaya toh single person handle nahi kar payega",
+      "out": "…haan, that’s valid",
+      "act": "ALERT",
+      "tags": [
+        "risk",
+        "validation"
+      ]
+    },
+    {
+      "in": "Thoda break mil jayega sabko",
+      "out": "Haan, needed hai",
+      "act": "JOKE",
+      "tags": [
+        "bonding",
+        "relief"
+      ]
+    },
+    {
+      "in": "Reporting format change hua hai na is month",
+      "out": "Haan I noticed that",
+      "act": "QUESTION",
+      "tags": [
+        "process",
+        "change"
+      ]
+    },
+    {
+      "in": "I’ll complete it today",
+      "out": "Good",
+      "act": "AGREEMENT",
+      "tags": [
+        "commitment",
+        "acknowledgment"
+      ]
+    },
+    {
+      "in": "Ping kar dena agar kuch urgent ho",
+      "out": "Sure",
+      "act": "ASSERTION",
+      "tags": [
+        "support",
+        "availability"
+      ]
+    },
+    {
+      "in": "Catch up later",
+      "out": "Yes, talk later",
+      "act": "AGREEMENT",
+      "tags": [
+        "closing",
+        "professional"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "act": "REQUEST",
+      "templates": [
+        "Let me know when you’re free to discuss",
+        "Tomorrow afternoon should be fine",
+        "Hmm, not sure abhi"
+      ]
+    },
+    {
+      "act": "ASSERTION",
+      "templates": [
+        "Haan that makes sense",
+        "I’ll let you know",
+        "Honestly, lag raha hai workload hi increase hoga"
+      ]
+    },
+    {
+      "act": "JOKE",
+      "templates": [
+        "Thoda break mil jayega sabko",
+        "Weekend pe thoda reset karne ka plan hai",
+        "Consistency maintain karna tough hota hai"
+      ]
+    },
+    {
+      "act": "QUESTION",
+      "templates": [
+        "It’s next Friday, right",
+        "I’ll check and let you know",
+        "Not sure abhi, still deciding"
+      ]
+    },
+    {
+      "act": "ALERT",
+      "templates": [
+        "They look slightly off",
+        "I’ll check with the team once",
+        "Mujhe laga sequence theek hai mostly"
+      ]
+    },
+    {
+      "act": "AGREEMENT",
+      "templates": [
+        "Exactly",
+        "Haan, that works",
+        "True, but situation pe depend karta hai"
+      ]
+    }
+  ],
+  "signature": {
+    "avg_response_words": 5,
+    "implicit_percentage": 75,
+    "dominant_act": "ASSERTION"
+  }
+}

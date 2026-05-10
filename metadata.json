@@ -1,0 +1,6 @@
+{
+  "name": "Aura Chat",
+  "description": "Imported aura-chat from GitHub",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
