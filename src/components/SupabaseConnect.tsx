@@ -454,7 +454,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
             </div>
 
             <a
-              href={`https://supabase.com/dashboard/project/${ref}/settings/api`}
+              href={`https://supabase.com/dashboard/project/${ref}/settings/api-keys/legacy`}
               target="_blank"
               rel="noopener noreferrer"
               className="sc-btn-secondary sc-btn-with-icon"
