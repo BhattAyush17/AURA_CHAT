@@ -185,7 +185,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
   const roundTripStartRef = useRef<number>(0);
   const pauseSinceLastTurnRef = useRef<number>(0);
   const lastTurnEndTimeRef = useRef<number>(performance.now());
-  const isFirstChunkOfTurn = useRef<boolean>(true);
+  const isFirstChunkOfTurnRef = useRef<boolean>(true);
   const currentRmsRef = useRef<number>(0.02);
 
   const setIsSpeakingState = (val: boolean) => {

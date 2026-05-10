@@ -32,6 +32,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5174",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
+    "https://aurachat-beige.vercel.app",
 ]
 
 # FIX 1: API_SECRET removed. Origin check replaces it — see /api/analyze below.
