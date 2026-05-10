@@ -6,6 +6,7 @@ interface LatencyMetrics {
   roundTrip: number | null;
   audioChunkInterval: number | null;
   backendAnalysis: number | null;
+  memoryLayer: "live" | "seed" | "deep";
 }
 
 interface LatencyMeterProps {
@@ -19,6 +20,7 @@ export function LatencyMeter({ visible = false }: LatencyMeterProps) {
     roundTrip: null,
     audioChunkInterval: null,
     backendAnalysis: null,
+    memoryLayer: "live",
   });
   const lastAudioChunk = useRef<number | null>(null);
 
@@ -76,9 +78,22 @@ export function LatencyMeter({ visible = false }: LatencyMeterProps) {
       }}>
         latency
       </div>
+      
+      <div style={{
+        color: "rgba(255,255,255,0.4)",
+        fontSize: "9px",
+        marginBottom: "8px",
+        textTransform: "uppercase"
+      }}>
+        memory: <span style={{ color: "rgba(255,255,255,0.8)" }}>
+          {metrics.memoryLayer === "live" ? "LIVE (No Context)" :
+           metrics.memoryLayer === "seed" ? "SEED (Browser/Local)" :
+           "DEEP (Cloud/Vector DB)"}
+        </span>
+      </div>
 
       {rows.map(({ label, key, warn, crit }) => {
-        const value = metrics[key];
+        const value = metrics[key] as number | null;
         const color = value !== null ? getColor(value, warn, crit) : "rgba(255,255,255,0.2)";
         return (
           <div key={key} style={{
@@ -100,6 +115,6 @@ export function LatencyMeter({ visible = false }: LatencyMeterProps) {
 }
 
 // Global helper — call this anywhere to emit a latency event
-export function emitLatency(type: keyof LatencyMetrics, value: number) {
+export function emitLatency(type: keyof LatencyMetrics, value: number | string) {
   window.dispatchEvent(new CustomEvent("aura:latency", { detail: { type, value } }));
 }

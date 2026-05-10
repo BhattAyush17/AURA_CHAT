@@ -5,6 +5,7 @@ AURA Behavior Engine API Server v3
 import os
 import asyncio
 from datetime import datetime, timedelta
+import pytz
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field          # ← ADD: Field for max_length
@@ -13,6 +14,16 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+from chroma_service import chroma_service
+from memory_sync import (
+    get_latest_seed,
+    save_seed_to_supabase,
+    persist_state_vector,
+    store_and_backup_memory,
+    get_chromadb_enrichment,
+    get_gap_context
+)
 
 load_dotenv(".env.local")
 import sys
@@ -43,7 +54,8 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
-from behavior_engine import RuntimeEngine, build_sensing_injection
+from behavior_engine import RuntimeEngine, build_sensing_injection, detect_language_profile
+from vocab_learner import vocab_learner
 
 app = FastAPI(
     title="AURA Behavior Engine",
@@ -55,6 +67,16 @@ app = FastAPI(
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(
+        chroma_service.initialize(
+            supabase_client=supabase,
+            rebuild_user_id=None
+        )
+    )
+    print("[AURA] Background services initializing...")
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
@@ -86,6 +108,7 @@ async def preflight_handler(rest_of_path: str):
 class AnalyzeRequest(BaseModel):
     user_text:     str           = Field(..., max_length=2000)
     session_id:    str           = Field(..., max_length=200)
+    user_id:       str           = ""
     audio_rms:     float         = 0.04
     pause_ms:      float         = 500
     ideology_hint: Optional[str] = Field(None, max_length=200)
@@ -102,6 +125,8 @@ class SensingStateResponse(BaseModel):
     mode: str
     injection_type: str
     session_turn: int
+    chroma_ready: bool = False
+    response_delay_hint: int = 300
 
 class AnalyzeResponse(BaseModel):
     act: Optional[str]
@@ -114,6 +139,8 @@ class AnalyzeResponse(BaseModel):
     intensity: float
     sensing_state: Optional[SensingStateResponse] = None
     status: str
+    memory_layer: str = "live"
+    memory_enrichment: str = ""
 
 class Turn(BaseModel):
     text:           str  = Field(..., max_length=4000)
@@ -257,22 +284,82 @@ async def analyze(request: Request, body: AnalyzeRequest):
     try:
         result = engine.analyze(body.user_text, body.ideology_hint, body.user_initiated)
         
-        # NEW — build sensing injection
+        # Language detection
+        lang_profile = detect_language_profile(body.user_text)
+
+        # Build sensing injection (includes language directive)
         turn_data = {
             "text": body.user_text,
             "audio_rms": body.audio_rms,
             "pause_ms": body.pause_ms,
             "frustration_score": result["all_scores"].get("frustration", 0.0),
             "withdrawal_score": result["all_scores"].get("withdrawal", 0.0),
+            "language_profile": lang_profile,
         }
         
         base_id = get_base_session_id(body.session_id)
         session_data = active_sessions.get(base_id) or active_sessions.get(body.session_id)
         seed = session_data.get("seed", "") if session_data else ""
-        sensing_injection, state_vector, directive = build_sensing_injection(body.session_id, turn_data, seed)
+        sensing_injection, state_vector, directive = build_sensing_injection(body.session_id, turn_data, seed, user_id=body.user_id or "anonymous")
         
-        # Update result with sensing injection for build_instructions
-        result["sensing_injection"] = sensing_injection
+        # Persist StateVector to Supabase async — never blocks response
+        asyncio.create_task(
+            persist_state_vector(supabase, body.session_id, state_vector)
+        )
+
+        # Get memory enrichment — ChromaDB with fallback
+        enrichment = await get_chromadb_enrichment(
+            chroma_service=chroma_service,
+            current_text=body.user_text,
+            state_vector={
+                "arc": state_vector.arc,
+                "energy": state_vector.energy,
+                "trust": state_vector.trust
+            }
+        )
+
+        # Store significant emotional moments async
+        asyncio.create_task(
+            store_and_backup_memory(
+                supabase_client=supabase,
+                chroma_service=chroma_service,
+                user_id=body.user_id,
+                session_id=body.session_id,
+                turn_text=body.user_text,
+                state=state_vector,
+                turn_number=state_vector.session_turn if hasattr(state_vector, "session_turn") else 0
+            )
+        )
+        
+        # Determine emotional state for vocab learning
+        emotional_state = (
+            "anger" if result["all_scores"].get("frustration", 0) > 0.6
+            else "sadness" if state_vector.arc == "withdrawing"
+            else "joy" if state_vector.arc == "building"
+            else "frustration" if result["all_scores"].get("frustration", 0) > 0.3
+            else "neutral"
+        )
+
+        # Ingest this turn into vocab learner
+        vocab_learner.ingest_turn(
+            user_id=body.user_id or "anonymous",
+            text=body.user_text,
+            lang_profile=lang_profile,
+            emotional_state=emotional_state,
+            is_greeting=state_vector.session_turn <= 1
+        )
+
+        # Enrich lang_profile with learned user abuse vocab
+        vocab_summary_dict = vocab_learner.get_vocab_summary(body.user_id or "anonymous")
+        if vocab_summary_dict.get("abuse_vocab"):
+            lang_profile["user_abuse_vocab"] = vocab_summary_dict["abuse_vocab"]
+
+        # Build vocab injection and combine with sensing injection
+        vocab_injection = vocab_learner.build_vocab_injection(body.user_id or "anonymous")
+        combined_injection = sensing_injection + (vocab_injection or "")
+
+        # Update result with full combined injection
+        result["sensing_injection"] = f"{combined_injection}\n\n{enrichment}"
         instructions = engine.build_instructions(result)
         
         return AnalyzeResponse(
@@ -294,9 +381,13 @@ async def analyze(request: Request, body: AnalyzeRequest):
                 arc_turns=state_vector.arc_turns,
                 mode=directive["mode"],
                 injection_type=directive.get("injection_type", "passive"),
-                session_turn=state_vector.session_turn
+                session_turn=state_vector.session_turn,
+                chroma_ready=chroma_service.is_ready,
+                response_delay_hint=directive.get("response_delay_hint", 300)
             ),
             status="success",
+            memory_enrichment=enrichment,
+            language_profile=lang_profile,
         )
     except Exception as e:
         # FIX 4: Never expose internal exception details in production
@@ -308,22 +399,101 @@ async def analyze(request: Request, body: AnalyzeRequest):
 from behavior_engine import generate_memory_seed, _sensing_engines
 from sensing_engine import summarize_arc_for_seed, SensingEngine
 
+
+def get_time_context(user_timezone: str = "Asia/Kolkata") -> dict:
+    """Gap 3: Give AURA awareness of time-of-day and day-of-week."""
+    tz = pytz.timezone(user_timezone)
+    now = datetime.now(tz)
+    hour = now.hour
+
+    period = (
+        "रात के बाद" if hour < 5       # late night
+        else "सुबह" if hour < 12        # morning
+        else "दोपहर" if hour < 17       # afternoon
+        else "शाम" if hour < 21         # evening
+        else "रात"                       # night
+    )
+
+    return {
+        "period": period,
+        "hour": hour,
+        "is_late_night": hour < 5 or hour >= 23,
+        "day": now.strftime("%A")
+    }
+
+
 @app.post("/session/start")
 @limiter.limit("5/minute")            # FIX 2: Rate limit was missing here
-async def start_session(request: Request, user_id: str, seed: Optional[str] = ""):
+async def start_session(request: Request, user_id: str, seed: Optional[str] = "", device_id: Optional[str] = "unknown"):
     import uuid
     session_id = str(uuid.uuid4())
     active_sessions.set(session_id, {
         "user_id": user_id,
+        "device_id": device_id,
         "transcript": [],
         "seed": seed,
         "created_at": datetime.utcnow().isoformat(),
         "last_active": datetime.utcnow().isoformat()
     })
     
-    _sensing_engines[session_id] = SensingEngine(seed or "")
+    # Sync seed with Supabase — use whichever is newer
+    canonical_seed = await get_latest_seed(
+        supabase_client=supabase,
+        user_id=user_id,
+        local_seed=seed
+    )
+
+    _sensing_engines[session_id] = SensingEngine(canonical_seed or "")
     
-    return {"session_id": session_id, "memory_loaded": bool(seed)}
+    # Rehydrate StateVector from Supabase if available
+    try:
+        saved_state = supabase\
+            .table("aura_storage")\
+            .select("state_vector")\
+            .eq("session_id", session_id)\
+            .execute()
+        if saved_state.data and saved_state.data[0].get("state_vector"):
+            sv = saved_state.data[0]["state_vector"]
+            engine = _sensing_engines[session_id]
+            engine.state.trust = sv.get("trust", engine.state.trust)
+            engine.state.companion_boost_count = sv.get(
+                "companion_boost_count", 0
+            )
+            engine.state.total_withdrawals = sv.get(
+                "total_withdrawals", 0
+            )
+    except Exception:
+        pass
+
+    # ── Gap 3: Time awareness + session gap context ──
+    time_ctx = get_time_context()
+    time_note = f"[TIME] {time_ctx['period']}, {time_ctx['day']}. Late night: {time_ctx['is_late_night']} [/TIME]"
+
+    # Determine gap since last interaction
+    last_seen = ""
+    try:
+        if supabase:
+            seed_row = supabase.table("aura_seeds") \
+                .select("updated_at") \
+                .eq("user_id", user_id) \
+                .order("updated_at", desc=True) \
+                .limit(1).execute()
+            if seed_row.data:
+                last_seen = seed_row.data[0].get("updated_at", "")
+    except Exception:
+        pass
+    gap = get_gap_context(last_seen)
+    gap_note = f"[GAP] {gap} [/GAP]" if gap else ""
+
+    return {
+        "session_id": session_id,
+        "status": "ok",
+        "canonical_seed": canonical_seed,
+        "memory_loaded": bool(canonical_seed),
+        "time_context": time_note,
+        "gap_context": gap_note,
+        "is_late_night": time_ctx["is_late_night"]
+    }
 
 
 @app.post("/session/end", response_model=SessionEndResponse)
@@ -339,14 +509,46 @@ async def end_session(request: Request, body: SessionEndRequest):
     transcript_to_process = merged[-30:]
 
     sensing_engine = _sensing_engines.get(base_id) or _sensing_engines.get(body.session_id)
-    arc_summary = summarize_arc_for_seed(sensing_engine.state) if sensing_engine else None
+    arc_summary = ""
+    state_vector_dict = {}
+    if sensing_engine:
+        engine_state = sensing_engine.state
+        arc_summary = summarize_arc_for_seed(engine_state)
+        state_vector_dict = {
+            "energy": round(engine_state.energy, 3),
+            "warmth": round(engine_state.warmth, 3),
+            "engagement": round(engine_state.engagement, 3),
+            "trust": round(engine_state.trust, 3),
+            "tension": round(engine_state.tension, 3),
+            "arc": engine_state.arc,
+            "companion_boost_count": engine_state.companion_boost_count,
+            "total_withdrawals": engine_state.total_withdrawals,
+            "peak_reached": engine_state.peak_reached,
+        }
+        _sensing_engines.pop(base_id, None)
+        _sensing_engines.pop(body.session_id, None)
 
-    api_key = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    seed = generate_memory_seed(
-        transcript=transcript_to_process,
-        previous_seed=body.previous_seed or "",
-        api_key=api_key,
-        arc_summary=arc_summary
+    # API key extraction no longer strictly necessary if generation moves to backend entirely
+    # but we will await the updated generate_memory_seed
+    # Serialize vocab profile for seed persistence
+    vocab_summary = vocab_learner.serialize(
+        session_data.get("user_id", body.user_id) if session_data else body.user_id
+    )
+
+    seed = await generate_memory_seed(
+        turns=transcript_to_process,
+        arc_summary=arc_summary,
+        vocab_summary=vocab_summary
+    )
+
+    asyncio.create_task(
+        save_seed_to_supabase(
+            supabase_client=supabase,
+            user_id=session_data.get("user_id", body.user_id) if session_data else body.user_id,
+            seed=seed,
+            state_vector=state_vector_dict,
+            device_id=session_data.get("device_id", "unknown") if session_data else "unknown"
+        )
     )
 
     active_sessions.pop(base_id, None)
@@ -356,13 +558,23 @@ async def end_session(request: Request, body: SessionEndRequest):
 
 
 async def generate_and_store_seed_background(data: dict):
-    seed = generate_memory_seed(
-        transcript=data['transcript'][-30:],
-        previous_seed=data.get('previous_seed', ''),
-        api_key=data.get('api_key', ''),
-        arc_summary=data.get('arc_summary')
+    vocab_summary = vocab_learner.serialize(
+        data.get("user_id", "unknown")
     )
-    # TODO: Push directly to Supabase from backend here if needed
+    seed = await generate_memory_seed(
+        turns=data['transcript'][-30:],
+        arc_summary=data.get('arc_summary', ""),
+        vocab_summary=vocab_summary
+    )
+    asyncio.create_task(
+        save_seed_to_supabase(
+            supabase_client=supabase,
+            user_id=data.get("user_id", "unknown"),
+            seed=seed,
+            state_vector=data.get("state_vector_dict", {}),
+            device_id=data.get("device_id", "unknown")
+        )
+    )
 
 
 @app.post("/session/end/sync")
@@ -382,7 +594,29 @@ async def end_session_sync(request: Request, body: SessionEndRequest, background
     payload['api_key'] = api_key
     
     sensing_engine = _sensing_engines.get(base_id) or _sensing_engines.get(body.session_id)
-    payload['arc_summary'] = summarize_arc_for_seed(sensing_engine.state) if sensing_engine else None
+    arc_summary = ""
+    state_vector_dict = {}
+    if sensing_engine:
+        engine_state = sensing_engine.state
+        arc_summary = summarize_arc_for_seed(engine_state)
+        state_vector_dict = {
+            "energy": round(engine_state.energy, 3),
+            "warmth": round(engine_state.warmth, 3),
+            "engagement": round(engine_state.engagement, 3),
+            "trust": round(engine_state.trust, 3),
+            "tension": round(engine_state.tension, 3),
+            "arc": engine_state.arc,
+            "companion_boost_count": engine_state.companion_boost_count,
+            "total_withdrawals": engine_state.total_withdrawals,
+            "peak_reached": engine_state.peak_reached,
+        }
+        _sensing_engines.pop(base_id, None)
+        _sensing_engines.pop(body.session_id, None)
+
+    payload['arc_summary'] = arc_summary
+    payload['state_vector_dict'] = state_vector_dict
+    payload['user_id'] = session_data.get("user_id", body.user_id) if session_data else body.user_id
+    payload['device_id'] = session_data.get("device_id", "unknown") if session_data else "unknown"
 
     background_tasks.add_task(generate_and_store_seed_background, payload)
     return {"status": "processing"}

@@ -66,13 +66,22 @@ class SensingEngine:
         # Rehydrate relational memory from previous seed
         if previous_seed:
             rm = parse_relational_memory(previous_seed)
-            prev_trust = rm.get("trust", 0.3)
-            if prev_trust < 0.4:
-                self.state.trust = 0.3
+            prev_arc = rm.get("arc", "opening")
+
+            # Gap 6: If last session ended heavy, start softer
+            if prev_arc in ("withdrawing", "closed", "declining"):
+                self.state.energy = 0.35
+                self.state.warmth = 0.65
+                self.state.engagement = 0.4
             else:
-                self.state.trust = max(0.3, prev_trust * 0.8)
+                self.state.energy = 0.5
+                self.state.warmth = 0.5
+                self.state.engagement = 0.5
+
+            # Trust and tension carry over as before
+            prev_trust = rm.get("trust", 0.3)
+            self.state.trust = max(0.3, prev_trust * 0.8)
             self.state.tension = 0.0
-            self.state.energy = 0.5
             self.state.arc = "opening"
             self.state.arc_turns = 0
 
@@ -154,6 +163,10 @@ class SensingEngine:
             new_arc = "plateau"
         elif s.engagement_delta < -0.05 and s.energy > 0.3:
             new_arc = "declining"
+        elif (s.energy < 0.25 
+              and s.engagement < 0.3 
+              and s.trust > 0.6):
+            new_arc = "comfortable_silence"
         elif s.energy < 0.25 and s.engagement < 0.3:
             new_arc = "withdrawing"
         elif s.energy < 0.15 and s.engagement < 0.2:

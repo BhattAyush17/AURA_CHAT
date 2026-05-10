@@ -347,7 +347,7 @@ function AuraExperience() {
         </footer>
       </div>
 
-      <LatencyMeter visible={status === "active" || status === "listening"} />
+      <LatencyMeter visible={status === "listening"} />
     </main>
   );
 }

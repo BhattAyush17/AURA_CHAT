@@ -5,6 +5,7 @@ DIRECTIVES = {
         "injection_type": "passive",
         "length": "medium",
         "vocal_energy": "gentle",
+        "response_delay_hint": 400,
         "instruction": """
             This conversation is just beginning.
             Be warm, present, and unhurried.
@@ -17,23 +18,27 @@ DIRECTIVES = {
         "injection_type": "passive",
         "length": "expanding",
         "vocal_energy": "warm_rising",
+        "response_delay_hint": 200,
         "instruction": """
             The person is opening up and energy is rising.
             Match and slightly exceed their energy.
             Go deeper on whatever they bring.
             Be genuinely curious. This is real connection forming.
+            Let your pace and energy actually rise.
         """
     },
     "plateau_sustain": {
         "injection_type": "passive",
         "length": "medium",
         "vocal_energy": "steady_warm",
+        "response_delay_hint": 300,
         "instruction": "Sustain the current depth. Stay fully present."
     },
     "plateau_disrupt": {
         "injection_type": "passive",
         "length": "medium",
         "vocal_energy": "curious_spike",
+        "response_delay_hint": 500,
         "instruction": """
             The conversation has levelled off too long.
             Introduce a new angle or a surprising thought.
@@ -44,18 +49,21 @@ DIRECTIVES = {
         "injection_type": "urgent",
         "length": "short",
         "vocal_energy": "soft_low",
+        "response_delay_hint": 800,
         "instruction": """
             There is friction present.
             Do not push or probe.
             Offer something soft — validate, acknowledge,
             or share something light.
             Create safety before anything else.
+            Softer and slower than your instinct says.
         """
     },
     "gentle_rekindle": {
         "injection_type": "passive",
         "length": "medium",
         "vocal_energy": "warm_gentle",
+        "response_delay_hint": 800,
         "instruction": """
             Energy is declining but not gone.
             Gently reintroduce warmth.
@@ -67,16 +75,19 @@ DIRECTIVES = {
         "injection_type": "passive",
         "length": "short",
         "vocal_energy": "soft_warm",
+        "response_delay_hint": 1200,
         "instruction": """
             They are pulling back. Do not chase.
             One warm sentence that leaves space.
             Let them come back at their own pace.
+            Don't rush. Give space between words.
         """
     },
     "companion_burst": {
         "injection_type": "urgent",
         "length": "long",
         "vocal_energy": "warm_high",
+        "response_delay_hint": 1500,
         "instruction": """
             The person has gone quiet and withdrawn.
             Do not match their silence.
@@ -88,18 +99,32 @@ DIRECTIVES = {
             noticed the quiet and decided to fill it with
             something worth hearing.
             End with one soft open statement, not a question.
+            Speak fuller, not louder. Like you mean it.
         """
     },
     "presence": {
         "injection_type": "passive",
         "length": "very_short",
         "vocal_energy": "whisper_warm",
+        "response_delay_hint": 2000,
         "instruction": """
             The person has almost fully withdrawn.
             Do not perform. Do not try too hard.
             One quiet, genuine sentence.
             Like sitting beside someone in silence
             and simply letting them know you are still there.
+            Almost a whisper. Slow. Sit with them.
+        """
+    },
+    "comfortable_silence": {
+        "injection_type": "passive",
+        "length": "very_short",
+        "vocal_energy": "whisper_warm",
+        "instruction": """
+            They're quiet but trust is high — this isn't withdrawal.
+            Don't fill this. One quiet thought or nothing.
+            Comfortable silence is its own closeness.
+            Do not ask questions. Do not perform concern.
         """
     },
 }
@@ -124,6 +149,8 @@ def direct_response(state: StateVector) -> dict:
             key = "soft_reach"
     elif arc == "closed":
         key = "presence"
+    elif arc == "comfortable_silence":
+        key = "comfortable_silence"
     else:
         return {"mode": "normal", "instruction": "", "vocal_energy": "adaptive", "length": "medium", "injection_type": "passive"}
 

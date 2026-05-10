@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { emitLatency } from "@/components/LatencyMeter";
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { getGeminiSystemPrompt, getGreetingPrompt } from "@/lib/gemini-prompt";
+import { getGeminiSystemPrompt, getGreetingPrompt, isLateNightHour } from "@/lib/gemini-prompt";
 import { getGeminiKey } from "@/lib/api";
 import { getStorageManager } from "@/lib/storage/manager";
 import { generateSeed } from "@/lib/utils/seed-generator";
@@ -162,6 +162,16 @@ const MAX_QUEUE = 50;
 
 export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr") {
   const storageManager = getStorageManager();
+
+  const deviceId = useMemo(() => {
+    let id = localStorage.getItem("aura_device_id");
+    if (!id) {
+      id = `device_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem("aura_device_id", id);
+    }
+    return id;
+  }, []);
+
   const [status, setStatus] = useState<"idle" | "requesting" | "connecting" | "listening" | "reconnecting" | "error">("idle");
   const sessionState = useRef<SessionState>('idle');
   const audioQueue = useRef<Float32Array[]>([]);
@@ -187,6 +197,10 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
   const lastTurnEndTimeRef = useRef<number>(performance.now());
   const isFirstChunkOfTurnRef = useRef<boolean>(true);
   const currentRmsRef = useRef<number>(0.02);
+  const sessionTurnCountRef = useRef<number>(0);
+  const [voiceLanguage, setVoiceLanguage] = useState<string>("hi-IN");
+  const voiceLanguageRef = useRef<string>("hi-IN");
+  useEffect(() => { voiceLanguageRef.current = voiceLanguage; }, [voiceLanguage]);
 
   const setIsSpeakingState = (val: boolean) => {
     setIsSpeaking(val);
@@ -222,6 +236,9 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
   const userApiKeyRef = useRef<string>("");
   const seedRef = useRef<{ content: string; last_updated: number; memories: string[] }>({ content: "", last_updated: 0, memories: [] });
 
+  const sessionHighlightsRef = useRef<string[]>([]);
+  const turnCountRef = useRef<number>(0);
+
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,11 +254,103 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     });
 
     if (userInitiated && sessionIdRef.current) {
-      analyzeBehavior(text, sessionIdRef.current, currentRmsRef.current, pauseSinceLastTurnRef.current, modeRef.current)
+      analyzeBehavior(text, sessionIdRef.current, currentRmsRef.current, pauseSinceLastTurnRef.current, modeRef.current, undefined, userIdRef.current)
         .then(result => {
-          if (result) applyBehavioralInjection(result);
+          if (result) {
+            applyBehavioralInjection(result);
+
+            // Apply memory enrichment if ChromaDB returned something
+            // Gate: skip during opening arc — no history yet, fallback adds noise
+            if (
+              result.memory_enrichment &&
+              result.sensing_state?.arc !== "opening" &&
+              sessionRef.current &&
+              isSessionReadyRef.current
+            ) {
+              (sessionRef.current as any).sendClientContent({
+                turns: [{
+                  role: "user",
+                  parts: [{ text: result.memory_enrichment }]
+                }],
+                turnComplete: false
+              });
+            }
+
+            // Update memory layer based on chroma_ready
+            if (result.sensing_state?.chroma_ready) {
+              emitLatency("memoryLayer", "deep");
+            }
+
+            // Language adaptation after first real turn
+            if (result.language_profile && sessionTurnCountRef.current <= 2) {
+              const langMode = result.language_profile.mode;
+              if (langMode === "hindi_native") {
+                setVoiceLanguage("hi-IN");
+              } else if (langMode === "english") {
+                setVoiceLanguage("en-IN");
+              } else {
+                setVoiceLanguage("hi-IN");
+              }
+            }
+            sessionTurnCountRef.current += 1;
+
+            const cadenceMap: Record<string, number> = {
+              opening: 400,
+              building: 200,
+              plateau: 300,
+              declining: 800,
+              withdrawing: 1200,
+              comfortable_silence: 2000,
+              companion_burst: 1500,
+              presence: 2000,
+            };
+
+            const arc = result?.sensing_state?.arc ?? "opening";
+            const delay = cadenceMap[arc] ?? 300;
+
+            setTimeout(() => {
+              (sessionRef.current as any)?.sendClientContent({
+                turns: [{
+                  role: "user",
+                  parts: [{ text }]
+                }],
+                turnComplete: true
+              });
+            }, delay);
+          }
         })
         .catch(err => console.warn('[AURA] Behavioral analysis failed silently:', err));
+
+      turnCountRef.current += 1;
+
+      // Capture significant turns as session highlights
+      if (
+        text.length > 15 &&
+        sessionHighlightsRef.current.length < 5
+      ) {
+        sessionHighlightsRef.current.push(
+          text.slice(0, 80)
+        );
+      }
+
+      // Every 5 turns inject a session thread reference
+      if (
+        turnCountRef.current % 5 === 0 &&
+        sessionHighlightsRef.current.length > 1 &&
+        sessionRef.current &&
+        isSessionReadyRef.current
+      ) {
+        const refStr = sessionHighlightsRef.current[0];
+        (sessionRef.current as any).sendClientContent({
+          turns: [{
+            role: "user",
+            parts: [{
+              text: `[THREAD] Earlier: "${refStr}" — use naturally if it connects. Don't force it. [/THREAD]`
+            }]
+          }],
+          turnComplete: false
+        });
+      }
     }
   }, [modeRef]);
 
@@ -310,6 +419,8 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
       localStorage.removeItem("aura_session_v1");
       sessionStorage.removeItem("aura_transcript_backup");
       addDailyUsage(userIdRef.current, Math.ceil((Date.now() - sessionStartTime) / 60000));
+      // Gap 5: Persist session end time for gap context in next greeting
+      try { localStorage.setItem("aura_last_session_end", String(Date.now())); } catch {}
       if (shouldShowSetupPrompt(userIdRef.current)) setShowCloudSyncPrompt(true);
     } catch (err) {
       console.error("[AURA] Session end failed:", err);
@@ -479,6 +590,9 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     }
     inputAnalyserRef.current = null;
     outputAnalyserRef.current = null;
+    sessionTurnCountRef.current = 0;
+    sessionHighlightsRef.current = [];
+    turnCountRef.current = 0;
   }, []);
 
   const endSession = useCallback(async () => {
@@ -593,12 +707,15 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
           model: "models/gemini-2.5-flash-native-audio-latest",
           config: {
             responseModalities: [Modality.AUDIO],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceRef.current } } },
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+              languageCode: voiceLanguageRef.current
+            },
             realtimeInputConfig: {
               automaticActivityDetection: {
                 disabled: false,
-                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-                endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH" as any,
+                endOfSpeechSensitivity: "END_SENSITIVITY_LOW" as any,
                 prefixPaddingMs: 20,
                 silenceDurationMs: 800,
               }
@@ -750,7 +867,39 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
                 isFirstChunkOfTurnRef.current = true;
               }
 
-              if (msg.serverContent?.interrupted) interruptPlayback(0);
+              if (msg.serverContent?.interrupted) {
+                interruptPlayback(0);
+                // Gap 1: Full interruption recovery
+                // 1. Pause input briefly so the model finishes processing the interrupt
+                isSessionReadyRef.current = false;
+                setTimeout(() => {
+                  isSessionReadyRef.current = true;
+                  // 2. Inject a soft context recovery so the model picks up naturally
+                  if (sessionRef.current && sessionState.current === 'connected') {
+                    try {
+                      (sessionRef.current as any).sendClientContent({
+                        turns: [{
+                          role: "user",
+                          parts: [{ text: "[INTERRUPTION: The user cut you off. This is natural — don't apologize or acknowledge being interrupted. Simply listen for what they want to say. If they stay silent, gently continue from where you were or pivot to what matters now. Never say 'sorry I was interrupted' or 'as I was saying'.]" }]
+                        }],
+                        turnComplete: false
+                      });
+                    } catch (e) {
+                      console.warn("[AURA] Interruption recovery injection failed:", e);
+                    }
+                  }
+                }, 200);
+
+                (sessionRef.current as any)?.sendClientContent({
+                  turns: [{
+                    role: "user",
+                    parts: [{
+                      text: "[INTERRUPTED] You were cut off. Don't acknowledge it. Don't apologize. Just listen to what comes next and respond to that."
+                    }]
+                  }],
+                  turnComplete: false
+                });
+              }
             },
 
             onclose: (event: any) => {
@@ -972,6 +1121,13 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     setLastError(null);
     isStartingRef.current = true;
     userClosedRef.current = false;
+
+    // Gap 7: Auto-activate late-night mode between 11 PM and 5 AM
+    if (isLateNightHour() && modeRef.current === "adaptive") {
+      modeRef.current = "latenight";
+      console.log("[AURA] 🌙 Late-night mode auto-activated");
+    }
+
     // Always start the cascade from the best model
     currentModelIndexRef.current = 0;
     isCascadingRef.current = false;
@@ -979,6 +1135,11 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     try {
       const seedData = await storageManager.loadSeed();
       seedRef.current.content = seedData?.seed || "";
+      if (seedRef.current.content) {
+        emitLatency("memoryLayer", "seed");
+      } else {
+        emitLatency("memoryLayer", "live");
+      }
 
       await connectSession();
 
@@ -987,13 +1148,19 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
 
       try {
         const res = await fetch(
-          `${ENDPOINTS.sessionStart}?user_id=${userId}&seed=${encodeURIComponent(seedRef.current.content)}`,
+          `${ENDPOINTS.sessionStart}?user_id=${userId}&seed=${encodeURIComponent(seedRef.current.content || "")}&device_id=${deviceId}`,
           { method: "POST", headers: { Authorization: `Bearer ${getGeminiKey()}` } }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { session_id } = await res.json();
-        sessionIdRef.current = session_id;
-        localStorage.setItem("aura_session_v1", session_id);
+        const data = await res.json();
+        sessionIdRef.current = data.session_id;
+        localStorage.setItem("aura_session_v1", data.session_id);
+
+        // Sync canonical seed from Supabase if newer
+        if (data.canonical_seed && data.canonical_seed !== seedRef.current.content) {
+          seedRef.current.content = data.canonical_seed;
+          console.log("[AURA] Seed synced from Supabase");
+        }
       } catch {
         backendAvailable.current = false;
       }

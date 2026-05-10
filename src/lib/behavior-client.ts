@@ -2,6 +2,14 @@ import { ENDPOINTS } from "@/config/api";
 import { emitLatency } from "@/components/LatencyMeter";
 // API_SECRET import removed
 
+export interface LanguageProfile {
+  mode: "hindi_native" | "hinglish" | "mixed" | "english";
+  is_informal: boolean;
+  has_abuse: boolean;
+  devanagari_ratio: number;
+  hinglish_count: number;
+}
+
 export interface BehaviorAnalysis {
   act: string | null;
   tags: string[];
@@ -10,7 +18,7 @@ export interface BehaviorAnalysis {
   energy: string;
   behavior_instructions: string;
   emotional_state: string;
-  intensity: float;
+  intensity: number;
   sensing_state?: {
     energy: number;
     warmth: number;
@@ -21,8 +29,13 @@ export interface BehaviorAnalysis {
     arc_turns: number;
     mode: string;
     session_turn: number;
+    chroma_ready: boolean;
+    response_delay_hint: number;
   };
   status: string;
+  memory_layer?: string;
+  memory_enrichment?: string;
+  language_profile?: LanguageProfile;
 }
 
 const MODE_TO_IDEOLOGY: Record<string, string> = {
@@ -43,6 +56,7 @@ export async function analyzeBehavior(
   pauseMs: number = 0,
   mode?: string,
   apiKey?: string,
+  userId?: string,
 ): Promise<BehaviorAnalysis | null> {
   try {
     const controller = new AbortController();
@@ -66,6 +80,7 @@ export async function analyzeBehavior(
       body: JSON.stringify({
         user_text: userText,
         session_id: sessionId,
+        user_id: userId || "",
         audio_rms: audioRms,
         pause_ms: pauseMs,
         ideology_hint: ideologyHint,
@@ -77,6 +92,9 @@ export async function analyzeBehavior(
     if (!response.ok) return null;
     const result = await response.json();
     emitLatency("backendAnalysis", performance.now() - backendStart);
+    if (result.memory_layer) {
+      emitLatency("memoryLayer", result.memory_layer);
+    }
     return result as BehaviorAnalysis;
   } catch {
     return null;

@@ -5,8 +5,8 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     this.BUFFER_SIZE = 1024;
     this.noiseFloor = 0.02;
     this.calibrationFrames = 0;
-    this.CALIBRATION_LIMIT = 150;
-    this.GATE_MULTIPLIER = 2.5;
+    this.CALIBRATION_LIMIT = 200;    // tuned for Hindi phonology
+    this.GATE_MULTIPLIER = 1.8;      // lowered for Hindi speech patterns
   }
 
   process(inputs) {
@@ -45,7 +45,7 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     // Send when buffer reaches target size
     if (this.buffer.length >= this.BUFFER_SIZE) {
       const chunk = new Float32Array(this.buffer.splice(0, this.BUFFER_SIZE));
-      this.port.postMessage({ pcmData: chunk.buffer }, [chunk.buffer]);
+      this.port.postMessage({ pcmData: chunk.buffer, rms: rms }, [chunk.buffer]);
     }
 
     return true;
