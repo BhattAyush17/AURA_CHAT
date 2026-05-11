@@ -17,8 +17,6 @@ from dotenv import load_dotenv
 
 load_dotenv(".env.local")
 
-import google.generativeai as genai
-
 
 # ═══════════════════════════════════════════════════════════════════
 # IDEOLOGY MAP
@@ -103,25 +101,12 @@ RAW CHAT LOG:
 # GEMINI CLIENT
 # ═══════════════════════════════════════════════════════════════════
 
-def get_model():
+def get_client():
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("VITE_GEMINI_API_KEY")
     if not api_key:
         raise ValueError("No API key. Set GEMINI_API_KEY or VITE_GEMINI_API_KEY in .env.local")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        model_name="gemini-flash-latest",
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ],
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.2,
-            max_output_tokens=8192,
-            response_mime_type="application/json",
-        )
-    )
+    from google import genai
+    return genai.Client(api_key=api_key)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -153,8 +138,9 @@ def read_chat_file(filepath: str, max_chars: int = 28000) -> str:
     return content
 
 
-def extract_ideology(model, ideology_id: str, chats_dir: str = "./Chats") -> Dict[str, Any]:
+def extract_ideology(client, ideology_id: str, chats_dir: str = "./Chats") -> Dict[str, Any]:
     """Extract behavioral data from one ideology chat file."""
+    from google.genai import types
     filename, ideology_name = IDEOLOGY_FILES[ideology_id]
     filepath = os.path.join(chats_dir, filename)
     
@@ -176,8 +162,23 @@ def extract_ideology(model, ideology_id: str, chats_dir: str = "./Chats") -> Dic
     print(f"   🔄 Calling Gemini (single pass)...")
     
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=8192,
+                response_mime_type="application/json",
+                safety_settings=[
+                    types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+                    types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                    types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                    types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+                ]
+            ),
+            contents=prompt
+        )
         result = json.loads(response.text)
+
         
         # Validate structure
         required_keys = ["ideology", "keyword_map", "exchanges", "templates", "signature"]
@@ -211,7 +212,7 @@ def main():
     output_dir = "./extracted_data"
     os.makedirs(output_dir, exist_ok=True)
     
-    model = get_model()
+    client = get_client()
     
     # Determine which ideologies to process
     if len(sys.argv) > 2 and sys.argv[1] == "--file":
@@ -226,7 +227,8 @@ def main():
             print(f"⚠ Unknown ideology ID: {ideology_id}")
             continue
         
-        result = extract_ideology(model, ideology_id)
+        result = extract_ideology(client, ideology_id)
+
         
         if result:
             ideology_name = IDEOLOGY_FILES[ideology_id][1]

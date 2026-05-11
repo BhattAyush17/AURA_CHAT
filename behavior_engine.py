@@ -526,7 +526,8 @@ def call_gemini_raw(system: str, user: str, max_tokens: int = 150, api_key: str 
     No emotional routing. No prompt injection.
     Just the call.
     """
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     
     # Use user key if provided, fall back to server key
     key_to_use = api_key if api_key else os.getenv("GEMINI_API_KEY")
@@ -534,25 +535,23 @@ def call_gemini_raw(system: str, user: str, max_tokens: int = 150, api_key: str 
     if not key_to_use:
         raise ValueError("No API key available for seed generation")
         
-    # Configure for this specific call
-    genai.configure(api_key=key_to_use)
-    model = genai.GenerativeModel(
-        model_name="gemini-flash-latest",  # fastest, cheapest model
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ],
-        system_instruction=system
-    )
+    client = genai.Client(api_key=key_to_use)
     
-    response = model.generate_content(
-        user,
-        generation_config=genai.types.GenerationConfig(
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        config=types.GenerateContentConfig(
+            system_instruction=system,
             max_output_tokens=max_tokens,
-            temperature=0.3  # low temp — consistent compression
-        )
+            temperature=0.3,
+            safety_settings=[
+                types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+                types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+            ]
+        ),
+        contents=user
     )
     
     return response.text
+

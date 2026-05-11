@@ -1,4 +1,8 @@
+import os
 from datetime import datetime
+from supabase import create_client
+from google import genai
+from google.genai import types
 
 
 def get_gap_context(last_seen: str) -> str:
@@ -121,25 +125,27 @@ async def store_and_backup_memory(
         "timestamp": datetime.utcnow().isoformat()
     }
 
-    # Store in ChromaDB for fast similarity search
-    await chroma_service.store_memory(
-        session_id=session_id,
-        text=turn_text,
-        metadata=metadata,
-        embedding_id=embedding_id
-    )
-
-    # Back up metadata to Supabase for durability
     try:
-        supabase_client.table("aura_chroma_backup").insert({
+        gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
+        embed_result = gemini_client.models.embed_content(
+            model="gemini-embedding-001",
+            contents=[turn_text],
+            config=types.EmbedContentConfig(output_dimensionality=768)
+        )
+        emb = list(embed_result.embeddings[0].values)
+
+        # Store in Supabase pgvector
+        supabase_client.table("aura_chroma_backup").upsert({
             "user_id": user_id,
             "session_id": session_id,
             "turn_text": turn_text,
             "metadata": metadata,
-            "embedding_id": embedding_id
+            "embedding_id": embedding_id,
+            "embedding": emb,
+            "created_at": datetime.utcnow().isoformat()
         }).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[AURA] Store memory failed: {e}")
 
 
 async def get_chromadb_enrichment(
@@ -151,18 +157,38 @@ async def get_chromadb_enrichment(
     import asyncio
 
     try:
-        results = await asyncio.wait_for(
-            chroma_service.query(current_text, n=3),
-            timeout=timeout
-        )
+        def fetch():
+            gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
+            supa_client = create_client(
+                os.environ.get("SUPABASE_URL", ""),
+                os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+            )
+            embed_result = gemini_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=[current_text],
+                config=types.EmbedContentConfig(output_dimensionality=768)
+            )
+            emb = list(embed_result.embeddings[0].values)
+            
+            result = supa_client.rpc("match_memories", {
+                "query_embedding": emb,
+                "match_user_id": None,
+                "match_threshold": 0.0,
+                "match_count": 3
+            }).execute()
+            return result.data
+            
+        results = await asyncio.wait_for(asyncio.to_thread(fetch), timeout=timeout)
+        
         if results:
             lines = []
             for r in results:
                 m = r.get("metadata", {})
+                content = r.get("turn_text") or r.get("content", "")
                 lines.append(
                     f"Past moment (arc:{m.get('arc','?')} "
                     f"energy:{m.get('energy','?')}): "
-                    f"{r.get('text','')[:120]}"
+                    f"{content[:120]}"
                 )
             return (
                 "[MEMORY ENRICHMENT]\n"
