@@ -211,13 +211,65 @@ function AuraExperience() {
 
           {/* Live waveform */}
           {status === "listening" && (
-            <div className="mt-8 w-full max-w-md h-20">
-              <Waveform
-                active
-                getFrequencyData={isSpeaking ? getOutputFrequencyData : getInputFrequencyData}
-                color={isSpeaking ? "#ffffff" : "#666666"}
-                isVADActive={!isSpeaking && isActiveVoice}
-              />
+            <div className="mt-8 w-full max-w-md">
+              <div className="h-20 w-full mb-8">
+                <Waveform
+                  active
+                  getFrequencyData={isSpeaking ? getOutputFrequencyData : getInputFrequencyData}
+                  color={isSpeaking ? "#ffffff" : "#666666"}
+                  isVADActive={!isSpeaking && isActiveVoice}
+                />
+              </div>
+
+              {/* Integrated Internal Analysis (Thinking Box) */}
+              <AnimatePresence mode="wait">
+                {(isThinking || auraState) && (
+                  <motion.section
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="w-full"
+                  >
+                    <div className="flex flex-col gap-4 rounded-[1.5rem] border border-border/50 p-6 text-left bg-muted/5 backdrop-blur-sm relative overflow-hidden">
+                      {isThinking && !isSpeaking && (
+                        <motion.div 
+                          className="absolute inset-0 bg-foreground/[0.02]"
+                          animate={{ opacity: [0.3, 0.6, 0.3] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
+                      )}
+                      
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                          {isThinking && !isSpeaking ? "AURA IS PERCEIVING..." : "USER TRANSCRIPT"}
+                        </span>
+                        <span className="text-sm italic text-foreground leading-relaxed min-h-[1.25rem]">
+                          {auraState?.words ? `"${auraState.words}"` : isThinking ? "Processing input..." : "..."}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 border-t border-border/20 pt-4 mt-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                            DETECTED TONE
+                          </span>
+                          <span className="text-xs text-foreground/80 font-medium">
+                            {auraState?.tone || (isThinking ? "Analyzing..." : "Neutral")}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                            INTENT
+                          </span>
+                          <span className="text-xs text-foreground/70 line-clamp-1">
+                            {auraState?.intent || (isThinking ? "Mapping..." : "Steady")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.section>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </section>
@@ -295,37 +347,6 @@ function AuraExperience() {
             </AnimatePresence>
           </div>
         </section>
-
-        {/* Realtime Internal Analysis */}
-        {auraState && (
-          <section className="mt-12 w-full max-w-lg">
-            <p className="mb-4 text-center text-[9px] uppercase tracking-[0.4em] text-muted-foreground">
-              aura's internal analysis
-            </p>
-            <div className="flex flex-col gap-5 rounded-[2rem] border border-border p-6 text-left bg-muted/10 backdrop-blur-sm">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground/50">
-                  User Transcript
-                </span>
-                <span className="text-sm italic text-foreground leading-relaxed">
-                  "{auraState.words}"
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground/50">
-                  Detected Tone
-                </span>
-                <span className="text-sm text-foreground font-medium">{auraState.tone}</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground/50">
-                  Perceived Intent
-                </span>
-                <span className="text-sm text-foreground/80">{auraState.intent}</span>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* Error */}
         <AnimatePresence>

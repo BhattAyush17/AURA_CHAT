@@ -39,7 +39,7 @@ let sessionEndInProgress = false;
 /*  The cascade tries each in sequence on any rejection (HTTP or WS). */
 /* ------------------------------------------------------------------ */
 const LIVE_MODELS = [
-  "models/gemini-2.5-flash-native-audio-latest",
+  "models/gemini-2.0-flash-exp",
 ] as const;
 
 /**
