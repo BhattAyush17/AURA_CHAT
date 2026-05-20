@@ -10,11 +10,27 @@ import { getCredential } from "./credentials";
  * AURA runs entirely on user-provided credentials.
  */
 export const getGeminiKey = () => {
-  return sessionStorage.getItem("aura_gemini_api_key");
+  const key = sessionStorage.getItem("aura_gemini_api_key");
+  if (key && key !== "undefined" && key !== "null" && key.trim() !== "") {
+    return key;
+  }
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey && envKey !== "undefined" && envKey !== "null" && envKey.trim() !== "") {
+    return envKey;
+  }
+  return null;
 };
 
 export const getOpenRouterKey = () => {
-  return sessionStorage.getItem("aura_openrouter_api_key");
+  const key = sessionStorage.getItem("aura_openrouter_api_key");
+  if (key && key !== "undefined" && key !== "null" && key.trim() !== "") {
+    return key;
+  }
+  const envKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+  if (envKey && envKey !== "undefined" && envKey !== "null" && envKey.trim() !== "") {
+    return envKey;
+  }
+  return null;
 };
 
 /**

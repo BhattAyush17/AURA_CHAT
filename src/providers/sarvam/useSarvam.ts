@@ -80,6 +80,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const fallbackTranscriptRef = useRef<string>("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
+  const recordingStartTimeRef = useRef<number>(0);
 
   // Identity
   const userIdRef = useRef("local-user");
@@ -571,7 +572,22 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       };
 
       mr.onstop = async () => {
-        if (audioChunksRef.current.length === 0) return;
+        const duration = Date.now() - (recordingStartTimeRef.current || 0);
+        if (audioChunksRef.current.length === 0 || duration < 600) {
+          audioChunksRef.current = [];
+          if (isSessionActiveRef.current) {
+            setStatus("listening");
+            setWords("Listening...");
+            setTimeout(() => {
+              if (isSessionActiveRef.current && recognitionRef.current) {
+                try {
+                  recognitionRef.current.start();
+                } catch {}
+              }
+            }, 300);
+          }
+          return;
+        }
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         audioChunksRef.current = [];
 
@@ -606,6 +622,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       setWords("Listening...");
       audioChunksRef.current = [];
       fallbackTranscriptRef.current = "";
+      recordingStartTimeRef.current = Date.now();
       // R08 FIX: Only start MediaRecorder if it's in inactive state
       const mr = mediaRecorderRef.current;
       if (mr && mr.state === "inactive") {
