@@ -54,3 +54,28 @@ pip-delete-this-directory.txt
 .toast
 .lucid
 .replit
+
+# AURA Local DB and datasets
+chroma_behavior_db/
+extracted_data/
+supabase_cli/
+
+# Testing scripts & dev utility scripts
+backend/tests/
+backend/scripts/
+test_demo_flow.py
+generate_sarvam.py
+fix_imports.py
+fix_ts_errors.py
+move_files.sh
+copy_files.sh
+
+# GitHub Workflows & metadata
+.github/
+
+# System Documentation & Logs
+docs/
+*.md
+!README.md
+
+

@@ -15,6 +15,7 @@ export const ENDPOINTS = {
   sessionEndSync: `${BASE_URL}/session/end/sync`,
   analyze: `${BASE_URL}/api/analyze`,
   health: `${BASE_URL}/health`,
+  proactive: `${BASE_URL}/api/proactive`,
 } as const;
 
 // API_SECRET deliberately removed — VITE_ variables are public.

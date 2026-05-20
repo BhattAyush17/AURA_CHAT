@@ -10,7 +10,11 @@ import { getCredential } from "./credentials";
  * AURA runs entirely on user-provided credentials.
  */
 export const getGeminiKey = () => {
-  return sessionStorage.getItem('aura_gemini_api_key');
+  return sessionStorage.getItem("aura_gemini_api_key");
+};
+
+export const getOpenRouterKey = () => {
+  return sessionStorage.getItem("aura_openrouter_api_key");
 };
 
 /**

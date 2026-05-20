@@ -294,7 +294,7 @@
 }
 .sc-btn-primary:hover {
   background: oklch(1 0 0);
-  box-shadow: 0 0 20px rgba(255,255,255,0.08);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 
@@ -412,7 +412,9 @@
   color: oklch(0.6 0 0);
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Project list */
@@ -447,7 +449,7 @@
   border-color: oklch(0.35 0 0);
   background: oklch(0.12 0 0);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(255,255,255,0.03);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.03);
 }
 
 .sc-project-info {
@@ -546,9 +548,18 @@
   animation: provision-slide 2s ease-in-out infinite;
 }
 @keyframes provision-slide {
-  0% { transform: translateX(-100%); width: 40%; }
-  50% { transform: translateX(150%); width: 60%; }
-  100% { transform: translateX(-100%); width: 40%; }
+  0% {
+    transform: translateX(-100%);
+    width: 40%;
+  }
+  50% {
+    transform: translateX(150%);
+    width: 60%;
+  }
+  100% {
+    transform: translateX(-100%);
+    width: 40%;
+  }
 }
 
 /* Done actions */

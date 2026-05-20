@@ -1,19 +1,7 @@
 {
   "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT": {
-    "money": [
-      "paisa",
-      "hisaab",
-      "rupaye"
-    ],
-    "urgency": [
-      "jaldi",
-      "late",
-      "time",
-      "alarm",
-      "last",
-      "date",
-      "min"
-    ],
+    "money": ["paisa", "hisaab", "rupaye"],
+    "urgency": ["jaldi", "late", "time", "alarm", "last", "date", "min"],
     "bonding": [
       "bhai",
       "laughing",
@@ -66,25 +54,8 @@
   },
   "FORMAL_PROFESSIONAL_COLLABORATIVE": {
     "money": [],
-    "urgency": [
-      "deadline",
-      "Friday",
-      "tomorrow",
-      "today",
-      "now",
-      "early",
-      "soon",
-      "urgent"
-    ],
-    "bonding": [
-      "lunch",
-      "weekend",
-      "coffee",
-      "place",
-      "relaxed",
-      "sleep",
-      "food"
-    ],
+    "urgency": ["deadline", "Friday", "tomorrow", "today", "now", "early", "soon", "urgent"],
+    "bonding": ["lunch", "weekend", "coffee", "place", "relaxed", "sleep", "food"],
     "task": [
       "work",
       "client",
@@ -138,40 +109,10 @@
     ]
   },
   "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE": {
-    "money": [
-      "job",
-      "salary",
-      "stability",
-      "work"
-    ],
-    "urgency": [
-      "abhi",
-      "jaldi",
-      "time",
-      "start",
-      "overnight"
-    ],
-    "bonding": [
-      "friend",
-      "trust",
-      "care",
-      "together",
-      "share",
-      "open",
-      "best",
-      "close",
-      "real"
-    ],
-    "task": [
-      "decision",
-      "research",
-      "process",
-      "handle",
-      "logic",
-      "ladder",
-      "execute",
-      "steps"
-    ],
+    "money": ["job", "salary", "stability", "work"],
+    "urgency": ["abhi", "jaldi", "time", "start", "overnight"],
+    "bonding": ["friend", "trust", "care", "together", "share", "open", "best", "close", "real"],
+    "task": ["decision", "research", "process", "handle", "logic", "ladder", "execute", "steps"],
     "emotional": [
       "feel",
       "dar",

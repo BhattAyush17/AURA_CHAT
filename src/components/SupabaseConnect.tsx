@@ -32,14 +32,7 @@ import { getStorageManager } from "@/lib/storage/manager";
 import { setCredential } from "@/lib/credentials";
 
 // ─── Types ───────────────────────────────────────────────────────
-type Phase =
-  | "idle"
-  | "step_url"
-  | "step_sql"
-  | "step_key"
-  | "connecting"
-  | "done"
-  | "error";
+type Phase = "idle" | "step_url" | "step_sql" | "step_key" | "connecting" | "done" | "error";
 
 interface ErrorInfo {
   phase: Phase;
@@ -65,15 +58,13 @@ CREATE POLICY "anon_all" ON aura_storage
   FOR ALL TO anon USING (true) WITH CHECK (true);`;
 
 const ERROR_MAP: Record<string, string> = {
-  table_missing:
-    "SQL setup wasn't detected. Please re-run the setup SQL and try again.",
+  table_missing: "SQL setup wasn't detected. Please re-run the setup SQL and try again.",
   connect_failed: "Couldn't connect. Double-check your URL and key.",
   unknown: "Something went wrong. Please try again.",
 };
 
 // ─── Validators ──────────────────────────────────────────────────
-const isValidSupabaseUrl = (u: string) =>
-  /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(u.trim());
+const isValidSupabaseUrl = (u: string) => /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(u.trim());
 
 const isValidAnonKey = (k: string) => k.trim().startsWith("eyJ");
 
@@ -108,10 +99,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
   const [showKey, setShowKey] = useState(false);
 
   // Derived: project ref from URL
-  const ref = url
-    .trim()
-    .replace("https://", "")
-    .replace(".supabase.co", "");
+  const ref = url.trim().replace("https://", "").replace(".supabase.co", "");
 
   // ── On mount: check if already connected ─────────────────────
   useEffect(() => {
@@ -136,9 +124,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
   // ══════════════════════════════════════════════════════════════
   const handleUrlNext = useCallback(() => {
     if (!isValidSupabaseUrl(url)) {
-      setUrlError(
-        "That doesn't look right. It should be https://xxxxxx.supabase.co"
-      );
+      setUrlError("That doesn't look right. It should be https://xxxxxx.supabase.co");
       return;
     }
     setUrlError(null);
@@ -150,9 +136,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
   // ══════════════════════════════════════════════════════════════
   const handleConnect = useCallback(async () => {
     if (!isValidAnonKey(anonKey)) {
-      setKeyError(
-        "That doesn't look like a valid key. It should start with eyJ"
-      );
+      setKeyError("That doesn't look like a valid key. It should start with eyJ");
       return;
     }
     setKeyError(null);
@@ -161,10 +145,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
     try {
       // 1. Validate connection with a lightweight test query
       const client = createClient(url.trim(), anonKey.trim());
-      const { error: queryError } = await client
-        .from("aura_storage")
-        .select("id")
-        .limit(1);
+      const { error: queryError } = await client.from("aura_storage").select("id").limit(1);
 
       if (queryError && queryError.code !== "PGRST116") {
         // PGRST116 = table exists but empty — that's fine
@@ -172,10 +153,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
       }
 
       // 2. Persist to localStorage (reuse existing keys)
-      const projectRef = url
-        .trim()
-        .replace("https://", "")
-        .replace(".supabase.co", "");
+      const projectRef = url.trim().replace("https://", "").replace(".supabase.co", "");
 
       localStorage.setItem("aura_sb_url", url.trim());
       localStorage.setItem("aura_sb_key", anonKey.trim());
@@ -270,8 +248,8 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
             </div>
             <h3 className="sc-title">Connect Cloud Storage</h3>
             <p className="sc-subtitle">
-              Sync conversations across devices — powered by your own free
-              Supabase database. Takes about 4 minutes.
+              Sync conversations across devices — powered by your own free Supabase database. Takes
+              about 4 minutes.
             </p>
             <button
               onClick={() => setPhase("step_url")}
@@ -285,10 +263,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
               <Shield className="w-3 h-3" />
               <span>Your data stays in your own database</span>
             </div>
-            <button
-              onClick={() => setShowManual(!showManual)}
-              className="sc-toggle-manual"
-            >
+            <button onClick={() => setShowManual(!showManual)} className="sc-toggle-manual">
               <ChevronDown
                 className={`w-3 h-3 transition-transform duration-200 ${showManual ? "rotate-180" : ""}`}
               />
@@ -362,10 +337,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
             />
             {urlError && <p className="sc-field-error">{urlError}</p>}
             <div className="sc-nav-row">
-              <button
-                onClick={() => setPhase("idle")}
-                className="sc-btn-ghost"
-              >
+              <button onClick={() => setPhase("idle")} className="sc-btn-ghost">
                 Back
               </button>
               <button onClick={handleUrlNext} className="sc-btn-primary">
@@ -425,10 +397,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
             </label>
 
             <div className="sc-nav-row">
-              <button
-                onClick={() => setPhase("step_url")}
-                className="sc-btn-ghost"
-              >
+              <button onClick={() => setPhase("step_url")} className="sc-btn-ghost">
                 Back
               </button>
               <button
@@ -448,9 +417,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
             <div className="sc-step-header">
               <span className="sc-step-badge">Step 3 of 3</span>
               <h3 className="sc-title">Your Anon Key</h3>
-              <p className="sc-subtitle">
-                This is your public API key. It's safe to paste here.
-              </p>
+              <p className="sc-subtitle">This is your public API key. It's safe to paste here.</p>
             </div>
 
             <a
@@ -481,20 +448,13 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
                 type="button"
                 aria-label={showKey ? "Hide key" : "Show key"}
               >
-                {showKey ? (
-                  <EyeOff className="w-3.5 h-3.5" />
-                ) : (
-                  <Eye className="w-3.5 h-3.5" />
-                )}
+                {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
             </div>
             {keyError && <p className="sc-field-error">{keyError}</p>}
 
             <div className="sc-nav-row">
-              <button
-                onClick={() => setPhase("step_sql")}
-                className="sc-btn-ghost"
-              >
+              <button onClick={() => setPhase("step_sql")} className="sc-btn-ghost">
                 Back
               </button>
               <button onClick={handleConnect} className="sc-btn-primary">
@@ -510,9 +470,7 @@ export function SupabaseConnect({ onConnected }: SupabaseConnectProps) {
           <motion.div key="connecting" {...fadeSlide} className="sc-phase">
             <Loader2 className="w-6 h-6 sc-spinner" />
             <h3 className="sc-title">Validating connection…</h3>
-            <p className="sc-subtitle">
-              Testing your database and verifying the setup.
-            </p>
+            <p className="sc-subtitle">Testing your database and verifying the setup.</p>
           </motion.div>
         )}
 

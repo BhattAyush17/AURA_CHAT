@@ -7,6 +7,7 @@ import os
 import json
 import re
 import time
+import asyncio
 from typing import Dict, Any, List, Tuple, Optional
 from dotenv import load_dotenv
 
@@ -368,8 +369,6 @@ class RuntimeEngine:
         print("[AURA] Emotional Engine Ready.")
     
     def analyze(self, transcript: str, ideology: Optional[str] = None, user_initiated: bool = True) -> dict:
-        # STOP silence tracking (user just spoke)
-        self.silence_machine.stop()
         
         current_turn = {"text": transcript, "user_initiated": user_initiated}
         
@@ -384,9 +383,6 @@ class RuntimeEngine:
         act = detect_speech_act(transcript)
         kw_result = self.keywords.scan(transcript, ideology)
         energy = detect_energy(transcript)
-        
-        # START silence tracking (AURA about to speak)
-        self.silence_machine.start()
         
         return {
             "act": act,
@@ -512,7 +508,9 @@ async def generate_memory_seed(
         )
 
     # Secondary Gemini call — cheap, fast, small output
-    response = call_gemini_raw(
+    # Wrapped in to_thread because call_gemini_raw is synchronous
+    response = await asyncio.to_thread(
+        call_gemini_raw,
         system="You are a memory compression engine. Return only the seed blocks.",
         user=prompt,
         max_tokens=200,  # slightly higher to accommodate vocab line
@@ -538,7 +536,7 @@ def call_gemini_raw(system: str, user: str, max_tokens: int = 150, api_key: str 
     client = genai.Client(api_key=key_to_use)
     
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         config=types.GenerateContentConfig(
             system_instruction=system,
             max_output_tokens=max_tokens,

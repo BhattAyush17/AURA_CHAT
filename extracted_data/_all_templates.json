@@ -2,51 +2,27 @@
   "GENZ_PLAYFUL_BOND_DEEP_UNDERCURRENT": [
     {
       "act": "REQUEST",
-      "templates": [
-        "Bhej",
-        "Raat ko send karta hoon",
-        "Nahi dunga"
-      ]
+      "templates": ["Bhej", "Raat ko send karta hoon", "Nahi dunga"]
     },
     {
       "act": "ASSERTION",
-      "templates": [
-        "Theek hai",
-        "Dekha jaayega",
-        "Bakwaas hai"
-      ]
+      "templates": ["Theek hai", "Dekha jaayega", "Bakwaas hai"]
     },
     {
       "act": "JOKE",
-      "templates": [
-        "Bhadwe",
-        "Teri maa alarm hai meri",
-        "Chup kar"
-      ]
+      "templates": ["Bhadwe", "Teri maa alarm hai meri", "Chup kar"]
     },
     {
       "act": "QUESTION",
-      "templates": [
-        "Kya",
-        "Tu bata",
-        "Tujhe kya matlab"
-      ]
+      "templates": ["Kya", "Tu bata", "Tujhe kya matlab"]
     },
     {
       "act": "ALERT",
-      "templates": [
-        "Jaldi",
-        "5 min",
-        "Mat bhej"
-      ]
+      "templates": ["Jaldi", "5 min", "Mat bhej"]
     },
     {
       "act": "AGREEMENT",
-      "templates": [
-        "Ok",
-        "Aa jaunga",
-        "Fair deal nahi hai"
-      ]
+      "templates": ["Ok", "Aa jaunga", "Fair deal nahi hai"]
     }
   ],
   "FORMAL_PROFESSIONAL_COLLABORATIVE": [
@@ -92,21 +68,13 @@
     },
     {
       "act": "AGREEMENT",
-      "templates": [
-        "Exactly",
-        "Haan, that works",
-        "True, but situation pe depend karta hai"
-      ]
+      "templates": ["Exactly", "Haan, that works", "True, but situation pe depend karta hai"]
     }
   ],
   "EMOTIONALLY_INTELLIGENT_DEEP_SUPPORTIVE": [
     {
       "act": "REQUEST",
-      "templates": [
-        "Samjha na thoda aur",
-        "Take your time, sab suna jayega",
-        "Notice kar"
-      ]
+      "templates": ["Samjha na thoda aur", "Take your time, sab suna jayega", "Notice kar"]
     },
     {
       "act": "ASSERTION",
@@ -118,35 +86,19 @@
     },
     {
       "act": "JOKE",
-      "templates": [
-        "Sorted nahi hoon",
-        "Both [laughing]",
-        "Aadat achi hai ya buri"
-      ]
+      "templates": ["Sorted nahi hoon", "Both [laughing]", "Aadat achi hai ya buri"]
     },
     {
       "act": "QUESTION",
-      "templates": [
-        "Tough kaise",
-        "Kis baat ka exactly",
-        "Tu answer kya feel karta hai"
-      ]
+      "templates": ["Tough kaise", "Kis baat ka exactly", "Tu answer kya feel karta hai"]
     },
     {
       "act": "ALERT",
-      "templates": [
-        "Probably haan",
-        "Risky hai",
-        "Ye overnight nahi hoga"
-      ]
+      "templates": ["Probably haan", "Risky hai", "Ye overnight nahi hoga"]
     },
     {
       "act": "AGREEMENT",
-      "templates": [
-        "Haan… good instinct hai ye",
-        "Bilkul sahi hai",
-        "Same"
-      ]
+      "templates": ["Haan… good instinct hai ye", "Bilkul sahi hai", "Same"]
     }
   ]
 }

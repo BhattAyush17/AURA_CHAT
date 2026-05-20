@@ -8,35 +8,49 @@ const LOCAL_USER_KEY = "aura_user_id";
  */
 async function deriveUserId(email: string): Promise<string> {
   const encoder = new TextEncoder();
+  const emailNorm = email.toLowerCase().trim();
 
-  // Fixed app-level salt — not secret, just makes
-  // brute force against your specific app harder
+  // Fallback for non-secure contexts where crypto.subtle is missing
+  if (!crypto.subtle) {
+    console.warn("[AURA] crypto.subtle missing, using simple fallback for identity");
+    let hash = 0;
+    for (let i = 0; i < emailNorm.length; i++) {
+      hash = (hash << 5) - hash + emailNorm.charCodeAt(i);
+      hash |= 0;
+    }
+    return `user_fallback_${Math.abs(hash).toString(16)}`;
+  }
+
   const salt = "aura-identity-v1";
+  try {
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(emailNorm),
+      { name: "PBKDF2" },
+      false,
+      ["deriveBits"],
+    );
 
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(email.toLowerCase().trim()),
-    { name: "PBKDF2" },
-    false,
-    ["deriveBits"],
-  );
+    const bits = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: encoder.encode(salt),
+        iterations: 1000,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      128,
+    );
 
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt: encoder.encode(salt),
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    128,
-  );
+    const hex = Array.from(new Uint8Array(bits))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
 
-  const hex = Array.from(new Uint8Array(bits))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return `user_${hex}`;
+    return `user_${hex}`;
+  } catch (e) {
+    console.warn("[AURA] Identity derivation failed, using random ID:", e);
+    return `user_err_${Math.random().toString(36).substring(2, 9)}`;
+  }
 }
 
 /**

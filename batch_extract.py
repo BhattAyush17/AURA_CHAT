@@ -163,7 +163,7 @@ def extract_ideology(client, ideology_id: str, chats_dir: str = "./Chats") -> Di
     
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
                 temperature=0.2,
                 max_output_tokens=8192,

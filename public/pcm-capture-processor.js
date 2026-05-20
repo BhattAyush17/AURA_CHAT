@@ -5,8 +5,8 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     this.BUFFER_SIZE = 1024;
     this.noiseFloor = 0.02;
     this.calibrationFrames = 0;
-    this.CALIBRATION_LIMIT = 200;    // tuned for Hindi phonology
-    this.GATE_MULTIPLIER = 1.8;      // lowered for Hindi speech patterns
+    this.CALIBRATION_LIMIT = 200; // tuned for Hindi phonology
+    this.GATE_MULTIPLIER = 1.8; // lowered for Hindi speech patterns
   }
 
   process(inputs) {
@@ -22,10 +22,8 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
 
     // Calibration phase — learn noise floor in first 3 seconds
     if (this.calibrationFrames < this.CALIBRATION_LIMIT) {
-      this.noiseFloor = (
-        (this.noiseFloor * this.calibrationFrames + rms) /
-        (this.calibrationFrames + 1)
-      );
+      this.noiseFloor =
+        (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
       this.calibrationFrames++;
       return true;
     }

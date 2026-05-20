@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: aura-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT
+
+  - type: worker
+    name: aura-consumer
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m backend.bus.consumer
+
+  - type: cron
+    name: memory-consolidation
+    env: python
+    schedule: "0 2 * * *" # Run daily at 2 AM
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m backend.memory.consolidator --all --purge

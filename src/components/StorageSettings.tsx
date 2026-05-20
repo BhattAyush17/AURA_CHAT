@@ -9,16 +9,8 @@
  */
 
 import { useState, useEffect } from "react";
-import { getGeminiKey } from "@/lib/api";
-import {
-  Cloud,
-  Key,
-  CheckCircle,
-  Zap,
-  ChevronDown,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { getGeminiKey, getOpenRouterKey } from "@/lib/api";
+import { Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { setCredential, hasRequiredCredentials } from "@/lib/credentials";
 import { loadSyncMeta, SyncMeta } from "@/lib/sync-meta";
 import { SupabaseConnect } from "@/components/SupabaseConnect";
@@ -37,6 +29,16 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
   const [geminiKey, setGeminiKeyLocal] = useState("");
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
+
+  const [openRouterKey, setOpenRouterKeyLocal] = useState("");
+  const [openRouterKeySaved, setOpenRouterKeySaved] = useState(false);
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
+
+  const [sarvamKey, setSarvamKeyLocal] = useState("");
+  const [sarvamKeySaved, setSarvamKeySaved] = useState(false);
+  const [showSarvamKey, setShowSarvamKey] = useState(false);
+
+  const [voiceLanguage, setVoiceLanguageLocal] = useState("en-US");
 
   // Cloud sync state
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
@@ -68,6 +70,24 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
     if (savedKey) {
       setGeminiKeyLocal(savedKey);
       setGeminiKeySaved(true);
+    }
+
+    // Load OpenRouter key
+    const savedORKey = getOpenRouterKey();
+    if (savedORKey) {
+      setOpenRouterKeyLocal(savedORKey);
+      setOpenRouterKeySaved(true);
+    }
+
+    // Load voice language setting
+    const savedLang = localStorage.getItem("aura_voice_language") || "en-US";
+    setVoiceLanguageLocal(savedLang);
+
+    // Load Sarvam key
+    const savedSarvamKey = sessionStorage.getItem("aura_sarvam_api_key") || "";
+    if (savedSarvamKey) {
+      setSarvamKeyLocal(savedSarvamKey);
+      setSarvamKeySaved(true);
     }
 
     // Load cloud sync state
@@ -125,6 +145,31 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       if (onClose) onClose();
     }, 1500);
     setGeminiKeySaved(true);
+  };
+
+  const handleSaveOpenRouterKey = () => {
+    if (!openRouterKey.trim()) {
+      sessionStorage.setItem("aura_openrouter_api_key", "");
+      setOpenRouterKeySaved(false);
+      return;
+    }
+    sessionStorage.setItem("aura_openrouter_api_key", openRouterKey.trim());
+    setOpenRouterKeySaved(true);
+  };
+
+  const handleSaveLanguage = (lang: string) => {
+    setVoiceLanguageLocal(lang);
+    localStorage.setItem("aura_voice_language", lang);
+  };
+
+  const handleSaveSarvamKey = () => {
+    if (!sarvamKey.trim()) {
+      sessionStorage.setItem("aura_sarvam_api_key", "");
+      setSarvamKeySaved(false);
+      return;
+    }
+    sessionStorage.setItem("aura_sarvam_api_key", sarvamKey.trim());
+    setSarvamKeySaved(true);
   };
 
   const handleSupabaseConnected = () => {
@@ -224,6 +269,160 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1B: OPENROUTER API KEY & VOICE LANGUAGE (OPTIONAL) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="p-5 bg-muted/20 rounded-lg border border-border space-y-4">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-semibold text-foreground">
+            🚀 OpenRouter API Key
+            <span className="ml-2 text-muted-foreground text-xs font-normal">OPTIONAL</span>
+          </label>
+          {openRouterKeySaved && (
+            <span className="text-xs text-foreground flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Allows you to test fully free, multilingual voice models (Llama 3, Gemma 2, Grok) with
+          offline browser text-to-speech.
+        </p>
+
+        <div className="relative">
+          <input
+            type={showOpenRouterKey ? "text" : "password"}
+            placeholder="Enter your OpenRouter API key..."
+            value={openRouterKey}
+            onChange={(e) => setOpenRouterKeyLocal(e.target.value)}
+            disabled={openRouterKeySaved}
+            className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showOpenRouterKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {!openRouterKeySaved ? (
+          <button
+            onClick={handleSaveOpenRouterKey}
+            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full"
+          >
+            ✓ Save OpenRouter Key
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setOpenRouterKeySaved(false);
+              setOpenRouterKeyLocal(openRouterKey);
+            }}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full"
+          >
+            Edit Key
+          </button>
+        )}
+
+        {/* Dynamic Multilingual Voice Selector */}
+        <div className="border-t border-border/40 pt-4 space-y-2">
+          <label className="text-sm font-semibold text-foreground block">
+            🗣️ Speech Locale / Language
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Sets the listening (STT) and speaking (TTS) language for the OpenRouter Voice Node.
+          </p>
+          <select
+            value={voiceLanguage}
+            onChange={(e) => handleSaveLanguage(e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:border-foreground"
+          >
+            <option value="en-US">English (United States)</option>
+            <option value="hi-IN">Hindi (भारत / India)</option>
+            <option value="es-ES">Spanish (España)</option>
+            <option value="fr-FR">French (France)</option>
+            <option value="de-DE">German (Deutschland)</option>
+            <option value="ja-JP">Japanese (日本)</option>
+            <option value="it-IT">Italian (Italia)</option>
+            <option value="ru-RU">Russian (Россия)</option>
+            <option value="zh-CN">Chinese (Simplified)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1C: SARVAM AI API KEY (FOR SARVAM PROVIDER) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="p-5 bg-muted/20 rounded-lg border border-border space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-semibold text-foreground">
+            🇮🇳 Sarvam AI API Key
+            <span className="ml-2 text-muted-foreground text-xs font-normal">
+              FOR SARVAM PROVIDER
+            </span>
+          </label>
+          {sarvamKeySaved && (
+            <span className="text-xs text-foreground flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Required when using the Sarvam provider for high-fidelity Indian-language STT/TTS. Get
+          your key at{" "}
+          <a
+            href="https://www.sarvam.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline hover:text-foreground/80"
+          >
+            sarvam.ai
+          </a>
+          . Also requires an OpenRouter key above for LLM inference.
+        </p>
+
+        <div className="relative">
+          <input
+            type={showSarvamKey ? "text" : "password"}
+            placeholder="Enter your Sarvam API key..."
+            value={sarvamKey}
+            onChange={(e) => setSarvamKeyLocal(e.target.value)}
+            disabled={sarvamKeySaved}
+            className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowSarvamKey(!showSarvamKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showSarvamKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {!sarvamKeySaved ? (
+          <button
+            onClick={handleSaveSarvamKey}
+            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full"
+          >
+            ✓ Save Sarvam Key
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setSarvamKeySaved(false);
+              setSarvamKeyLocal(sarvamKey);
+            }}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full"
+          >
+            Edit Key
+          </button>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
       {/* SECTION 2: BROWSER STORAGE STATUS */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="p-5 bg-muted/30 rounded-lg border border-border space-y-3">
@@ -256,8 +455,8 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
           <div className="flex items-center gap-2">
             <Cloud className="w-4 h-4 group-hover:text-foreground transition-colors" />
             <span className="text-xs text-foreground">
-              <strong>Tip:</strong> For seamless connectivity across devices, click here to add
-              your Supabase credentials.
+              <strong>Tip:</strong> For seamless connectivity across devices, click here to add your
+              Supabase credentials.
             </span>
           </div>
           <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -267,10 +466,11 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       {/* Cloud Sync Section - Show by default after 5 conversations, or if already enabled */}
       {(showCloudSyncSection || cloudSyncEnabled) && (
         <div
-          className={`p-5 rounded-lg border transition-all space-y-4 ${showCloudPrompt
+          className={`p-5 rounded-lg border transition-all space-y-4 ${
+            showCloudPrompt
               ? "bg-muted/20 border-foreground shadow-sm"
               : "bg-muted/10 border-border"
-            }`}
+          }`}
         >
           {/* Header */}
           <div className="flex items-start justify-between">
