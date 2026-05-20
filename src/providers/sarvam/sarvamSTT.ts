@@ -4,7 +4,10 @@
  */
 export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
   const key = sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    console.warn("[Sarvam STT] API Key is missing! Cannot transcribe audio.");
+    return null;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -33,7 +36,8 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
     clearTimeout(timeout);
 
     if (!response.ok) {
-      console.warn("[Sarvam STT] HTTP Error:", response.status, response.statusText);
+      const errText = await response.text().catch(() => "");
+      console.warn(`[Sarvam STT] HTTP Error ${response.status}:`, errText);
       return null;
     }
 
