@@ -76,10 +76,30 @@ AURA strictly partitions its cognitive, sensory, and persistence tasks into **5 
 - **Role:** Retrieves dense historical context.
 - **Execution:** Uses `get_chromadb_enrichment_v2()`. Embeddings are passed against `supabase_client.rpc('match_memories_v2')`, which executes a hybrid ranking algorithm combining vector distance (cosine similarity) with a chronological recency booster.
 
-### Brain 5: Vocabulary & Language Profile (User Lexicon)
+### Brain 5: Vocabulary & Adaptive Toxicity Engine
 
 - **Role:** Detects structural syntax (Hindi vs. English vs. Hinglish). Maintains an ongoing dictionary of user-specific vocabulary, slang, and abusive phrases, pushing explicit tone-matching instructions back to Brain 2.
+- **Toxicity Pipeline:**
+```mermaid
+graph TD
+    A[User Text] --> B[Clean Speech Noise]
+    B --> C[Normalize Transliterations]
+    C --> D[Expand Abbreviations e.g. bsdk]
+    D --> E[Fuzzy Match Profanity]
+    E --> F[Classify Tone & Intent]
+    F -->|Intent: Hostile| G[Chaotic Router: Sarcastic Roast]
+    F -->|Intent: Casual| H[Adaptive Router: Mirror Slang]
+    G --> I[Prompt Injection]
+    H --> I
+```
 
+### Brain 6: General Intelligence Context Layer (Middleware)
+
+- **Role:** Extracts real-world dimensions (Time, Device, Environment) to ground the conversational intelligence.
+- **Components:**
+  - **Device Engine:** Hardware stats (Mic status, battery, connectivity).
+  - **Environment Engine:** Location and temporal acoustic context (e.g. background noise proxy).
+  - **Fallback Engine:** Gracefully catches system collapses and circuit breaker trips, maintaining prompt integrity.
 ---
 
 ## 3. Dynamic Request Turn Flow: Exact Data Lifecycle
