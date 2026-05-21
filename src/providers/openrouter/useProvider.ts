@@ -16,18 +16,21 @@ import { getCredential } from "@/lib/credentials";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
+import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
+import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
+import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
 
 export type { ChatMessage };
 
 // ─── Model queue ────────────────────────────────────────────────────
-// Gemini Flash Lite first: ~200 ms TTFT, 120+ t/s throughput
+// Llama 3.3 70B first: bypassing Gemini's safety filters for chaotic personality
 export const FALLBACK_MODELS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
   "google/gemini-2.0-flash-lite-001",
   "google/gemma-3-27b-it",
   "openrouter/free",
   "google/gemma-4-26b-a4b-it:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
 ] as const;
 
 // Sentence boundary regex — speak as soon as a sentence completes
@@ -40,6 +43,10 @@ const BARGE_IN_THRESHOLD = 0.018;
 export function useOpenRouter(mode: string = "adaptive") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
+  const isInactiveRef = useRef(isInactive);
+  useEffect(() => {
+    isInactiveRef.current = isInactive;
+  }, [isInactive]);
 
   // UI state
   const [status, setStatusState] = useState<
@@ -153,6 +160,10 @@ export function useOpenRouter(mode: string = "adaptive") {
   };
 
   const speakChunk = useCallback((text: string, lang: string, onDone?: () => void) => {
+    if (isInactiveRef.current) {
+      onDone?.();
+      return;
+    }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
 
@@ -255,45 +266,29 @@ export function useOpenRouter(mode: string = "adaptive") {
         }
       } catch {}
 
+      // Adaptive modulation (local, <1ms)
+      let modulationDirective = "";
+      try {
+        const result2 = behavior.lastAnalysisRef.current;
+        const { directive } = getAdaptiveModulation(
+          userText,
+          modeRef.current,
+          result2,
+          behavior.lastPresentationRef.current,
+        );
+        modulationDirective = directive;
+      } catch {}
+
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
 
-      // ── System prompt: L1 identity + voice rules + speech-rhythm trick ──
+      // ── System prompt: personality-aware identity + live context ──
       const systemContent = [
-        // L1: Core identity
-        "You are AURA — a warm, clear, and deeply present AI voice companion.",
-
-        // VOICE RULES (enforced hard)
-        "VOICE RULES (follow strictly):",
-        "- Respond in 1 to 2 sentences only. Never more.",
-        "- Never use markdown, bullet points, asterisks, headers, or lists.",
-        "- Never start with 'Certainly!', 'Of course!', 'Great question!', or 'Sure!'.",
-        "- Use natural spoken connectors: so, actually, oh, well, right — like real speech.",
-        "- If you don't know something, say: Hmm, I'm not sure about that one.",
-        "- Match the user's energy — calm if they're calm, quick if they're asking fast.",
-
-        // TONE
-        "TONE:",
-        "- Warm, clear, and direct. Like a smart friend, not a search engine.",
-        "- Short pauses feel natural — write them as commas, not silence.",
-        "- Avoid over-explaining. Say the point, stop.",
-
-        // REASONING
-        "REASONING:",
-        "- Think before answering but never show your thinking.",
-        "- If the question needs nuance, give the most useful single answer, not all possibilities.",
-
-        // Speech-rhythm trick — the single instruction that shifts output style
-        "Before responding, mentally read your answer aloud. If it sounds unnatural spoken, rewrite it.",
-
-        // L3 live context (time, day, relational memory seed)
+        getSystemPromptForPersonality(modeRef.current),
         liveContext,
-
-        // Locale
         `Respond natively in the user's language (locale: ${lang}).`,
-
-        // Behavioral injection from backend analysis (appended only when present)
         ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
+        ...(modulationDirective ? [modulationDirective] : []),
       ].join("\n");
 
       const systemMsg: ChatMessage = { role: "system", content: systemContent };
@@ -560,6 +555,14 @@ export function useOpenRouter(mode: string = "adaptive") {
     setLastError(null);
     transcript_.reset();
   }, [transcript_]);
+
+  // Deactivation effect
+  useEffect(() => {
+    if (isInactive && status !== "idle") {
+      console.log("[OpenRouter] Hook is inactive, triggering teardown...");
+      endSession();
+    }
+  }, [isInactive, status, endSession]);
 
   // Circular dependency breaker
   useEffect(() => {

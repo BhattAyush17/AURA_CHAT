@@ -66,6 +66,7 @@ const sessionEndInProgress = new Set<string>();
 /* ------------------------------------------------------------------ */
 
 export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr") {
+  const isInactive = mode === "__inactive__";
   const storageManager = getStorageManager();
 
   const deviceId = useMemo(() => {
@@ -317,7 +318,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
         )
         .then((result) => {
           if (result) {
-            behavior.applyBehavioralInjection(result, ws.sessionRef.current);
+            behavior.applyBehavioralInjection(result, ws.sessionRef.current, text, modeRef.current);
             prompts.processAnalysisForL2(result);
           }
         })
@@ -405,6 +406,14 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     isStartingRef.current = false;
   }, [teardownResources, handleSessionEnd, ws, bargeIn, behavior, audio]);
 
+  // Deactivation effect
+  useEffect(() => {
+    if (isInactive && status !== "idle") {
+      console.log("[Gemini Live] Hook is inactive, triggering teardown...");
+      void endSession();
+    }
+  }, [isInactive, status, endSession]);
+
   // ── Start session ───────────────────────────────────────────────
   const startSession = useCallback(async () => {
     if (ws.sessionState.current !== "idle" && ws.sessionState.current !== "error") return;
@@ -440,6 +449,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
         ws.connect({
           voice: voiceRef.current,
           voiceLanguage: voiceLanguageRef.current,
+          personality: modeRef.current,
           setupAudio: async (stream) => {
             return audio.setupAudioGraph(
               stream,
@@ -775,9 +785,15 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
           voiceRef.current = newVoice;
           ws.updateConfig(newVoice);
         }
-        if (newMode) modeRef.current = newMode;
+        if (newMode) {
+          console.log(`[AURA] 🎭 Personality mode shift: ${newMode}`);
+          modeRef.current = newMode;
+          if (ws.sessionState.current === "connected") {
+            endSession().then(() => setTimeout(() => startSession(), 300));
+          }
+        }
       },
-      [ws],
+      [ws, endSession, startSession],
     ),
     backendAvailable,
     updateVoice: useCallback(

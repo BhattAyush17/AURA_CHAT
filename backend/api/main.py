@@ -79,6 +79,7 @@ from backend.core.behavior import RuntimeEngine, build_sensing_injection, detect
 from backend.core.vocab import vocab_learner
 from backend.core.proactive import ProactiveEngine
 from backend.infrastructure.rate_limiter import RateLimiter
+from backend.core.intelligence import composer
 
 # Module-level proactive engine and rate limiter (initialized at startup with Redis client)
 _proactive_engine: ProactiveEngine | None = None
@@ -236,6 +237,7 @@ class AnalyzeResponse(BaseModel):
     memory_enrichment: str = ""
     language_profile: Optional[Dict[str, Any]] = None
     degradation_level: str = "full"
+    intelligence_context: Optional[Dict[str, Any]] = None
 
 class Turn(BaseModel):
     text:           str  = Field(..., max_length=4000)
@@ -572,6 +574,19 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
         vocab_injection = vocab_learner.build_vocab_injection(body.user_id or "anonymous")
         combined_injection = sensing_injection + (vocab_injection or "")
 
+        # ── General Intelligence Context Layer (Middleware) ──
+        client_ip = request.client.host if request.client else None
+        intel_ctx = await composer.get_context(
+            query=body.user_text,
+            ip_address=client_ip,
+            client_device_info={"mic_available": body.audio_rms > 0},
+            session_id=body.session_id
+        )
+        intel_prompt = composer.serialize_to_prompt(intel_ctx)
+        
+        # Prepend intelligence prompt
+        combined_injection = f"{intel_prompt}\n\n{combined_injection}"
+
         # Update result with full combined injection
         result["sensing_injection"] = f"{combined_injection}\n\n{enrichment}"
         instructions = engine.build_instructions(result)
@@ -603,6 +618,7 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
             memory_enrichment=enrichment,
             language_profile=lang_profile,
             degradation_level=level.value,
+            intelligence_context=intel_ctx,
         )
         log.info("analyze_request", session_id=body.session_id, cache_hit=False, degradation_level=level.value, duration_ms=round((time.perf_counter() - t0) * 1000, 2), instruction_length=len(instructions), has_memories=bool(enrichment))
         return resp

@@ -16,7 +16,8 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
     const formData = new FormData();
     // Sarvam REST API supports webm, wav, mp3, ogg, flac, aac, etc.
     // Streaming (WebSocket) API only supports wav/pcm — but we use the REST endpoint here.
-    formData.append("file", audioBlob, "audio.webm");
+    const extension = audioBlob.type === "audio/wav" ? "wav" : "webm";
+    formData.append("file", audioBlob, `audio.${extension}`);
     formData.append(
       "language_code",
       localStorage.getItem("aura_voice_language")?.split("-")[0] === "hi" ? "hi-IN" : "en-IN",

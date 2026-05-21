@@ -11,7 +11,7 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { emitLatency } from "@/components/LatencyMeter";
-import { AURA_SYSTEM_PROMPT } from "@/lib/gemini-prompt";
+import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getGeminiKey } from "@/lib/api";
 import { LIVE_MODELS, isModelRejection, float32ToBase64Pcm, WORKLET_PATH } from "./types";
 import { LiveSession, SessionState, UIStatus, PerfTimings } from "./types";
@@ -49,6 +49,7 @@ export interface GeminiWebSocketAPI {
   connect: (opts: {
     voice: string;
     voiceLanguage: string;
+    personality?: string;
     setupAudio: (stream: MediaStream) => Promise<AudioContext>;
     onOpen: (session: LiveSession, audioContext: AudioContext, stream: MediaStream) => void;
     messageCallbacks: GeminiMessageCallbacks;
@@ -159,6 +160,7 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
     async (opts?: {
       voice: string;
       voiceLanguage: string;
+      personality?: string;
       setupAudio: (stream: MediaStream) => Promise<AudioContext>;
       onOpen: (session: LiveSession, audioContext: AudioContext, stream: MediaStream) => void;
       messageCallbacks: GeminiMessageCallbacks;
@@ -261,7 +263,7 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                   silenceDurationMs: 500,
                 },
               },
-              systemInstruction: { parts: [{ text: AURA_SYSTEM_PROMPT }] },
+              systemInstruction: { parts: [{ text: getSystemPromptForPersonality(activeOpts.personality) }] },
               tools: [
                 {
                   functionDeclarations: [

@@ -5,7 +5,7 @@
  */
 export async function generateSpeech(
   text: string,
-  speaker: string = "anushka",
+  speaker: string = "priya",
 ): Promise<string | null> {
   const key = sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY;
   if (!key) {
@@ -20,17 +20,12 @@ export async function generateSpeech(
     const langCode =
       localStorage.getItem("aura_voice_language")?.split("-")[0] === "hi" ? "hi-IN" : "en-IN";
 
-    // Support both modern "text" and legacy "inputs" schemas in a single payload
     const payload = {
-      inputs: [text],
       text: text,
       target_language_code: langCode,
       speaker,
       model: "bulbul:v3",
       pace: 1.1,
-      loudness: 1.0,
-      speech_sample_rate: 22050,
-      enable_preprocessing: true,
     };
 
     const response = await fetch("https://api.sarvam.ai/text-to-speech", {

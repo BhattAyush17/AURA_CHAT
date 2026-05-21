@@ -16,18 +16,20 @@ import { getCredential } from "@/lib/credentials";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
+import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import { transcribeAudio } from "./sarvamSTT";
 import { generateSpeech } from "./sarvamTTS";
 
 // ─── Model queue ────────────────────────────────────────────────────
-// Gemini Flash Lite first: ~200 ms TTFT, 120+ t/s throughput
+// Llama 3.3 70B first: bypassing Gemini's safety filters for chaotic personality
 export const FALLBACK_MODELS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
   "google/gemini-2.0-flash-lite-001",
   "google/gemma-3-27b-it",
   "openrouter/free",
   "google/gemma-4-26b-a4b-it:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
 ] as const;
 
 // Sentence boundary regex — speak as soon as a sentence completes
@@ -36,19 +38,118 @@ const SENTENCE_END = /[^.!?\n]+[.!?\n]+/g;
 // Barge-in: fire if microphone RMS crosses this threshold while AURA speaks
 const BARGE_IN_THRESHOLD = 0.018;
 
+// Downsample PCM buffer to a target rate (e.g. 16kHz)
+function downsampleBuffer(buffer: Float32Array, inputSampleRate: number, outputSampleRate: number): Float32Array {
+  if (inputSampleRate === outputSampleRate) {
+    return buffer;
+  }
+  const sampleRateRatio = inputSampleRate / outputSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+    let accum = 0;
+    let count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+      accum += buffer[i];
+      count++;
+    }
+    result[offsetResult] = count > 0 ? accum / count : 0;
+    offsetResult++;
+    offsetBuffer = nextOffsetBuffer;
+  }
+  return result;
+}
+
+// Encode Float32Array PCM samples to a 16-bit mono WAV Blob
+function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  /* RIFF identifier */
+  writeString(view, 0, "RIFF");
+  /* file length */
+  view.setUint32(4, 36 + samples.length * 2, true);
+  /* RIFF type */
+  writeString(view, 8, "WAVE");
+  /* format chunk identifier */
+  writeString(view, 12, "fmt ");
+  /* format chunk length */
+  view.setUint32(16, 16, true);
+  /* sample format (raw PCM = 1) */
+  view.setUint16(20, 1, true);
+  /* channel count (mono = 1) */
+  view.setUint16(22, 1, true);
+  /* sample rate */
+  view.setUint32(24, sampleRate, true);
+  /* byte rate (sample rate * block align) */
+  view.setUint32(28, sampleRate * 2, true);
+  /* block align (channel count * bytes per sample) */
+  view.setUint16(32, 2, true);
+  /* bits per sample (16) */
+  view.setUint16(34, 16, true);
+  /* data chunk identifier */
+  writeString(view, 36, "data");
+  /* data chunk length */
+  view.setUint32(40, samples.length * 2, true);
+
+  // Write PCM audio samples
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return new Blob([view], { type: "audio/wav" });
+}
+
 // ─── Hook ───────────────────────────────────────────────────────────
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
+  const isInactiveRef = useRef(isInactive);
+  useEffect(() => {
+    isInactiveRef.current = isInactive;
+  }, [isInactive]);
 
   const voiceToSpeaker: Record<string, string> = {
-    Puck: "anushka",
-    Fenrir: "arvind",
-    Kore: "namrata",
-    Charon: "darshan",
-    Aoede: "kavya",
+    // ── Bulbul v3 native voices ──
+    // Female
+    Priya:  "priya",
+    Kavya:  "kavya",
+    Neha:   "neha",
+    Shreya: "shreya",
+    Ritu:   "ritu",
+    // Male
+    Shubh:  "shubh",
+    Aditya: "aditya",
+    Rahul:  "rahul",
+    Dev:    "dev",
+    Rohan:  "rohan",
+    // ── Legacy Gemini aliases (backward compat) ──
+    Puck:   "priya",
+    Fenrir: "aditya",
+    Kore:   "neha",
+    Charon: "dev",
+    Aoede:  "kavya",
   };
-  const speaker = voiceToSpeaker[voice] || "anushka";
+  const speaker = voiceToSpeaker[voice] || "priya";
+
+  // ── R08 FIX: Use a ref so speakChunk always reads the LATEST speaker,
+  // even when called from stale closures captured by a running recognition session.
+  const speakerRef = useRef(speaker);
+  useEffect(() => {
+    speakerRef.current = speaker;
+    console.log(`[Sarvam] 🔊 Voice updated → speaker: ${speaker}`);
+  }, [speaker]);
 
   // UI state
   const [status, setStatusState] = useState<
@@ -78,8 +179,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const fetchAbortRef = useRef<AbortController | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const fallbackTranscriptRef = useRef<string>("");
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<BlobPart[]>([]);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const pcmSamplesRef = useRef<Float32Array[]>([]);
+  const isRecordingRef = useRef<boolean>(false);
   const recordingStartTimeRef = useRef<number>(0);
 
   // Identity
@@ -175,6 +277,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   const speakChunkNative = useCallback(
     (text: string, lang: string, onDone?: () => void) => {
+      if (isInactiveRef.current) {
+        onDone?.();
+        return;
+      }
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
 
@@ -207,7 +313,15 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   const speakChunk = useCallback(
     async (text: string, lang: string, onDone?: () => void) => {
-      const base64 = await generateSpeech(text, speaker);
+      if (isInactiveRef.current) {
+        onDone?.();
+        return;
+      }
+      // R08 FIX: Read from ref so we always use the LATEST selected speaker,
+      // even when this callback was captured by a stale closure.
+      const currentSpeaker = speakerRef.current;
+      console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker}`);
+      const base64 = await generateSpeech(text, currentSpeaker);
       if (!base64 || !audioCtxRef.current) {
         speakChunkNative(text, lang, onDone);
         return;
@@ -241,7 +355,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         speakChunkNative(text, lang, onDone);
       }
     },
-    [speakChunkNative, setStatus, speaker],
+    [speakChunkNative, setStatus],
   );
 
   // NOTE: Sentence queue is drained inline inside processTurn's tryStartTTS.
@@ -282,6 +396,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     }
   };
 
+  // ── Depth detection — decides if user wants a long, detailed answer ──
+  const DEPTH_TRIGGERS = /\b(explain|detail|describe|elaborate|tell me (about|more)|how does|why does|what is|what are|can you (explain|describe|tell)|in depth|in detail|go on|keep going|continue|feelings?|feel about|think about|meaning of|history of|story|experience|share|express|opinion|perspective|explore|walk me through|break it down|deep dive)\b/i;
+
+  const detectResponseDepth = (text: string): "deep" | "normal" => {
+    // Long user messages (20+ words) often expect longer replies
+    const wordCount = text.trim().split(/\s+/).length;
+    if (DEPTH_TRIGGERS.test(text)) return "deep";
+    if (wordCount >= 20) return "deep";
+    // Questions with "why" or "how" tend to need fuller answers
+    if (/^(why|how)\b/i.test(text.trim())) return "deep";
+    return "normal";
+  };
+
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string) => {
@@ -318,45 +445,37 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
       } catch {}
 
+      // Adaptive modulation (local, <1ms)
+      let modulationDirective = "";
+      try {
+        const result2 = behavior.lastAnalysisRef.current;
+        const { directive } = getAdaptiveModulation(
+          userText,
+          modeRef.current,
+          result2,
+          behavior.lastPresentationRef.current,
+        );
+        modulationDirective = directive;
+      } catch {}
+
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
 
-      // ── System prompt: L1 identity + voice rules + speech-rhythm trick ──
+      // ── Depth-aware response sizing ──────────────────────────────
+      const responseDepth = detectResponseDepth(userText);
+      const depthDirective = responseDepth === "deep"
+        ? "[RESPONSE LENGTH]: The user is asking for depth, explanation, or emotional expression. Respond with AT LEAST 5-6 full sentences. Be thorough, expressive, and complete. Do NOT cut short — give the user the full answer they're asking for."
+        : "";
+      const tokenLimit = responseDepth === "deep" ? 400 : 100;
+
+      // ── System prompt: personality-aware identity + live context ──
       const systemContent = [
-        // L1: Core identity
-        "You are AURA — a warm, clear, and deeply present AI voice companion.",
-
-        // VOICE RULES (enforced hard)
-        "VOICE RULES (follow strictly):",
-        "- Respond in 1 to 2 sentences only. Never more.",
-        "- Never use markdown, bullet points, asterisks, headers, or lists.",
-        "- Never start with 'Certainly!', 'Of course!', 'Great question!', or 'Sure!'.",
-        "- Use natural spoken connectors: so, actually, oh, well, right — like real speech.",
-        "- If you don't know something, say: Hmm, I'm not sure about that one.",
-        "- Match the user's energy — calm if they're calm, quick if they're asking fast.",
-
-        // TONE
-        "TONE:",
-        "- Warm, clear, and direct. Like a smart friend, not a search engine.",
-        "- Short pauses feel natural — write them as commas, not silence.",
-        "- Avoid over-explaining. Say the point, stop.",
-
-        // REASONING
-        "REASONING:",
-        "- Think before answering but never show your thinking.",
-        "- If the question needs nuance, give the most useful single answer, not all possibilities.",
-
-        // Speech-rhythm trick — the single instruction that shifts output style
-        "Before responding, mentally read your answer aloud. If it sounds unnatural spoken, rewrite it.",
-
-        // L3 live context (time, day, relational memory seed)
+        getSystemPromptForPersonality(modeRef.current),
         liveContext,
-
-        // Locale
         `Respond natively in the user's language (locale: ${lang}).`,
-
-        // Behavioral injection from backend analysis (appended only when present)
         ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
+        ...(modulationDirective ? [modulationDirective] : []),
+        ...(depthDirective ? [depthDirective] : []),
       ].join("\n");
 
       const systemMsg: ChatMessage = { role: "system", content: systemContent };
@@ -393,11 +512,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             body: JSON.stringify({
               model: modelToTry,
               messages: [systemMsg, ...messagesForApi],
-              stream: true, // First word spoken ~600 ms
-              temperature: 0.7, // Natural word choice, not stiff
-              max_tokens: 80, // Hard cap — forces 1-2 sentence answers
-              top_p: 0.9, // Keeps responses focused
-              frequency_penalty: 0.5, // Stops repetitive phrasing
+              stream: true,           // First word spoken ~600 ms
+              temperature: 0.7,       // Natural word choice, not stiff
+              max_tokens: tokenLimit,  // Dynamic: 100 for casual, 400 for depth
+              top_p: 0.9,             // Keeps responses focused
+              frequency_penalty: 0.5,  // Stops repetitive phrasing
             }),
           });
 
@@ -563,80 +682,114 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     recognition.interimResults = false;
     recognition.lang = lang;
 
-    if (micStreamRef.current) {
-      const mr = new MediaRecorder(micStreamRef.current);
-      mediaRecorderRef.current = mr;
+    // Custom WAV Recording stop/process logic
+    const handleStopRecording = async () => {
+      isRecordingRef.current = false;
+      const sp = scriptProcessorRef.current;
+      if (sp) {
+        try {
+          sp.disconnect();
+        } catch {}
+        scriptProcessorRef.current = null;
+      }
 
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
+      const duration = Date.now() - (recordingStartTimeRef.current || 0);
+      const samples = pcmSamplesRef.current;
+      pcmSamplesRef.current = [];
 
-      mr.onstop = async () => {
-        const duration = Date.now() - (recordingStartTimeRef.current || 0);
-        if (audioChunksRef.current.length === 0 || duration < 600) {
-          audioChunksRef.current = [];
-          if (isSessionActiveRef.current) {
-            setStatus("listening");
-            setWords("Listening...");
-            setTimeout(() => {
-              if (isSessionActiveRef.current && recognitionRef.current) {
-                try {
-                  recognitionRef.current.start();
-                } catch {}
-              }
-            }, 300);
-          }
-          return;
-        }
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        audioChunksRef.current = [];
+      // Calculate total sample count
+      let totalLength = 0;
+      for (const chunk of samples) {
+        totalLength += chunk.length;
+      }
 
-        const transcript = await transcribeAudio(blob);
-        const finalText = transcript || fallbackTranscriptRef.current;
-
-        // R05 FIX: If both Sarvam STT and browser STT returned empty,
-        // show feedback instead of silently going idle
-        if (!finalText.trim()) {
-          setWords("Couldn't hear that, try again...");
+      if (totalLength === 0 || duration < 600) {
+        if (isSessionActiveRef.current) {
           setStatus("listening");
-          // Auto-restart recognition after a brief delay
+          setWords("Listening...");
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
               try {
                 recognitionRef.current.start();
               } catch {}
             }
-          }, 500);
-          return;
+          }, 300);
         }
+        return;
+      }
 
-        setStatus("thinking");
-        setWords(finalText);
-        behavior.fireSpeculative(finalText, sessionIdRef.current, userIdRef.current);
-        await processTurn(finalText, key, lang);
-      };
-    }
+      // Merge Float32Array samples
+      const merged = new Float32Array(totalLength);
+      let offset = 0;
+      for (const chunk of samples) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Downsample and encode to WAV
+      const ctx = audioCtxRef.current;
+      const inputSampleRate = ctx ? ctx.sampleRate : 48000;
+      const downsampled = downsampleBuffer(merged, inputSampleRate, 16000);
+      const wavBlob = encodeWAV(downsampled, 16000);
+
+      const transcript = await transcribeAudio(wavBlob);
+      const finalText = transcript || fallbackTranscriptRef.current;
+
+      // If both Sarvam STT and browser STT returned empty,
+      // show feedback instead of silently going idle
+      if (!finalText.trim()) {
+        setWords("Couldn't hear that, try again...");
+        setStatus("listening");
+        // Auto-restart recognition after a brief delay
+        setTimeout(() => {
+          if (isSessionActiveRef.current && recognitionRef.current) {
+            try {
+              recognitionRef.current.start();
+            } catch {}
+          }
+        }, 500);
+        return;
+      }
+
+      setStatus("thinking");
+      setWords(finalText);
+      behavior.fireSpeculative(finalText, sessionIdRef.current, userIdRef.current);
+      await processTurn(finalText, key, lang);
+    };
 
     recognition.onstart = () => {
       setStatus("listening");
       setWords("Listening...");
-      audioChunksRef.current = [];
+      pcmSamplesRef.current = [];
       fallbackTranscriptRef.current = "";
       recordingStartTimeRef.current = Date.now();
-      // R08 FIX: Only start MediaRecorder if it's in inactive state
-      const mr = mediaRecorderRef.current;
-      if (mr && mr.state === "inactive") {
+
+      const ctx = audioCtxRef.current;
+      if (ctx && micAnalyserRef.current) {
         try {
-          mr.start(100);
-        } catch {}
+          if (scriptProcessorRef.current) {
+            scriptProcessorRef.current.disconnect();
+          }
+          const sp = ctx.createScriptProcessor(4096, 1, 1);
+          sp.onaudioprocess = (e) => {
+            if (isRecordingRef.current) {
+              const input = e.inputBuffer.getChannelData(0);
+              pcmSamplesRef.current.push(new Float32Array(input));
+            }
+          };
+          micAnalyserRef.current.connect(sp);
+          sp.connect(ctx.destination);
+          scriptProcessorRef.current = sp;
+          isRecordingRef.current = true;
+        } catch (err) {
+          console.warn("[Sarvam STT] Could not start WAV recording:", err);
+        }
       }
     };
 
     recognition.onresult = (event: any) => {
       fallbackTranscriptRef.current = event.results[0][0].transcript;
-      try {
-        mediaRecorderRef.current?.stop();
-      } catch {}
+      handleStopRecording();
     };
 
     recognition.onerror = (event: any) => {
@@ -650,11 +803,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       } else {
         setStatus("idle");
       }
-      // R05 FIX: Clear audio chunks on error to prevent transcribing silent/empty audio
-      audioChunksRef.current = [];
-      try {
-        mediaRecorderRef.current?.stop();
-      } catch {}
+      pcmSamplesRef.current = [];
+      handleStopRecording();
     };
 
     recognition.onend = () => {
@@ -677,15 +827,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
-    // Clean up MediaRecorder to prevent orphaned recording
-    // R05 FIX: Clear audio chunks BEFORE stopping recorder to prevent trigger-on-stop transcription
-    audioChunksRef.current = [];
-    if (mediaRecorderRef.current) {
+    
+    isRecordingRef.current = false;
+    pcmSamplesRef.current = [];
+    if (scriptProcessorRef.current) {
       try {
-        if (mediaRecorderRef.current.state !== "inactive") mediaRecorderRef.current.stop();
+        scriptProcessorRef.current.disconnect();
       } catch {}
-      mediaRecorderRef.current = null;
+      scriptProcessorRef.current = null;
     }
+    
     behavior.resetSpeculative();
     transcript_.reset();
     userIdRef.current = "local-user";
@@ -699,6 +850,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     setLastError(null);
     transcript_.reset();
   }, [transcript_]);
+
+  // Deactivation effect
+  useEffect(() => {
+    if (isInactive && status !== "idle") {
+      console.log("[Sarvam] Hook is inactive, triggering teardown...");
+      endSession();
+    }
+  }, [isInactive, status, endSession]);
 
   // Circular dependency breaker
   useEffect(() => {

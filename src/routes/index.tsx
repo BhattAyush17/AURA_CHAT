@@ -64,9 +64,16 @@ function AuraExperience() {
       | "sarvam";
     if (savedBrain === "gemini" || savedBrain === "openrouter" || savedBrain === "sarvam") {
       setActiveBrain(savedBrain);
+      // Set appropriate default voice for saved brain
+      if (savedBrain === "sarvam") setSelectedVoice("Priya");
     }
     setHasOpenRouterKey(!!getOpenRouterKey());
   }, []);
+
+  // Reset to a sensible default voice when switching brains
+  useEffect(() => {
+    setSelectedVoice(activeBrain === "sarvam" ? "Priya" : "Puck");
+  }, [activeBrain]);
 
   // Check for local-only memory warning
   useEffect(() => {
@@ -86,11 +93,18 @@ function AuraExperience() {
   const VOICE_OPTIONS =
     activeBrain === "sarvam"
       ? [
-          { id: "Puck", label: "Puck (Anushka)", desc: "Warm & clear female" },
-          { id: "Fenrir", label: "Fenrir (Arvind)", desc: "Bold & confident male" },
-          { id: "Kore", label: "Kore (Namrata)", desc: "Calm & steady female" },
-          { id: "Charon", label: "Charon (Darshan)", desc: "Smooth & deep male" },
-          { id: "Aoede", label: "Aoede (Kavya)", desc: "Soft & gentle female" },
+          // ── Female ──
+          { id: "Priya",  label: "Priya",  desc: "Warm & expressive ♀" },
+          { id: "Kavya",  label: "Kavya",  desc: "Soft & gentle ♀" },
+          { id: "Neha",   label: "Neha",   desc: "Calm & soothing ♀" },
+          { id: "Shreya", label: "Shreya", desc: "Bright & energetic ♀" },
+          { id: "Ritu",   label: "Ritu",   desc: "Clear & professional ♀" },
+          // ── Male ──
+          { id: "Shubh",  label: "Shubh",  desc: "Natural & balanced ♂" },
+          { id: "Aditya", label: "Aditya", desc: "Deep & confident ♂" },
+          { id: "Rahul",  label: "Rahul",  desc: "Friendly & casual ♂" },
+          { id: "Dev",    label: "Dev",    desc: "Bold & authoritative ♂" },
+          { id: "Rohan",  label: "Rohan",  desc: "Smooth & composed ♂" },
         ]
       : [
           { id: "Puck", label: "Puck", desc: "Warm & clear" },
@@ -359,7 +373,7 @@ function AuraExperience() {
             value={personality}
             onChange={(p) => {
               setPersonality(p);
-              if (status === "listening" && activeBrain === "gemini" && updateConfig) {
+              if ((status === "listening" || status === "speaking" || status === "thinking") && updateConfig) {
                 updateConfig(undefined, p);
               }
             }}
@@ -396,7 +410,7 @@ function AuraExperience() {
                     animate={{ opacity: 1, y: 0, scaleY: 1 }}
                     exit={{ opacity: 0, y: -4, scaleY: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute z-10 mt-2 w-full origin-top overflow-y-auto max-h-[140px] custom-scrollbar overscroll-contain rounded-2xl border border-border bg-background/95 backdrop-blur-md shadow-lg"
+                    className="absolute z-10 mt-2 w-full origin-top overflow-y-auto max-h-[320px] custom-scrollbar overscroll-contain rounded-2xl border border-border bg-background/95 backdrop-blur-md shadow-lg"
                   >
                     {VOICE_OPTIONS.map((v) => (
                       <button

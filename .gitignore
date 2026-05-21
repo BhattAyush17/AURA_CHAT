@@ -74,8 +74,4 @@ copy_files.sh
 .github/
 
 # System Documentation & Logs
-docs/
-*.md
-!README.md
-
-
+# (Removed docs/ and *.md so documentation can be tracked)

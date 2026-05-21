@@ -37,6 +37,7 @@ from backend.bus.redis import (
     CONSUMER_GROUP,
     write_cached_analysis,
 )
+from backend.personality.toxicity_engine import process_toxicity_pipeline
 from backend.core.behavior import (
     RuntimeEngine,
     build_sensing_injection,
@@ -47,6 +48,7 @@ from backend.memory.sync import get_chromadb_enrichment, get_chromadb_enrichment
 from backend.core.vocab import VocabLearner, set_vocab_learner_clients
 from backend.core.relationship import RelationshipTracker
 from backend.infrastructure.embedding_cache import EmbeddingCache
+from backend.core.intelligence import composer
 from google import genai
 from google.genai import types
 
@@ -329,6 +331,7 @@ async def _process_turn(engine: RuntimeEngine, fields: dict, redis_client=None) 
     seed = payload.get("seed", "")
     frustration_score = float(payload.get("frustration_score", 0.0))
     withdrawal_score = float(payload.get("withdrawal_score", 0.0))
+    personality_mode = payload.get("personality_mode", "adaptive")
 
     # ── Step 1: Keyword + Emotional Routing (existing RuntimeEngine) ──
     result = engine.analyze(user_text, ideology_hint, user_initiated)
@@ -383,6 +386,31 @@ async def _process_turn(engine: RuntimeEngine, fields: dict, redis_client=None) 
 
     vocab_injection = learner.build_vocab_injection(user_id)
     combined_injection = sensing_injection + (vocab_injection or "")
+
+    # ── General Intelligence Context Layer (Middleware) ──
+    intel_ctx = await composer.get_context(
+        query=user_text,
+        client_device_info={"mic_available": audio_rms > 0},
+        session_id=session_id
+    )
+    intel_prompt = composer.serialize_to_prompt(intel_ctx)
+    
+    # Prepend intelligence prompt
+    combined_injection = f"{intel_prompt}\n\n{combined_injection}"
+
+    # ── Personality & Toxicity Pipeline (Middleware) ──
+    toxicity_result = process_toxicity_pipeline(user_text, session_id=session_id, mode=personality_mode)
+    if toxicity_result.get("toxicity_detected"):
+        personality_prompt = (
+            f"[PERSONALITY OVERRIDE]\n"
+            f"Mode: {toxicity_result.get('personality_mode')}\n"
+            f"Intent: {toxicity_result.get('intent')}\n"
+            f"Style: {toxicity_result.get('response_style')}\n"
+            f"User Slang Profile: {', '.join(toxicity_result.get('user_custom_slang', []))}\n"
+            f"Matched Terms: {', '.join(toxicity_result.get('matched_terms', []))}\n"
+            f"[/PERSONALITY OVERRIDE]"
+        )
+        combined_injection = f"{combined_injection}\n\n{personality_prompt}"
 
     # ── Step 4.5: Memory Retrieval (MOVED OFF HOT PATH — was in server.py) ──
     # Uses match_memories_v2 for hybrid semantic + temporal scoring.
@@ -474,6 +502,8 @@ async def _process_turn(engine: RuntimeEngine, fields: dict, redis_client=None) 
         "_processed_by": "brain3",
         "_memory_retrieved_at": time.time(),
         "relationship": rel_injection,
+        "intelligence_context": intel_ctx,
+        "toxicity": toxicity_result,
     }
 
     await write_cached_analysis(session_id, cached_result)
