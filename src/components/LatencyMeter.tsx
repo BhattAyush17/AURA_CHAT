@@ -115,7 +115,7 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
 
   const meta = PROVIDER_META[activeBrain] || PROVIDER_META.gemini;
   const getSarvamKey = () =>
-    sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY || "";
+    sessionStorage.getItem("aura_sarvam_api_key") || "";
 
   const getColor = (value: number, warn: number, crit: number, higherIsBetter = false) => {
     if (higherIsBetter) {

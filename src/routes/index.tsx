@@ -40,7 +40,7 @@ function AuraExperience() {
   // Compute needsSettings dynamically based on the active brain
   // R07 FIX: Sarvam requires BOTH OpenRouter key (LLM) and Sarvam key (STT/TTS)
   const getSarvamKey = () =>
-    sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY || "";
+    sessionStorage.getItem("aura_sarvam_api_key") || "";
   const needsSettings =
     activeBrain === "gemini"
       ? !getGeminiKey()

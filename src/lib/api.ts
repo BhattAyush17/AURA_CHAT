@@ -14,10 +14,6 @@ export const getGeminiKey = () => {
   if (key && key !== "undefined" && key !== "null" && key.trim() !== "") {
     return key;
   }
-  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (envKey && envKey !== "undefined" && envKey !== "null" && envKey.trim() !== "") {
-    return envKey;
-  }
   return null;
 };
 
@@ -25,10 +21,6 @@ export const getOpenRouterKey = () => {
   const key = sessionStorage.getItem("aura_openrouter_api_key");
   if (key && key !== "undefined" && key !== "null" && key.trim() !== "") {
     return key;
-  }
-  const envKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-  if (envKey && envKey !== "undefined" && envKey !== "null" && envKey.trim() !== "") {
-    return envKey;
   }
   return null;
 };

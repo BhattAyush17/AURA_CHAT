@@ -3,7 +3,7 @@
  * Includes a 10s timeout to prevent UI hangs on network issues.
  */
 export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
-  const key = sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY;
+  const key = sessionStorage.getItem("aura_sarvam_api_key");
   if (!key) {
     console.warn("[Sarvam STT] API Key is missing! Cannot transcribe audio.");
     return null;

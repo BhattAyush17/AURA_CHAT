@@ -7,7 +7,7 @@ export async function generateSpeech(
   text: string,
   speaker: string = "priya",
 ): Promise<string | null> {
-  const key = sessionStorage.getItem("aura_sarvam_api_key") || import.meta.env.VITE_SARVAM_API_KEY;
+  const key = sessionStorage.getItem("aura_sarvam_api_key");
   if (!key) {
     console.warn("[Sarvam TTS] API Key is missing! Falling back to browser native TTS.");
     return null;
