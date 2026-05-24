@@ -75,3 +75,11 @@ copy_files.sh
 
 # System Documentation & Logs
 # (Removed docs/ and *.md so documentation can be tracked)
+
+# Test runtime artifacts & explicit test scripts (NEVER commit)
+scripts/results.json
+scripts/test-joyful-passion.sh
+scripts/prompts.txt
+session_state.md
+batch_extract.py
+legacy/

@@ -20,7 +20,7 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
-import { JoyfulPassionSystemPrompt } from "../../modes/JoyfulPassionMode";
+import { JoyfulPassionSystemPrompt, SECRET_ACTIVATION_PHRASE, isJoyfulPassionMode } from "../../modes/JoyfulPassionMode";
 
 export type { ChatMessage };
 
@@ -283,12 +283,23 @@ export function useOpenRouter(mode: string = "adaptive") {
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
 
-      // ── System prompt: personality-aware identity + live context ──
-      const isJoyful = modeRef.current === "joyfulPassion";
-      const basePrompt = isJoyful 
-        ? `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}`
-        : getSystemPromptForPersonality(modeRef.current);
+      // ── Secret Personality Mode Activation ─────────────────────────────
+      let basePrompt = getSystemPromptForPersonality(modeRef.current);
+      let explicitModeActivated = false;
 
+      if (isJoyfulPassionMode) {
+        const userTextLower = userText.toLowerCase().trim();
+
+        if (userTextLower.includes(SECRET_ACTIVATION_PHRASE)) {
+          explicitModeActivated = true;
+          
+          basePrompt += "\n\n" + JoyfulPassionSystemPrompt +
+            "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
+            "Respond in-character immediately to confirm activation.";
+        }
+      }
+
+      // ── System prompt: personality-aware identity + live context ──
       const systemContent = [
         basePrompt,
         liveContext,
@@ -303,8 +314,8 @@ export function useOpenRouter(mode: string = "adaptive") {
       const messagesForApi: ChatMessage[] = newMessages;
 
       // Model failover loop with SSE streaming
-      const modelQueue = isJoyful
-        ? ["meta-llama/llama-3.3-70b-instruct:free"]
+      const modelQueue = explicitModeActivated
+        ? ["deepseek/deepseek-chat"]
         : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
