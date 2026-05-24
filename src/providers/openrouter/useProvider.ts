@@ -20,11 +20,12 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
+import { JoyfulPassionSystemPrompt } from "../../modes/JoyfulPassionMode";
 
 export type { ChatMessage };
 
 // ─── Model queue ────────────────────────────────────────────────────
-// Llama 3.3 70B first: bypassing Gemini's safety filters for chaotic personality
+// DeepSeek V3 first: bypassing Gemini's safety filters for chaotic personality
 export const FALLBACK_MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free",
   "google/gemini-2.0-flash-lite-001",
@@ -283,8 +284,13 @@ export function useOpenRouter(mode: string = "adaptive") {
       const liveContext = prompts.buildContext(modeRef.current);
 
       // ── System prompt: personality-aware identity + live context ──
+      const isJoyful = modeRef.current === "joyfulPassion";
+      const basePrompt = isJoyful 
+        ? `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}`
+        : getSystemPromptForPersonality(modeRef.current);
+
       const systemContent = [
-        getSystemPromptForPersonality(modeRef.current),
+        basePrompt,
         liveContext,
         `Respond natively in the user's language (locale: ${lang}).`,
         ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
@@ -297,7 +303,9 @@ export function useOpenRouter(mode: string = "adaptive") {
       const messagesForApi: ChatMessage[] = newMessages;
 
       // Model failover loop with SSE streaming
-      const modelQueue = [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
+      const modelQueue = isJoyful
+        ? ["meta-llama/llama-3.3-70b-instruct:free"]
+        : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
       let success = false;

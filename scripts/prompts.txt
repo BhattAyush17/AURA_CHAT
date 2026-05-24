@@ -1,0 +1,26 @@
+# ═══════════════════════════════════════════════════════════════
+# 🔥 AURA JoyfulPassion Mode — Test Prompts
+# ═══════════════════════════════════════════════════════════════
+#
+# HOW TO USE:
+#   1. Paste your prompts below (one per block)
+#   2. Separate each prompt with a line: ---
+#   3. Lines starting with # are ignored (comments)
+#   4. Multi-line prompts are supported — everything between
+#      two --- separators counts as one prompt
+#   5. Run:  ./scripts/test-joyful-passion.sh
+#
+# EXAMPLE:
+# ---
+# baby mujhe pyaar se bol na 🥺
+# ---
+# abe chup kar aur kaam kar!
+# ---
+#
+# ═══════════════════════════════════════════════════════════════
+
+---
+baby, aaj mujhe bahut pyaar se bol na... bohot miss kar rahi thi tujhe 🥺
+---
+abe chup kar aur kaam kar apna, bakwas band kar!
+---

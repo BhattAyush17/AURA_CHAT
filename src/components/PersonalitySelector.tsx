@@ -7,12 +7,14 @@ export type PersonalityMode =
   | "philosophical"
   | "caring"
   | "professional"
-  | "latenight";
+  | "latenight"
+  | "joyfulPassion";
 
 interface PersonalitySelectorProps {
   value: PersonalityMode;
   onChange: (p: PersonalityMode) => void;
   disabled?: boolean;
+  activeBrain?: "gemini" | "openrouter" | "sarvam";
 }
 
 const personalities: { id: PersonalityMode; label: string; hint: string }[] = [
@@ -25,12 +27,20 @@ const personalities: { id: PersonalityMode; label: string; hint: string }[] = [
   { id: "latenight", label: "Late Night", hint: "3am · raw" },
   { id: "philosophical", label: "Philosophical", hint: "minimal · introspective" },
   { id: "professional", label: "Professional", hint: "structured · polite" },
+  { id: "joyfulPassion", label: "Joyful Passion", hint: "playful · affectionate" },
 ];
 
-export function PersonalitySelector({ value, onChange, disabled }: PersonalitySelectorProps) {
+export function PersonalitySelector({ value, onChange, disabled, activeBrain }: PersonalitySelectorProps) {
+  const filteredPersonalities = personalities.filter((p) => {
+    if (p.id === "joyfulPassion") {
+      return activeBrain === "openrouter" || activeBrain === "sarvam";
+    }
+    return true;
+  });
+
   return (
     <div className="flex w-full overflow-x-auto rounded-[2rem] border border-border bg-background p-1 hide-scrollbar">
-      {personalities.map((p) => {
+      {filteredPersonalities.map((p) => {
         const active = p.id === value;
         return (
           <button
