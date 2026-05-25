@@ -535,6 +535,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
               currentResponseTextRef.current += text;
             },
             onInputTranscription: (partialText) => {
+              console.log("%c🗣️ USER SAID (Gemini Live): " + partialText, "color: #3b82f6; font-weight: bold; font-size: 13px;");
               handleUserTurn(partialText);
               if (sessionIdRef.current) {
                 behavior.fireSpeculative(partialText, sessionIdRef.current, userIdRef.current);

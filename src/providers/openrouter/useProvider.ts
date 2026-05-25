@@ -76,6 +76,9 @@ export function useOpenRouter(mode: string = "adaptive") {
   const isSpeakingRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
 
+  // Activation state — persists across turns, resets on session end
+  const boundlessModeActiveRef = useRef(false);
+
   // Identity
   const userIdRef = useRef("local-user");
   const sessionIdRef = useRef(`or_${crypto.randomUUID().slice(0, 8)}`);
@@ -284,22 +287,33 @@ export function useOpenRouter(mode: string = "adaptive") {
       const liveContext = prompts.buildContext(modeRef.current);
 
       // ── Secret Personality Mode Activation (Bulletproof) ─────────────────
+      // RULE: The explicit prompt is NEVER auto-injected. The user MUST say
+      // the activation phrase "boundless sexuality" first. Once activated,
+      // it persists for the rest of the session.
       let basePrompt = getSystemPromptForPersonality(modeRef.current);
-      let explicitModeActivated = false;
+      let explicitModeActivated = boundlessModeActiveRef.current;
+      let isFirstActivation = false;
 
-      if (isJoyfulPassionMode && detectActivationPhrase(userText)) {
+      if (!explicitModeActivated && isJoyfulPassionMode && detectActivationPhrase(userText)) {
         explicitModeActivated = true;
+        isFirstActivation = true;
+        boundlessModeActiveRef.current = true;
         console.log(
           "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
           "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
         );
         console.log("[AURA] Boundless Sexuality mode activated — phrase detected in:", userText);
+      }
 
-        basePrompt += "\n\n" + JoyfulPassionSystemPrompt +
-          "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
-          "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
-          "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
-          "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
+      if (explicitModeActivated) {
+        basePrompt += "\n\n" + JoyfulPassionSystemPrompt;
+        if (isFirstActivation) {
+          basePrompt +=
+            "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
+            "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
+            "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
+            "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
+        }
       }
 
       // ── System prompt: personality-aware identity + live context ──
@@ -317,6 +331,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       const messagesForApi: ChatMessage[] = newMessages;
 
       // Model failover loop with SSE streaming
+      // Only route to deepseek when explicit mode is actively triggered
       const modelQueue = explicitModeActivated
         ? ["deepseek/deepseek-chat"]
         : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
@@ -525,6 +540,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     recognition.onresult = async (event: any) => {
       const text = event.results[0][0].transcript;
       if (!text.trim()) return;
+      console.log("%c🗣️ USER SAID (OpenRouter WebSpeech): " + text, "color: #10b981; font-weight: bold; font-size: 13px;");
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
@@ -561,6 +577,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(() => {
     isSessionActiveRef.current = false;
+    boundlessModeActiveRef.current = false; // Reset activation on session end
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();

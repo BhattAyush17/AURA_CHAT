@@ -185,6 +185,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const isRecordingRef = useRef<boolean>(false);
   const recordingStartTimeRef = useRef<number>(0);
 
+  // Activation state — persists across turns, resets on session end
+  const boundlessModeActiveRef = useRef(false);
+
   // Identity
   const userIdRef = useRef("local-user");
   const sessionIdRef = useRef(`or_${crypto.randomUUID().slice(0, 8)}`);
@@ -471,27 +474,33 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // ── System prompt: personality-aware identity + live context ──
       // ── Secret Personality Mode Activation (Bulletproof) ─────────────────
-      let explicitModeActivated = false;
-      const isJoyful = modeRef.current === "joyfulPassion";
-      let basePrompt: string;
+      // RULE: The explicit prompt is NEVER auto-injected. The user MUST say
+      // the activation phrase "boundless sexuality" first. Once activated,
+      // it persists for the rest of the session.
+      let explicitModeActivated = boundlessModeActiveRef.current;
+      let isFirstActivation = false;
+      let basePrompt = getSystemPromptForPersonality(modeRef.current);
 
-      if (isJoyfulPassionMode && detectActivationPhrase(userText)) {
+      if (!explicitModeActivated && isJoyfulPassionMode && detectActivationPhrase(userText)) {
         explicitModeActivated = true;
+        isFirstActivation = true;
+        boundlessModeActiveRef.current = true;
         console.log(
           "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
           "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
         );
         console.log("[AURA/Sarvam] Boundless Sexuality mode activated — phrase detected in:", userText);
+      }
 
-        basePrompt = `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}` +
-          "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
-          "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
-          "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
-          "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
-      } else {
-        basePrompt = isJoyful 
-          ? `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}`
-          : getSystemPromptForPersonality(modeRef.current);
+      if (explicitModeActivated) {
+        basePrompt += "\n\n" + JoyfulPassionSystemPrompt;
+        if (isFirstActivation) {
+          basePrompt +=
+            "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
+            "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
+            "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
+            "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
+        }
       }
 
       const systemContent = [
@@ -509,11 +518,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const messagesForApi: ChatMessage[] = newMessages;
 
       // Model failover loop with SSE streaming
+      // Only route to deepseek when explicit mode is actively triggered
       const modelQueue = explicitModeActivated
         ? ["deepseek/deepseek-chat"]
-        : isJoyful
-          ? ["deepseek/deepseek-chat"]
-          : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
+        : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
       let success = false;
@@ -764,6 +772,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const transcript = await transcribeAudio(wavBlob);
       const finalText = transcript || fallbackTranscriptRef.current;
 
+      console.log("%c🎙️ SARVAM STT DIAGNOSTICS", "color: #8b5cf6; font-weight: bold; font-size: 14px;");
+      console.log("├─ Sarvam Transcribed (saaras:v3):", transcript ? `"${transcript}"` : "[Empty/Failed]");
+      console.log("├─ Fallback (Browser WebSpeech):", fallbackTranscriptRef.current ? `"${fallbackTranscriptRef.current}"` : "[Empty]");
+      console.log("└─ Chosen Final Text:", `%c"${finalText}"`, "color: #8b5cf6; font-weight: bold;");
+
       // If both Sarvam STT and browser STT returned empty,
       // show feedback instead of silently going idle
       if (!finalText.trim()) {
@@ -853,6 +866,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(() => {
     isSessionActiveRef.current = false;
+    boundlessModeActiveRef.current = false; // Reset activation on session end
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
