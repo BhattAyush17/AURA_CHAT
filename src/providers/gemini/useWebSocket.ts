@@ -229,7 +229,13 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 16000,
+            channelCount: 1,
+          },
         });
         const audioContext = await activeOpts.setupAudio(stream);
         const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: "v1beta" } });

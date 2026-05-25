@@ -109,14 +109,44 @@ export function useOpenRouter(mode: string = "adaptive") {
   const setupMicAnalyser = useCallback(async () => {
     if (micAnalyserRef.current) return; // already open
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+          channelCount: 1,
+        },
+      });
       micStreamRef.current = stream;
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(stream);
+
+      // High-pass filter (removes low rumble/hum/AC fan)
+      const highPass = ctx.createBiquadFilter();
+      highPass.type = "highpass";
+      highPass.frequency.value = 80;
+
+      // Low-pass filter (removes high frequency noise like typing)
+      const lowPass = ctx.createBiquadFilter();
+      lowPass.type = "lowpass";
+      lowPass.frequency.value = 8000;
+
+      // Noise gate (cuts audio below threshold)
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -50;
+      compressor.knee.value = 40;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0;
+      compressor.release.value = 0.25;
+
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
-      src.connect(analyser);
+
+      // Chain the filters: Source -> HPF -> LPF -> Compressor -> Analyser
+      src.connect(highPass).connect(lowPass).connect(compressor).connect(analyser);
+
       micAnalyserRef.current = analyser;
     } catch {
       console.warn("[OpenRouter Voice] Could not open mic analyser.");

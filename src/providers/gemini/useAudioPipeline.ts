@@ -245,7 +245,29 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
       outAnalyser.connect(audioContext.destination);
       outputAnalyserRef.current = outAnalyser;
 
-      audioContext.createMediaStreamSource(stream).connect(inAnalyser);
+      const src = audioContext.createMediaStreamSource(stream);
+
+      // High-pass filter (removes low rumble/hum/AC fan)
+      const highPass = audioContext.createBiquadFilter();
+      highPass.type = "highpass";
+      highPass.frequency.value = 80;
+
+      // Low-pass filter (removes high frequency noise like typing)
+      const lowPass = audioContext.createBiquadFilter();
+      lowPass.type = "lowpass";
+      lowPass.frequency.value = 8000;
+
+      // Noise gate (cuts audio below threshold)
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -50;
+      compressor.knee.value = 40;
+      compressor.ratio.value = 12;
+      compressor.attack.value = 0;
+      compressor.release.value = 0.25;
+
+      // Chain the filters: Source -> HPF -> LPF -> Compressor -> Analyser
+      src.connect(highPass).connect(lowPass).connect(compressor).connect(inAnalyser);
+
       nextPlayTimeRef.current = audioContext.currentTime;
 
       // Audio sender with queue
