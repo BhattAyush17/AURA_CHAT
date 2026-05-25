@@ -257,16 +257,8 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
       lowPass.type = "lowpass";
       lowPass.frequency.value = 8000;
 
-      // Noise gate (cuts audio below threshold)
-      const compressor = audioContext.createDynamicsCompressor();
-      compressor.threshold.value = -50;
-      compressor.knee.value = 40;
-      compressor.ratio.value = 12;
-      compressor.attack.value = 0;
-      compressor.release.value = 0.25;
-
-      // Chain the filters: Source -> HPF -> LPF -> Compressor -> Analyser
-      src.connect(highPass).connect(lowPass).connect(compressor).connect(inAnalyser);
+      // Chain the filters: Source -> HPF -> LPF -> Analyser
+      src.connect(highPass).connect(lowPass).connect(inAnalyser);
 
       nextPlayTimeRef.current = audioContext.currentTime;
 

@@ -33,7 +33,7 @@ export function useVoiceAcoustics() {
       rms = Math.sqrt(rms / buf.length);
       
       // Only record samples where there is actual sound (above noise floor)
-      if (rms > 0.01) {
+      if (rms > 0.002) {
         totalRmsRef.current += rms;
         rmsSamplesRef.current++;
         

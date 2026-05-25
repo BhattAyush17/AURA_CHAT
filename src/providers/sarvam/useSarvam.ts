@@ -243,19 +243,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       lowPass.type = "lowpass";
       lowPass.frequency.value = 8000;
 
-      // Noise gate (cuts audio below threshold)
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -50;
-      compressor.knee.value = 40;
-      compressor.ratio.value = 12;
-      compressor.attack.value = 0;
-      compressor.release.value = 0.25;
-
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
 
-      // Chain the filters: Source -> HPF -> LPF -> Compressor -> Analyser
-      src.connect(highPass).connect(lowPass).connect(compressor).connect(analyser);
+      // Chain the filters: Source -> HPF -> LPF -> Analyser
+      src.connect(highPass).connect(lowPass).connect(analyser);
 
       micAnalyserRef.current = analyser;
     } catch {
