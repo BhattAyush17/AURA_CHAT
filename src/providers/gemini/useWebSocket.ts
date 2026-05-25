@@ -260,7 +260,7 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                   startOfSpeechSensitivity: "START_SENSITIVITY_HIGH" as any,
                   endOfSpeechSensitivity: "END_SENSITIVITY_LOW" as any,
                   prefixPaddingMs: 20,
-                  silenceDurationMs: 500,
+                  silenceDurationMs: 1300, // Was 500 — raised to prevent cutting users off mid-thought
                 },
               },
               systemInstruction: { parts: [{ text: getSystemPromptForPersonality(activeOpts.personality) }] },

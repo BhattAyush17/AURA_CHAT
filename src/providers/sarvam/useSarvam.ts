@@ -796,6 +796,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       setStatus("thinking");
       setWords(finalText);
       behavior.fireSpeculative(finalText, sessionIdRef.current, userIdRef.current);
+      // Artificial hold: let the user finish their thought before generating
+      await new Promise((r) => setTimeout(r, 400));
       await processTurn(finalText, key, lang);
     };
 

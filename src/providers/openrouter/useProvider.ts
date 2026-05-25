@@ -544,6 +544,8 @@ export function useOpenRouter(mode: string = "adaptive") {
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
+      // Artificial hold: let the user finish their thought before generating
+      await new Promise((r) => setTimeout(r, 400));
       await processTurn(text, key, lang);
     };
 
