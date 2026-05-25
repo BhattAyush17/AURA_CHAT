@@ -18,6 +18,7 @@ import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
 import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase, detectDeactivationPhrase } from "../../modes/JoyfulPassionMode";
+import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import { transcribeAudio } from "./sarvamSTT";
@@ -171,6 +172,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     statusRef.current = s;
     setStatusState(s);
   }, []);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
 
   // Session control
   const isSessionActiveRef = useRef(false);
@@ -413,9 +416,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     return "normal";
   };
 
-  // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
+  // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
-    async (userText: string, apiKey: string, lang: string) => {
+    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
       setIsThinking(true);
       setStatus("thinking");
       setWords("AURA is perceiving...");
@@ -424,10 +427,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       transcript_.addTurn(userText, true);
       transcript_.turnCountRef.current += 1;
 
-      // Append to OR message buffer
+      // Append to OR message buffer with XML metadata
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: userText },
+        { role: "user", content: audioContextXML + userText },
       ];
       addMessages([{ role: "user", content: userText }]);
 
@@ -734,7 +737,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = lang;
 
     // Custom WAV Recording stop/process logic
@@ -789,11 +792,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       const transcript = await transcribeAudio(wavBlob);
       const finalText = transcript || fallbackTranscriptRef.current;
+      const audioContextXML = stopTrackingAndAnalyze(finalText);
 
       console.log("%c🎙️ SARVAM STT DIAGNOSTICS", "color: #8b5cf6; font-weight: bold; font-size: 14px;");
       console.log("├─ Sarvam Transcribed (saaras:v3):", transcript ? `"${transcript}"` : "[Empty/Failed]");
       console.log("├─ Fallback (Browser WebSpeech):", fallbackTranscriptRef.current ? `"${fallbackTranscriptRef.current}"` : "[Empty]");
       console.log("└─ Chosen Final Text:", `%c"${finalText}"`, "color: #8b5cf6; font-weight: bold;");
+      console.log("%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML, "color: #eab308; font-size: 11px;");
 
       // If both Sarvam STT and browser STT returned empty,
       // show feedback instead of silently going idle
@@ -816,7 +821,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       behavior.fireSpeculative(finalText, sessionIdRef.current, userIdRef.current);
       // Artificial hold: let the user finish their thought before generating
       await new Promise((r) => setTimeout(r, 400));
-      await processTurn(finalText, key, lang);
+      await processTurn(finalText, key, lang, audioContextXML);
     };
 
     recognition.onstart = () => {
@@ -825,6 +830,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       pcmSamplesRef.current = [];
       fallbackTranscriptRef.current = "";
       recordingStartTimeRef.current = Date.now();
+      startTracking(micAnalyserRef.current);
 
       const ctx = audioCtxRef.current;
       if (ctx && micAnalyserRef.current) {
@@ -850,8 +856,26 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onresult = (event: any) => {
-      fallbackTranscriptRef.current = event.results[0][0].transcript;
-      handleStopRecording();
+      let interim = "";
+      let isFinal = false;
+      let currentFinal = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          isFinal = true;
+          currentFinal += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      
+      if (!isFinal && interim) {
+        setWords(interim);
+      }
+      
+      if (isFinal) {
+        fallbackTranscriptRef.current = currentFinal;
+        handleStopRecording();
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -942,5 +966,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     getInputFrequencyData,
     /** Alias for output — OR has no separate output stream; reuse mic during speaking */
     getOutputFrequencyData: getInputFrequencyData,
+    liveStats,
   };
 }

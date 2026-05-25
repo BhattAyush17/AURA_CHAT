@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
 
 export interface AcousticProfile {
   energy: "whisper" | "low" | "normal" | "elevated" | "high";
@@ -13,6 +13,8 @@ export function useVoiceAcoustics() {
   const rmsSamplesRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
 
+  const [liveStats, setLiveStats] = useState({ tone: "Normal", intent: "Listening" });
+  
   const startTracking = useCallback((analyser: AnalyserNode | null) => {
     if (!analyser) return;
     speechStartTimeRef.current = Date.now();
@@ -21,6 +23,9 @@ export function useVoiceAcoustics() {
 
     const buf = new Float32Array(analyser.fftSize);
     
+    // Throttling for UI updates to avoid 60fps React re-renders
+    let lastUiUpdate = Date.now();
+
     const track = () => {
       analyser.getFloatTimeDomainData(buf);
       let rms = 0;
@@ -31,6 +36,20 @@ export function useVoiceAcoustics() {
       if (rms > 0.01) {
         totalRmsRef.current += rms;
         rmsSamplesRef.current++;
+        
+        // Update UI every 500ms
+        const now = Date.now();
+        if (now - lastUiUpdate > 500) {
+          const avgRms = totalRmsRef.current / rmsSamplesRef.current;
+          let tone = "Normal";
+          if (avgRms < 0.02) tone = "Whispering";
+          else if (avgRms < 0.05) tone = "Low";
+          else if (avgRms > 0.25) tone = "High / Loud";
+          else if (avgRms > 0.15) tone = "Elevated";
+          
+          setLiveStats((prev: { tone: string; intent: string }) => ({ ...prev, tone }));
+          lastUiUpdate = now;
+        }
       }
       
       animationFrameRef.current = requestAnimationFrame(track);
@@ -83,9 +102,11 @@ export function useVoiceAcoustics() {
       mood = "frustrated or urgent";
     }
 
+    setLiveStats({ tone: energy.charAt(0).toUpperCase() + energy.slice(1), intent: mood });
+
     // Build the XML Tag
     return `<audio_context>\n  <energy>${energy} (rms: ${averageRms.toFixed(3)})</energy>\n  <pace>${pace} (${Math.round(wpm)} wpm)</pace>\n  <delivery>${delivery}</delivery>\n  <mood>${mood}</mood>\n</audio_context>\n`;
   }, []);
 
-  return { startTracking, stopTrackingAndAnalyze };
+  return { startTracking, stopTrackingAndAnalyze, liveStats };
 }

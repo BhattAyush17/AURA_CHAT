@@ -37,4 +37,5 @@ export interface IVoicePipeline {
   // Provider-specific extended UI state
   activeModel?: string;
   auraState?: any;
+  liveStats?: { tone: string; intent: string };
 }

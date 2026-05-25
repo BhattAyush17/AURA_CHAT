@@ -58,6 +58,7 @@ export function useVoiceOrchestrator(
         getOutputFrequencyData: sarvam.getOutputFrequencyData,
         updateConfig: () => {},
         activeModel: sarvam.activeModel,
+        liveStats: sarvam.liveStats,
       };
     }
 
@@ -76,6 +77,7 @@ export function useVoiceOrchestrator(
         getOutputFrequencyData: openrouter.getOutputFrequencyData,
         updateConfig: () => {},
         activeModel: openrouter.activeModel,
+        liveStats: openrouter.liveStats,
       };
     }
 

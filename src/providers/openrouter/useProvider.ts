@@ -70,7 +70,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     setStatusState(s);
   }, []);
   const [sessionDuration, setSessionDuration] = useState(0);
-  const { startTracking, stopTrackingAndAnalyze } = useVoiceAcoustics();
+  const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
 
   // Session control
   const isSessionActiveRef = useRef(false);
@@ -648,5 +648,6 @@ export function useOpenRouter(mode: string = "adaptive") {
     getInputFrequencyData,
     /** Alias for output — OR has no separate output stream; reuse mic during speaking */
     getOutputFrequencyData: getInputFrequencyData,
+    liveStats,
   };
 }

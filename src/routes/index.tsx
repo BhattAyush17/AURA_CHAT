@@ -133,9 +133,9 @@ function AuraExperience() {
   } = pipeline;
 
   const tone =
-    activeBrain === "gemini" ? auraState?.tone : isThinking ? "Analyzing..." : "Multilingual";
+    activeBrain === "gemini" ? auraState?.tone : isThinking ? "Analyzing..." : pipeline.liveStats?.tone || "Listening...";
   const intent =
-    activeBrain === "gemini" ? auraState?.intent : isThinking ? "Mapping..." : "Steady";
+    activeBrain === "gemini" ? auraState?.intent : isThinking ? "Mapping..." : pipeline.liveStats?.intent || "Steady";
   const brainModel = activeBrain === "gemini" ? "Gemini Live 🎙️" : activeModel || "Unknown";
 
   const handleMicClick = useCallback(async () => {
