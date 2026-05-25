@@ -5,6 +5,7 @@
 export const isJoyfulPassionMode = true;
 
 export const SECRET_ACTIVATION_PHRASE = "boundless sexuality";
+export const SECRET_DEACTIVATION_PHRASE = "boundless desexuality";
 
 // ── Bulletproof fuzzy activation detector ──────────────────────────────
 // Speech-to-text often garbles the phrase. This catches all plausible
@@ -88,6 +89,48 @@ export function detectActivationPhrase(userText: string): boolean {
     for (let i = 0; i <= normalized.length - windowSize; i++) {
       const window = normalized.substring(i, i + windowSize);
       if (levenshtein(window, target) <= 3) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Bulletproof detection of the deactivation phrase "boundless desexuality".
+ */
+export function detectDeactivationPhrase(userText: string): boolean {
+  const normalized = normalize(userText);
+  const target = normalize(SECRET_DEACTIVATION_PHRASE); // "boundless desexuality"
+
+  // ── Layer 1: Exact substring match ──
+  if (normalized.includes(target)) return true;
+
+  // ── Layer 1.5: Devanagari Script Transliterations (For Sarvam STT) ──
+  const devanagariRegex = /(बाउंडलेस|बाउंड लेस|बाउंडलेस).*?(डीसेक्सुएलिटी|डी एक्सुएलिटी|डिसैक्सुअलिटी|डीसेक्सुअलिटी|डीसेक्स)/;
+  if (devanagariRegex.test(userText)) return true;
+
+  // ── Layer 2: Check with no spaces ──
+  const noSpaceInput = normalized.replace(/\s/g, "");
+  const noSpaceTarget = target.replace(/\s/g, "");
+  if (noSpaceInput.includes(noSpaceTarget)) return true;
+
+  // ── Layer 3: Word-level matching ──
+  const words = normalized.split(" ");
+  const hasBoundless = words.some(w => levenshtein(w, "boundless") <= 2);
+  const hasDesexuality = words.some(w => {
+    if (w.startsWith("desexual")) return true;
+    if (levenshtein(w, "desexuality") <= 3) return true;
+    return false;
+  });
+  if (hasBoundless && hasDesexuality) return true;
+
+  // ── Layer 4: Sliding window ──
+  const targetLen = target.length;
+  for (let windowSize = targetLen - 4; windowSize <= targetLen + 4; windowSize++) {
+    if (windowSize <= 0 || windowSize > normalized.length) continue;
+    for (let i = 0; i <= normalized.length - windowSize; i++) {
+      const window = normalized.substring(i, i + windowSize);
+      if (levenshtein(window, target) <= 4) return true;
     }
   }
 

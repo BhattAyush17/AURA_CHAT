@@ -20,7 +20,7 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
-import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase } from "../../modes/JoyfulPassionMode";
+import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase, detectDeactivationPhrase } from "../../modes/JoyfulPassionMode";
 
 export type { ChatMessage };
 
@@ -290,6 +290,18 @@ export function useOpenRouter(mode: string = "adaptive") {
       // RULE: The explicit prompt is NEVER auto-injected. The user MUST say
       // the activation phrase "boundless sexuality" first. Once activated,
       // it persists for the rest of the session.
+      // Check for deactivation first
+      let isFirstDeactivation = false;
+      if (boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
+        boundlessModeActiveRef.current = false;
+        isFirstDeactivation = true;
+        console.log(
+          "%c❄️ BOUNDLESS DESEXUALITY ACTIVATED (MODE OFF)",
+          "color: #3b82f6; font-size: 16px; font-weight: bold; text-shadow: 0 0 10px #3b82f6;"
+        );
+        console.log("[AURA] Mode deactivated — phrase detected in:", userText);
+      }
+
       let basePrompt = getSystemPromptForPersonality(modeRef.current);
       let explicitModeActivated = boundlessModeActiveRef.current;
       let isFirstActivation = false;
@@ -314,6 +326,11 @@ export function useOpenRouter(mode: string = "adaptive") {
             "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
             "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
         }
+      } else if (isFirstDeactivation) {
+        // If we just deactivated this turn
+        basePrompt += "\n\n[HIDDEN PERSONA DEACTIVATED] Switch back to your normal assigned personality mode IMMEDIATELY.\n" +
+          "IMPORTANT: Your VERY FIRST response must be a brief confirmation that you have cooled down and returned to normal. " +
+          "Something like acknowledging the deactivation (e.g. 'Alright, cooling down.' or 'Back to normal, what's on your mind?').";
       }
 
       // ── System prompt: personality-aware identity + live context ──
