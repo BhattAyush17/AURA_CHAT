@@ -59,14 +59,9 @@ export function detectActivationPhrase(userText: string): boolean {
   if (normalized.includes(target)) return true;
 
   // ── Layer 1.5: Devanagari Script Transliterations (For Sarvam STT) ──
-  // Sarvam's 'saaras:v3' model often transcribes English words in Hindi script
-  const hindiVariations = [
-    "बाउंडलेस सेक्सुएलिटी",
-    "बाउंडलेस एक्सुएलिटी",
-    "बाउंडलेस स्पैचुएलिटी",
-    "बाउंड लेस सेक्सुएलिटी"
-  ];
-  if (hindiVariations.some(v => userText.includes(v))) return true;
+  // Sarvam's 'saaras:v3' model often transcribes English words phonetically into Hindi script
+  const devanagariRegex = /(बाउंडलेस|बाउंड लेस|बाउंडलेस).*?(सेक्सुएलिटी|एक्सुएलिटी|स्पैचुएलिटी|एक्चुअलिटी|लिटी|स्पेशियलिटी)/;
+  if (devanagariRegex.test(userText)) return true;
 
   // ── Layer 2: Check with no spaces (handles garbled spacing) ──
   const noSpaceInput = normalized.replace(/\s/g, "");
