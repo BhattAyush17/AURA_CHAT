@@ -21,6 +21,7 @@ import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
 import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase, detectDeactivationPhrase } from "../../modes/JoyfulPassionMode";
+import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 
 export type { ChatMessage };
 
@@ -68,6 +69,8 @@ export function useOpenRouter(mode: string = "adaptive") {
     statusRef.current = s;
     setStatusState(s);
   }, []);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const { startTracking, stopTrackingAndAnalyze } = useVoiceAcoustics();
 
   // Session control
   const isSessionActiveRef = useRef(false);
@@ -236,7 +239,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
-    async (userText: string, apiKey: string, lang: string) => {
+    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
       setIsThinking(true);
       setStatus("thinking");
       setWords("AURA is perceiving...");
@@ -245,10 +248,10 @@ export function useOpenRouter(mode: string = "adaptive") {
       transcript_.addTurn(userText, true);
       transcript_.turnCountRef.current += 1;
 
-      // Append to OR message buffer
+      // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: userText },
+        { role: "user", content: audioContextXML + userText },
       ];
       addMessages([{ role: "user", content: userText }]);
 
@@ -552,18 +555,21 @@ export function useOpenRouter(mode: string = "adaptive") {
     recognition.onstart = () => {
       setStatus("listening");
       setWords("Listening...");
+      startTracking(micAnalyserRef.current);
     };
 
     recognition.onresult = async (event: any) => {
       const text = event.results[0][0].transcript;
       if (!text.trim()) return;
+      const audioContextXML = stopTrackingAndAnalyze(text);
       console.log("%c🗣️ USER SAID (OpenRouter WebSpeech): " + text, "color: #10b981; font-weight: bold; font-size: 13px;");
+      console.log("%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML, "color: #eab308; font-size: 11px;");
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
       // Artificial hold: let the user finish their thought before generating
       await new Promise((r) => setTimeout(r, 400));
-      await processTurn(text, key, lang);
+      await processTurn(text, key, lang, audioContextXML);
     };
 
     recognition.onerror = (event: any) => {
