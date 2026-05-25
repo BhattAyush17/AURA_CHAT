@@ -61,7 +61,7 @@ export function detectActivationPhrase(userText: string): boolean {
 
   // ── Layer 1.5: Devanagari Script Transliterations (For Sarvam STT) ──
   // Sarvam's 'saaras:v3' model often transcribes English words phonetically into Hindi script
-  const devanagariRegex = /(बाउंडलेस|बाउंड लेस|बाउंडलेस).*?(सेक्सुएलिटी|एक्सुएलिटी|स्पैचुएलिटी|एक्चुअलिटी|लिटी|स्पेशियलिटी)/;
+  const devanagariRegex = /(बाउंड|बाउण्ड|बाउं).*?(सेक्स|एक्स|स्पैच|एक्चु|एक शुड|लिटी)/;
   if (devanagariRegex.test(userText)) return true;
 
   // ── Layer 2: Check with no spaces (handles garbled spacing) ──
