@@ -17,7 +17,7 @@ import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
 import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
-import { JoyfulPassionSystemPrompt } from "../../modes/JoyfulPassionMode";
+import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase } from "../../modes/JoyfulPassionMode";
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import { transcribeAudio } from "./sarvamSTT";
@@ -470,10 +470,29 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const tokenLimit = responseDepth === "deep" ? 400 : 100;
 
       // ── System prompt: personality-aware identity + live context ──
+      // ── Secret Personality Mode Activation (Bulletproof) ─────────────────
+      let explicitModeActivated = false;
       const isJoyful = modeRef.current === "joyfulPassion";
-      const basePrompt = isJoyful 
-        ? `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}`
-        : getSystemPromptForPersonality(modeRef.current);
+      let basePrompt: string;
+
+      if (isJoyfulPassionMode && detectActivationPhrase(userText)) {
+        explicitModeActivated = true;
+        console.log(
+          "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
+          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
+        );
+        console.log("[AURA/Sarvam] Boundless Sexuality mode activated — phrase detected in:", userText);
+
+        basePrompt = `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}` +
+          "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
+          "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
+          "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
+          "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
+      } else {
+        basePrompt = isJoyful 
+          ? `${getSystemPromptForPersonality(modeRef.current)}\n\n${JoyfulPassionSystemPrompt}`
+          : getSystemPromptForPersonality(modeRef.current);
+      }
 
       const systemContent = [
         basePrompt,
@@ -490,9 +509,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const messagesForApi: ChatMessage[] = newMessages;
 
       // Model failover loop with SSE streaming
-      const modelQueue = isJoyful
+      const modelQueue = explicitModeActivated
         ? ["deepseek/deepseek-chat"]
-        : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
+        : isJoyful
+          ? ["deepseek/deepseek-chat"]
+          : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
       let success = false;

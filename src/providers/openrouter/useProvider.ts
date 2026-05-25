@@ -20,7 +20,7 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
-import { JoyfulPassionSystemPrompt, SECRET_ACTIVATION_PHRASE, isJoyfulPassionMode } from "../../modes/JoyfulPassionMode";
+import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase } from "../../modes/JoyfulPassionMode";
 
 export type { ChatMessage };
 
@@ -283,20 +283,23 @@ export function useOpenRouter(mode: string = "adaptive") {
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
 
-      // ── Secret Personality Mode Activation ─────────────────────────────
+      // ── Secret Personality Mode Activation (Bulletproof) ─────────────────
       let basePrompt = getSystemPromptForPersonality(modeRef.current);
       let explicitModeActivated = false;
 
-      if (isJoyfulPassionMode) {
-        const userTextLower = userText.toLowerCase().trim();
+      if (isJoyfulPassionMode && detectActivationPhrase(userText)) {
+        explicitModeActivated = true;
+        console.log(
+          "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
+          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
+        );
+        console.log("[AURA] Boundless Sexuality mode activated — phrase detected in:", userText);
 
-        if (userTextLower.includes(SECRET_ACTIVATION_PHRASE)) {
-          explicitModeActivated = true;
-          
-          basePrompt += "\n\n" + JoyfulPassionSystemPrompt +
-            "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
-            "Respond in-character immediately to confirm activation.";
-        }
+        basePrompt += "\n\n" + JoyfulPassionSystemPrompt +
+          "\n\n[HIDDEN PERSONA ACTIVATED] Switch to the injected personality mode now.\n" +
+          "IMPORTANT: Your VERY FIRST response must be a brief, seductive confirmation that you've switched modes. " +
+          "Something like acknowledging the activation in-character (e.g. 'Mmm, I see you know the magic words...' " +
+          "or 'Oh, you've unlocked something special...'). Keep it 1-2 sentences, then respond to their intent.";
       }
 
       // ── System prompt: personality-aware identity + live context ──
