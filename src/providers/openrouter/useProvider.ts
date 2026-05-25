@@ -36,7 +36,7 @@ export const FALLBACK_MODELS = [
 ] as const;
 
 // Sentence boundary regex — speak as soon as a sentence completes
-const SENTENCE_END = /[^.!?\n]+[.!?\n]+/g;
+const SENTENCE_END = /[^.!?।\n]+[.!?।\n]+/g;
 
 // Barge-in: fire if microphone RMS crosses this threshold while AURA speaks
 const BARGE_IN_THRESHOLD = 0.018;
