@@ -161,6 +161,7 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
       voice: string;
       voiceLanguage: string;
       personality?: string;
+      seedBlock?: string;
       setupAudio: (stream: MediaStream) => Promise<AudioContext>;
       onOpen: (session: LiveSession, audioContext: AudioContext, stream: MediaStream) => void;
       messageCallbacks: GeminiMessageCallbacks;
@@ -269,7 +270,16 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                   silenceDurationMs: 1300, // Was 500 — raised to prevent cutting users off mid-thought
                 },
               },
-              systemInstruction: { parts: [{ text: getSystemPromptForPersonality(activeOpts.personality) }] },
+              systemInstruction: {
+                parts: [
+                  {
+                    text: getSystemPromptForPersonality(
+                      activeOpts.personality,
+                      activeOpts.seedBlock,
+                    ),
+                  },
+                ],
+              },
               tools: [
                 {
                   functionDeclarations: [

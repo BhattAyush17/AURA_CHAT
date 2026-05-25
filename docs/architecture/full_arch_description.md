@@ -80,6 +80,7 @@ AURA strictly partitions its cognitive, sensory, and persistence tasks into **5 
 
 - **Role:** Detects structural syntax (Hindi vs. English vs. Hinglish). Maintains an ongoing dictionary of user-specific vocabulary, slang, and abusive phrases, pushing explicit tone-matching instructions back to Brain 2.
 - **Toxicity Pipeline:**
+
 ```mermaid
 graph TD
     A[User Text] --> B[Clean Speech Noise]
@@ -100,6 +101,7 @@ graph TD
   - **Device Engine:** Hardware stats (Mic status, battery, connectivity).
   - **Environment Engine:** Location and temporal acoustic context (e.g. background noise proxy).
   - **Fallback Engine:** Gracefully catches system collapses and circuit breaker trips, maintaining prompt integrity.
+
 ---
 
 ## 3. Dynamic Request Turn Flow: Exact Data Lifecycle

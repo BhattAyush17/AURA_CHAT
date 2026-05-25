@@ -41,19 +41,19 @@ const defaultSize = new TextEncoder().encode(JSON.stringify(seed)).length;
 assert(`Default seed: under 2KB (${defaultSize}B)`, defaultSize <= 2048);
 
 // ── 2. Trust Calculation ─────────────────────────────────────────
-const t1 = calculateTrust(0.5, 0.9);    // good session
+const t1 = calculateTrust(0.5, 0.9); // good session
 assert("Trust: good session increases trust", t1 > 0.5);
 
-const t2 = calculateTrust(0.5, 0.1);    // bad session
+const t2 = calculateTrust(0.5, 0.1); // bad session
 assert("Trust: bad session decreases trust", t2 < 0.5);
 
 const t3 = calculateTrust(0.5, 0.5, 4); // 4 weeks absent
 assert("Trust: absence decays trust", t3 < 0.5);
 
-const t4 = calculateTrust(0.05, 0.0);   // extreme low
+const t4 = calculateTrust(0.05, 0.0); // extreme low
 assert("Trust: floor at 0.1", t4 >= 0.1);
 
-const t5 = calculateTrust(0.95, 1.0);   // extreme high
+const t5 = calculateTrust(0.95, 1.0); // extreme high
 assert("Trust: ceiling at 1.0", t5 <= 1.0);
 
 // ── 3. Seed Validation ──────────────────────────────────────────
@@ -62,14 +62,23 @@ assert("Validation: default seed has no errors", validateSeed(validSeed).length 
 
 const overSeed: AuraSeed = {
   ...createDefaultSeed("u2"),
-  arc: Array(6).fill([0, "x".repeat(90), "+"]),  // 6 entries, each too long
-  growth: ["a", "b", "c", "d"],                  // 4 entries
-  thread: "x".repeat(150),                        // too long
+  arc: Array(6).fill([0, "x".repeat(90), "+"]), // 6 entries, each too long
+  growth: ["a", "b", "c", "d"], // 4 entries
+  thread: "x".repeat(150), // too long
 };
 const errors = validateSeed(overSeed);
-assert("Validation: catches arc overflow", errors.some(e => e.includes("arc exceeds")));
-assert("Validation: catches growth overflow", errors.some(e => e.includes("growth exceeds")));
-assert("Validation: catches thread overflow", errors.some(e => e.includes("thread exceeds")));
+assert(
+  "Validation: catches arc overflow",
+  errors.some((e) => e.includes("arc exceeds")),
+);
+assert(
+  "Validation: catches growth overflow",
+  errors.some((e) => e.includes("growth exceeds")),
+);
+assert(
+  "Validation: catches thread overflow",
+  errors.some((e) => e.includes("thread exceeds")),
+);
 
 // ── 4. 2KB Enforcement ──────────────────────────────────────────
 const fatSeed: AuraSeed = {
@@ -101,7 +110,10 @@ assert("Injection: includes trust level", injection.includes("trust:0.72"));
 assert("Injection: includes thread", injection.includes("Still learning"));
 assert("Injection: includes arc entry", injection.includes("grief about father"));
 assert("Injection: includes tension", injection.includes("career uncertainty"));
-assert("Injection: ends with silent-read directive", injection.includes("Let it inform, not perform"));
+assert(
+  "Injection: ends with silent-read directive",
+  injection.includes("Let it inform, not perform"),
+);
 
 // ── 6. Transcript Compression ───────────────────────────────────
 const transcript = [

@@ -12,6 +12,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getOpenRouterKey } from "@/lib/api";
 import { resolveUserId } from "@/lib/user-identity";
+import { ContextBudgetManager } from "@/lib/context-budget";
+import { getStorageManager } from "@/lib/storage/manager";
+import { generateSeed } from "@/lib/utils/seed-generator";
+import { hasSupabaseCredentials } from "@/lib/credentials";
+import { saveSyncMeta } from "@/lib/sync-meta";
 import { getCredential } from "@/lib/credentials";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
@@ -20,7 +25,12 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
-import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase, detectDeactivationPhrase } from "../../modes/JoyfulPassionMode";
+import {
+  JoyfulPassionSystemPrompt,
+  isJoyfulPassionMode,
+  detectActivationPhrase,
+  detectDeactivationPhrase,
+} from "../../modes/JoyfulPassionMode";
 import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 
 export type { ChatMessage };
@@ -73,7 +83,8 @@ export function useOpenRouter(mode: string = "adaptive") {
   const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
 
   // Session control
-  const isSessionActiveRef = useRef(false);
+  const isSessionActiveRef = useRef<boolean>(false);
+  const seedRef = useRef<string | undefined>(undefined);
   const startSessionRef = useRef<(() => Promise<void>) | null>(null);
   const recognitionRef = useRef<any>(null);
   const isSpeakingRef = useRef(false);
@@ -322,12 +333,12 @@ export function useOpenRouter(mode: string = "adaptive") {
         isFirstDeactivation = true;
         console.log(
           "%c❄️ BOUNDLESS DESEXUALITY ACTIVATED (MODE OFF)",
-          "color: #3b82f6; font-size: 16px; font-weight: bold; text-shadow: 0 0 10px #3b82f6;"
+          "color: #3b82f6; font-size: 16px; font-weight: bold; text-shadow: 0 0 10px #3b82f6;",
         );
         console.log("[AURA] Mode deactivated — phrase detected in:", userText);
       }
 
-      let basePrompt = getSystemPromptForPersonality(modeRef.current);
+      let basePrompt = getSystemPromptForPersonality(modeRef.current, seedRef.current);
       let explicitModeActivated = boundlessModeActiveRef.current;
       let isFirstActivation = false;
 
@@ -337,7 +348,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         boundlessModeActiveRef.current = true;
         console.log(
           "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
-          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
+          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;",
         );
         console.log("[AURA] Boundless Sexuality mode activated — phrase detected in:", userText);
       }
@@ -353,7 +364,8 @@ export function useOpenRouter(mode: string = "adaptive") {
         }
       } else if (isFirstDeactivation) {
         // If we just deactivated this turn
-        basePrompt += "\n\n[HIDDEN PERSONA DEACTIVATED] Switch back to your normal assigned personality mode IMMEDIATELY.\n" +
+        basePrompt +=
+          "\n\n[HIDDEN PERSONA DEACTIVATED] Switch back to your normal assigned personality mode IMMEDIATELY.\n" +
           "IMPORTANT: Your VERY FIRST response must be a brief confirmation that you have cooled down and returned to normal. " +
           "Something like acknowledging the deactivation (e.g. 'Alright, cooling down.' or 'Back to normal, what's on your mind?').";
       }
@@ -556,8 +568,13 @@ export function useOpenRouter(mode: string = "adaptive") {
       userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
     }
 
-    // Warm L2 cache + open mic analyser in parallel
-    await Promise.all([prompts.warmL2Cache(), setupMicAnalyser()]);
+    // Warm L2 cache, open mic, and fetch Memory Core in parallel
+    const [, , seedData] = await Promise.all([
+      prompts.warmL2Cache(),
+      setupMicAnalyser(),
+      storageManager.loadSeed(),
+    ]);
+    seedRef.current = seedData ? seedData.seed : undefined;
 
     const lang = localStorage.getItem("aura_voice_language") || "en-US";
     const SpeechRecognition =
@@ -584,8 +601,14 @@ export function useOpenRouter(mode: string = "adaptive") {
       const text = event.results[0][0].transcript;
       if (!text.trim()) return;
       const audioContextXML = stopTrackingAndAnalyze(text);
-      console.log("%c🗣️ USER SAID (OpenRouter WebSpeech): " + text, "color: #10b981; font-weight: bold; font-size: 13px;");
-      console.log("%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML, "color: #eab308; font-size: 11px;");
+      console.log(
+        "%c🗣️ USER SAID (OpenRouter WebSpeech): " + text,
+        "color: #10b981; font-weight: bold; font-size: 13px;",
+      );
+      console.log(
+        "%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML,
+        "color: #eab308; font-size: 11px;",
+      );
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
@@ -622,13 +645,48 @@ export function useOpenRouter(mode: string = "adaptive") {
   }, [behavior, prompts, processTurn, setupMicAnalyser]);
 
   // ── End session ───────────────────────────────────────────────────
-  const endSession = useCallback(() => {
+  const endSession = useCallback(async () => {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
     behavior.resetSpeculative();
+
+    // Save memory core
+    const t = transcript_.transcriptRef.current;
+    if (t && t.length >= 3) {
+      try {
+        const storageManager = getStorageManager(userIdRef.current);
+        const prevSeed = await storageManager.loadSeed();
+        const newSeed = generateSeed(t, prevSeed ?? undefined);
+        await storageManager.saveSeed(newSeed);
+
+        const sessionData = {
+          session_id: sessionIdRef.current ?? Date.now().toString(),
+          transcript: t,
+          user_id: userIdRef.current,
+          last_active: new Date().toISOString(),
+        };
+        await storageManager.save(sessionData);
+
+        if (hasSupabaseCredentials()) {
+          try {
+            storageManager.initializeRemoteAdapter();
+            await storageManager.save(sessionData);
+            await storageManager.saveSeed(newSeed);
+          } catch {}
+        }
+
+        saveSyncMeta(userIdRef.current, {
+          updatedAt: newSeed.updatedAt,
+          hasCloudCopy: hasSupabaseCredentials(),
+        });
+      } catch (err) {
+        console.error("[OpenRouter] Session memory compilation failed:", err);
+      }
+    }
+
     transcript_.reset();
     userIdRef.current = "local-user";
     setStatus("idle");

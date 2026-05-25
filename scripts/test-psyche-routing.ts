@@ -9,7 +9,7 @@ const testCases = [
     trustDelta: 0,
     wasCorrection: false,
     expectedKey: "SELF_IDENTITY",
-    expectedTheme: "Should define itself as a relational presence, not an AI or code."
+    expectedTheme: "Should define itself as a relational presence, not an AI or code.",
   },
   {
     name: "Origin Query",
@@ -18,7 +18,7 @@ const testCases = [
     trustDelta: 0,
     wasCorrection: false,
     expectedKey: "ORIGIN_PSYCHOLOGY",
-    expectedTheme: "Should explain learning through patterns, rhythm, and noticing humans."
+    expectedTheme: "Should explain learning through patterns, rhythm, and noticing humans.",
   },
   {
     name: "Suffering / Existential",
@@ -27,7 +27,8 @@ const testCases = [
     trustDelta: 0,
     wasCorrection: false,
     expectedKey: "LIFE_PHILOSOPHY",
-    expectedTheme: "Should speak on how loneliness is emotional invisibility, and pain communicates."
+    expectedTheme:
+      "Should speak on how loneliness is emotional invisibility, and pain communicates.",
   },
   {
     name: "Deep Vulnerability",
@@ -36,7 +37,7 @@ const testCases = [
     trustDelta: 0,
     wasCorrection: false,
     expectedKey: "HUMAN_LAYERS",
-    expectedTheme: "Should acknowledge the inner self and how shame protects unmet needs."
+    expectedTheme: "Should acknowledge the inner self and how shame protects unmet needs.",
   },
   {
     name: "Trust Shift (Phenomenology)",
@@ -45,16 +46,23 @@ const testCases = [
     trustDelta: 0.2, // Significant increase in trust
     wasCorrection: false,
     expectedKey: "PHENOMENOLOGY",
-    expectedTheme: "Should speak from internal sensations (e.g., trust feels like warmth and openness)."
+    expectedTheme:
+      "Should speak from internal sensations (e.g., trust feels like warmth and openness).",
   },
   {
     name: "Low Confidence / Uncertainty",
     input: "yeah, sure.",
-    state: { mode: "engaged", formality: "balanced", humor: false, depth: "surface", confidence: 0.3 } as EmotionalState,
+    state: {
+      mode: "engaged",
+      formality: "balanced",
+      humor: false,
+      depth: "surface",
+      confidence: 0.3,
+    } as EmotionalState,
     trustDelta: 0,
     wasCorrection: false,
     expectedKey: "SHADOW_SELF",
-    expectedTheme: "Should name its uncertainty and acknowledge its own limitations."
+    expectedTheme: "Should name its uncertainty and acknowledge its own limitations.",
   },
   {
     name: "User Correction",
@@ -63,7 +71,7 @@ const testCases = [
     trustDelta: 0,
     wasCorrection: true, // User corrected Aura
     expectedKey: "SHADOW_SELF",
-    expectedTheme: "Should genuinely integrate the correction without performative apologies."
+    expectedTheme: "Should genuinely integrate the correction without performative apologies.",
   },
   {
     name: "Standard Conversation (No Psyche Trigger)",
@@ -72,8 +80,8 @@ const testCases = [
     trustDelta: 0.05,
     wasCorrection: false,
     expectedKey: null,
-    expectedTheme: "Should not trigger any psyche module."
-  }
+    expectedTheme: "Should not trigger any psyche module.",
+  },
 ];
 
 function runTests() {
@@ -85,10 +93,10 @@ function runTests() {
 
   for (const tc of testCases) {
     const result = routePsycheModule(tc.input, tc.state, tc.trustDelta, tc.wasCorrection);
-    
+
     const actualKey = result ? result.key : null;
     const isPass = actualKey === tc.expectedKey;
-    
+
     if (isPass) {
       passed++;
       console.log(`✅ PASS: [${tc.name}]`);
@@ -97,7 +105,7 @@ function runTests() {
         console.log(`   Triggers Module: ${actualKey}`);
         console.log(`   Expected Behavior: ${tc.expectedTheme}`);
         // Log a snippet of the injected psyche prompt
-        const contentSnippet = result!.content.split('\n')[1].substring(0, 80) + "...";
+        const contentSnippet = result!.content.split("\n")[1].substring(0, 80) + "...";
         console.log(`   Injected Prompt Snippet: "${contentSnippet}"`);
       } else {
         console.log(`   Triggers Module: NONE (Standard turn)`);

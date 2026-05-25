@@ -4,7 +4,13 @@ export interface AcousticProfile {
   energy: "whisper" | "low" | "normal" | "elevated" | "high";
   pace: "slow" | "normal" | "fast";
   delivery: "hesitant" | "trailing" | "staccato" | "assertive" | "neutral";
-  mood: "sad or withdrawn" | "calm and reflective" | "neutral and composed" | "energized and confident" | "excited or agitated" | "frustrated or urgent";
+  mood:
+    | "sad or withdrawn"
+    | "calm and reflective"
+    | "neutral and composed"
+    | "energized and confident"
+    | "excited or agitated"
+    | "frustrated or urgent";
 }
 
 export function useVoiceAcoustics() {
@@ -14,7 +20,7 @@ export function useVoiceAcoustics() {
   const animationFrameRef = useRef<number>(0);
 
   const [liveStats, setLiveStats] = useState({ tone: "Normal", intent: "Listening" });
-  
+
   const startTracking = useCallback((analyser: AnalyserNode | null) => {
     if (!analyser) return;
     speechStartTimeRef.current = Date.now();
@@ -22,7 +28,7 @@ export function useVoiceAcoustics() {
     rmsSamplesRef.current = 0;
 
     const buf = new Float32Array(analyser.fftSize);
-    
+
     // Throttling for UI updates to avoid 60fps React re-renders
     let lastUiUpdate = Date.now();
 
@@ -31,12 +37,12 @@ export function useVoiceAcoustics() {
       let rms = 0;
       for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
       rms = Math.sqrt(rms / buf.length);
-      
+
       // Only record samples where there is actual sound (above noise floor)
       if (rms > 0.002) {
         totalRmsRef.current += rms;
         rmsSamplesRef.current++;
-        
+
         // Update UI every 500ms
         const now = Date.now();
         if (now - lastUiUpdate > 500) {
@@ -46,12 +52,12 @@ export function useVoiceAcoustics() {
           else if (avgRms < 0.05) tone = "Low";
           else if (avgRms > 0.25) tone = "High / Loud";
           else if (avgRms > 0.15) tone = "Elevated";
-          
+
           setLiveStats((prev: { tone: string; intent: string }) => ({ ...prev, tone }));
           lastUiUpdate = now;
         }
       }
-      
+
       animationFrameRef.current = requestAnimationFrame(track);
     };
     track();
@@ -65,7 +71,7 @@ export function useVoiceAcoustics() {
     const durationSeconds = (Date.now() - speechStartTimeRef.current) / 1000;
     const wordCount = text.trim().split(/\s+/).length;
     const wpm = (wordCount / durationSeconds) * 60;
-    
+
     const averageRms = rmsSamplesRef.current > 0 ? totalRmsRef.current / rmsSamplesRef.current : 0;
 
     // 1. Determine Energy (RMS ranges are approximate, depends on mic gain)
@@ -83,9 +89,10 @@ export function useVoiceAcoustics() {
     // 3. Determine Delivery (Textual Heuristics)
     let delivery = "neutral";
     const lowerText = text.toLowerCase();
-    
+
     if (lowerText.match(/\b(um|uh|like|i guess|maybe|not sure)\b/)) delivery = "hesitant";
-    else if (text.endsWith("...") || (!text.match(/[.!?]$/) && durationSeconds > 3)) delivery = "trailing";
+    else if (text.endsWith("...") || (!text.match(/[.!?]$/) && durationSeconds > 3))
+      delivery = "trailing";
     else if (wpm > 180 && durationSeconds < 2) delivery = "staccato";
     else if (text.match(/[!]$/)) delivery = "assertive";
 
@@ -96,7 +103,7 @@ export function useVoiceAcoustics() {
     } else if (energy === "high" || energy === "elevated") {
       mood = pace === "fast" ? "excited or agitated" : "energized and confident";
     }
-    
+
     // Check for explicit frustration
     if (lowerText.match(/\b(fuck|damn|shit|annoying|stupid|wrong|no)\b/)) {
       mood = "frustrated or urgent";

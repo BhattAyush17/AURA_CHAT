@@ -17,8 +17,8 @@ export const SECRET_DEACTIVATION_PHRASE = "boundless desexuality";
 function normalize(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[-_.,!?;:'"]/g, " ")  // punctuation → space
-    .replace(/\s+/g, " ")            // collapse whitespace
+    .replace(/[-_.,!?;:'"]/g, " ") // punctuation → space
+    .replace(/\s+/g, " ") // collapse whitespace
     .trim();
 }
 
@@ -26,15 +26,17 @@ function normalize(text: string): string {
  * Levenshtein distance — edit distance between two strings.
  */
 function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
+  const m = a.length,
+    n = b.length;
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
   for (let i = 0; i <= m; i++) dp[i][0] = i;
   for (let j = 0; j <= n; j++) dp[0][j] = j;
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
     }
   }
   return dp[m][n];
@@ -42,7 +44,7 @@ function levenshtein(a: string, b: string): number {
 
 /**
  * Bulletproof detection of the activation phrase "boundless sexuality".
- * 
+ *
  * Handles:
  *  - Exact match ("boundless sexuality")
  *  - Hyphenated ("boundless-sexuality")
@@ -72,8 +74,8 @@ export function detectActivationPhrase(userText: string): boolean {
   // ── Layer 3: Word-level matching ──
   // Both "boundless" and any word starting with "sexual" present
   const words = normalized.split(" ");
-  const hasBoundless = words.some(w => levenshtein(w, "boundless") <= 2);
-  const hasSexuality = words.some(w => {
+  const hasBoundless = words.some((w) => levenshtein(w, "boundless") <= 2);
+  const hasSexuality = words.some((w) => {
     if (w.startsWith("sexual")) return true;
     if (levenshtein(w, "sexuality") <= 2) return true;
     if (levenshtein(w, "sexual") <= 2) return true;
@@ -106,7 +108,8 @@ export function detectDeactivationPhrase(userText: string): boolean {
   if (normalized.includes(target)) return true;
 
   // ── Layer 1.5: Devanagari Script Transliterations (For Sarvam STT) ──
-  const devanagariRegex = /(बाउंडलेस|बाउंड लेस|बाउंडलेस).*?(डीसेक्सुएलिटी|डी एक्सुएलिटी|डिसैक्सुअलिटी|डीसेक्सुअलिटी|डीसेक्स)/;
+  const devanagariRegex =
+    /(बाउंडलेस|बाउंड लेस|बाउंडलेस).*?(डीसेक्सुएलिटी|डी एक्सुएलिटी|डिसैक्सुअलिटी|डीसेक्सुअलिटी|डीसेक्स)/;
   if (devanagariRegex.test(userText)) return true;
 
   // ── Layer 2: Check with no spaces ──
@@ -116,8 +119,8 @@ export function detectDeactivationPhrase(userText: string): boolean {
 
   // ── Layer 3: Word-level matching ──
   const words = normalized.split(" ");
-  const hasBoundless = words.some(w => levenshtein(w, "boundless") <= 2);
-  const hasDesexuality = words.some(w => {
+  const hasBoundless = words.some((w) => levenshtein(w, "boundless") <= 2);
+  const hasDesexuality = words.some((w) => {
     if (w.startsWith("desexual")) return true;
     if (levenshtein(w, "desexuality") <= 3) return true;
     return false;

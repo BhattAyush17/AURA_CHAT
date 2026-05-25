@@ -30,7 +30,12 @@ const personalities: { id: PersonalityMode; label: string; hint: string }[] = [
   { id: "joyfulPassion", label: "Joyful Passion", hint: "playful · affectionate" },
 ];
 
-export function PersonalitySelector({ value, onChange, disabled, activeBrain }: PersonalitySelectorProps) {
+export function PersonalitySelector({
+  value,
+  onChange,
+  disabled,
+  activeBrain,
+}: PersonalitySelectorProps) {
   const filteredPersonalities = personalities.filter((p) => {
     if (p.id === "joyfulPassion") {
       return activeBrain === "openrouter" || activeBrain === "sarvam";

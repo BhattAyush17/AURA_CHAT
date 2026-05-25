@@ -58,7 +58,12 @@ export interface BehaviorInjectionAPI {
    * into the Gemini session.
    * Handles urgent vs. passive injection, plus conditional psyche fragment routing.
    */
-  applyBehavioralInjection: (result: BehaviorAnalysis, session: LiveSession, userText?: string, personality?: string) => void;
+  applyBehavioralInjection: (
+    result: BehaviorAnalysis,
+    session: LiveSession,
+    userText?: string,
+    personality?: string,
+  ) => void;
 
   /** Clear all speculative state (on session end). */
   resetSpeculative: () => void;
@@ -149,95 +154,104 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
    * Urgent injections include a [BEHAVIORAL CONTEXT] tag; passive ones are plain.
    * Psyche fragments fire conditionally via local intent routing (<1ms).
    */
-  const applyBehavioralInjection = useCallback((result: BehaviorAnalysis, session: LiveSession, userText?: string, personality?: string) => {
-    if (!result.behavior_instructions || !session) return;
-    try {
-      const isUrgent = (result as any).sensing_state?.injection_type === "urgent";
+  const applyBehavioralInjection = useCallback(
+    (result: BehaviorAnalysis, session: LiveSession, userText?: string, personality?: string) => {
+      if (!result.behavior_instructions || !session) return;
+      try {
+        const isUrgent = (result as any).sensing_state?.injection_type === "urgent";
 
-      if (isUrgent) {
-        console.log(
-          `[AURA] Urgent injection — mode: ${(result as any).sensing_state?.mode}, turn: ${(result as any).sensing_state?.session_turn}`,
-        );
-        (session as any).sendClientContent({
-          turns: [
-            {
-              role: "user",
-              parts: [{ text: `[BEHAVIORAL CONTEXT]: ${result.behavior_instructions}` }],
-            },
-          ],
-          turnComplete: false,
-        });
-      } else {
-        (session as any).sendClientContent({
-          turns: [{ role: "user", parts: [{ text: result.behavior_instructions }] }],
-          turnComplete: false,
-        });
-      }
-
-      // ── Adaptive Modulation Injection (local, <1ms) ───────────────
-      if (userText) {
-        const { presentation, directive } = getAdaptiveModulation(
-          userText,
-          personality || "adaptive",
-          result,
-          lastPresentationRef.current,
-        );
-        lastPresentationRef.current = presentation;
-        lastModulationRef.current = directive;
-
-        if (directive) {
-          console.log(`[AURA] 🎯 Adaptive modulation: energy=${presentation.energy}, openness=${presentation.openness}, depth=${presentation.depth}, arc=${presentation.arc}`);
+        if (isUrgent) {
+          console.log(
+            `[AURA] Urgent injection — mode: ${(result as any).sensing_state?.mode}, turn: ${(result as any).sensing_state?.session_turn}`,
+          );
           (session as any).sendClientContent({
             turns: [
               {
                 role: "user",
-                parts: [{ text: directive }],
+                parts: [{ text: `[BEHAVIORAL CONTEXT]: ${result.behavior_instructions}` }],
               },
             ],
             turnComplete: false,
           });
-        }
-      }
-
-      // ── Psyche Injection (conditional, <1ms) ──────────────────────
-      if (userText) {
-        const sensing = result.sensing_state;
-        // Map backend emotional_state string → EmotionalState for psyche router
-        const emotionalState: EmotionalState | null = sensing
-          ? {
-              mode: (sensing.mode as EmotionalState["mode"]) || "engaged",
-              formality: "balanced",
-              humor: false,
-              depth: sensing.engagement > 0.7 ? "deep" : sensing.engagement > 0.4 ? "reflective" : "surface",
-              confidence: sensing.trust ?? 0.5,
-            }
-          : null;
-
-        // Trust delta from previous analysis
-        const prevTrust = lastAnalysisRef.current?.sensing_state?.trust;
-        const currTrust = sensing?.trust;
-        const trustDelta = prevTrust !== undefined && currTrust !== undefined
-          ? currTrust - prevTrust
-          : undefined;
-
-        const psyche = routePsycheModule(userText, emotionalState, trustDelta);
-        if (psyche) {
-          console.log(`[AURA] 🧠 Psyche injection: ${psyche.key}`);
+        } else {
           (session as any).sendClientContent({
-            turns: [
-              {
-                role: "user",
-                parts: [{ text: psyche.content }],
-              },
-            ],
+            turns: [{ role: "user", parts: [{ text: result.behavior_instructions }] }],
             turnComplete: false,
           });
         }
+
+        // ── Adaptive Modulation Injection (local, <1ms) ───────────────
+        if (userText) {
+          const { presentation, directive } = getAdaptiveModulation(
+            userText,
+            personality || "adaptive",
+            result,
+            lastPresentationRef.current,
+          );
+          lastPresentationRef.current = presentation;
+          lastModulationRef.current = directive;
+
+          if (directive) {
+            console.log(
+              `[AURA] 🎯 Adaptive modulation: energy=${presentation.energy}, openness=${presentation.openness}, depth=${presentation.depth}, arc=${presentation.arc}`,
+            );
+            (session as any).sendClientContent({
+              turns: [
+                {
+                  role: "user",
+                  parts: [{ text: directive }],
+                },
+              ],
+              turnComplete: false,
+            });
+          }
+        }
+
+        // ── Psyche Injection (conditional, <1ms) ──────────────────────
+        if (userText) {
+          const sensing = result.sensing_state;
+          // Map backend emotional_state string → EmotionalState for psyche router
+          const emotionalState: EmotionalState | null = sensing
+            ? {
+                mode: (sensing.mode as EmotionalState["mode"]) || "engaged",
+                formality: "balanced",
+                humor: false,
+                depth:
+                  sensing.engagement > 0.7
+                    ? "deep"
+                    : sensing.engagement > 0.4
+                      ? "reflective"
+                      : "surface",
+                confidence: sensing.trust ?? 0.5,
+              }
+            : null;
+
+          // Trust delta from previous analysis
+          const prevTrust = lastAnalysisRef.current?.sensing_state?.trust;
+          const currTrust = sensing?.trust;
+          const trustDelta =
+            prevTrust !== undefined && currTrust !== undefined ? currTrust - prevTrust : undefined;
+
+          const psyche = routePsycheModule(userText, emotionalState, trustDelta);
+          if (psyche) {
+            console.log(`[AURA] 🧠 Psyche injection: ${psyche.key}`);
+            (session as any).sendClientContent({
+              turns: [
+                {
+                  role: "user",
+                  parts: [{ text: psyche.content }],
+                },
+              ],
+              turnComplete: false,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[AURA] Failed to apply behavioral injection:", e);
       }
-    } catch (e) {
-      console.warn("[AURA] Failed to apply behavioral injection:", e);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const resetSpeculative = useCallback(() => {
     speculativeAbortRef.current?.abort();

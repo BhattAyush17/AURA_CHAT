@@ -10,17 +10,17 @@
 // Never appended to — always fully rewritten. Old seed in, new seed out.
 
 export interface AuraSeed {
-  v: number;                   // schema version — increment on breaking change
-  uid: string;                 // user id (hashed, never raw)
-  updated: number;             // unix timestamp of last write
+  v: number; // schema version — increment on breaking change
+  uid: string; // user id (hashed, never raw)
+  updated: number; // unix timestamp of last write
 
   // CORE IDENTITY SNAPSHOT — survives forever, max 300 chars total
   core: {
-    name?: string;             // what they want to be called
-    lang: string;              // "hi" | "en" | "hinglish" — primary register
-    trust: number;             // 0.0–1.0, float, 2 decimal places
-    archetype?: string;        // single word: "builder" "caregiver" "seeker" etc.
-    tone_pref: string;         // "warm" | "direct" | "philosophical" | "playful"
+    name?: string; // what they want to be called
+    lang: string; // "hi" | "en" | "hinglish" — primary register
+    trust: number; // 0.0–1.0, float, 2 decimal places
+    archetype?: string; // single word: "builder" "caregiver" "seeker" etc.
+    tone_pref: string; // "warm" | "direct" | "philosophical" | "playful"
   };
 
   // EMOTIONAL ARCHAEOLOGY — rolling, max 5 entries, oldest dropped
@@ -42,9 +42,9 @@ export interface AuraSeed {
   // WHAT WORKS — communication patterns that land with this person
   // Stored as short codes to save space
   resonance: {
-    metaphor_style?: string;   // "nature" | "architecture" | "music" | "sport"
-    receives_best: string;     // "questions" | "silence" | "reflection" | "story"
-    avoid: string[];           // max 3 items, each max 20 chars
+    metaphor_style?: string; // "nature" | "architecture" | "music" | "sport"
+    receives_best: string; // "questions" | "silence" | "reflection" | "story"
+    avoid: string[]; // max 3 items, each max 20 chars
   };
 
   // RELATIONAL THREAD — the single sentence that captures this bond right now
@@ -108,32 +108,34 @@ COMPRESSION PASS — run before every seed write:
 // This is prepended to the system prompt after the ctx tag is parsed.
 
 export const buildSeedInjection = (seed: AuraSeed | null): string => {
-  if (!seed) return `[NEW USER — no prior seed. Begin with open curiosity.
+  if (!seed)
+    return `[NEW USER — no prior seed. Begin with open curiosity.
     Set trust to 0.3. Do not reference memory. Let them arrive.
     Goal this session: listen, find their language, notice what they carry.]`;
 
   const daysSince = Math.floor((Date.now() / 1000 - seed.updated) / 86400);
-  const returnNote = daysSince > 30
-    ? `[${daysSince}d gap — hold lightly, let them re-establish. Do not assume continuity.]`
-    : daysSince > 7
-    ? `[${daysSince}d since last session — warm re-entry, let them set the pace.]`
-    : ``;
+  const returnNote =
+    daysSince > 30
+      ? `[${daysSince}d gap — hold lightly, let them re-establish. Do not assume continuity.]`
+      : daysSince > 7
+        ? `[${daysSince}d since last session — warm re-entry, let them set the pace.]`
+        : ``;
 
   const arcLines = seed.arc
-    .slice(-3)  // only last 3 entries in context — oldest already compressed to thread
+    .slice(-3) // only last 3 entries in context — oldest already compressed to thread
     .map(([d, insight, v]) => `  ${v} [${d}d ago] ${insight}`)
-    .join('\n');
+    .join("\n");
 
   return `
 [SEED v${seed.v} — trust:${seed.core.trust} — lang:${seed.core.lang}]
 ${returnNote}
 THREAD: ${seed.thread}
 RECENT ARC:
-${arcLines || '  (none yet)'}
-TENSIONS: ${seed.tensions.join(' / ') || 'none held'}
-GROWTH: ${seed.growth.slice(-1)[0] || 'not yet marked'}
-RESONATES WITH: ${seed.resonance.receives_best} / ${seed.resonance.metaphor_style || 'style unknown'}
-AVOID: ${seed.resonance.avoid.join(', ') || 'nothing flagged'}
+${arcLines || "  (none yet)"}
+TENSIONS: ${seed.tensions.join(" / ") || "none held"}
+GROWTH: ${seed.growth.slice(-1)[0] || "not yet marked"}
+RESONATES WITH: ${seed.resonance.receives_best} / ${seed.resonance.metaphor_style || "style unknown"}
+AVOID: ${seed.resonance.avoid.join(", ") || "nothing flagged"}
 [Read silently. Do not reference this block directly. Let it inform, not perform.]
 `.trim();
 };
@@ -309,16 +311,20 @@ export function validateSeed(seed: AuraSeed): string[] {
   const errors: string[] = [];
   if (seed.arc.length > MAX_ARC_ENTRIES) errors.push(`arc exceeds ${MAX_ARC_ENTRIES} entries`);
   if (seed.growth.length > MAX_GROWTH_ENTRIES) errors.push(`growth exceeds ${MAX_GROWTH_ENTRIES}`);
-  if (seed.tensions.length > MAX_TENSION_ENTRIES) errors.push(`tensions exceeds ${MAX_TENSION_ENTRIES}`);
-  if (seed.thread.length > MAX_THREAD_CHARS) errors.push(`thread exceeds ${MAX_THREAD_CHARS} chars`);
+  if (seed.tensions.length > MAX_TENSION_ENTRIES)
+    errors.push(`tensions exceeds ${MAX_TENSION_ENTRIES}`);
+  if (seed.thread.length > MAX_THREAD_CHARS)
+    errors.push(`thread exceeds ${MAX_THREAD_CHARS} chars`);
   seed.arc.forEach(([, insight], i) => {
-    if (insight.length > MAX_ARC_INSIGHT_CHARS) errors.push(`arc[${i}] insight exceeds ${MAX_ARC_INSIGHT_CHARS} chars`);
+    if (insight.length > MAX_ARC_INSIGHT_CHARS)
+      errors.push(`arc[${i}] insight exceeds ${MAX_ARC_INSIGHT_CHARS} chars`);
   });
   seed.growth.forEach((g, i) => {
     if (g.length > MAX_GROWTH_CHARS) errors.push(`growth[${i}] exceeds ${MAX_GROWTH_CHARS} chars`);
   });
   seed.tensions.forEach((t, i) => {
-    if (t.length > MAX_TENSION_CHARS) errors.push(`tensions[${i}] exceeds ${MAX_TENSION_CHARS} chars`);
+    if (t.length > MAX_TENSION_CHARS)
+      errors.push(`tensions[${i}] exceeds ${MAX_TENSION_CHARS} chars`);
   });
   const size = new TextEncoder().encode(JSON.stringify(seed)).length;
   if (size > MAX_SEED_BYTES) errors.push(`seed is ${size}B, exceeds ${MAX_SEED_BYTES}B ceiling`);
@@ -331,10 +337,13 @@ export function enforceSizeCeiling(seed: AuraSeed): AuraSeed {
 
   // Pass 1: Truncate all string fields to their max lengths
   s.thread = s.thread.slice(0, MAX_THREAD_CHARS);
-  s.arc = s.arc.map(([ts, insight, v]) => [ts, insight.slice(0, MAX_ARC_INSIGHT_CHARS), v] as [number, string, string]);
-  s.growth = s.growth.slice(-MAX_GROWTH_ENTRIES).map(g => g.slice(0, MAX_GROWTH_CHARS));
-  s.tensions = s.tensions.slice(-MAX_TENSION_ENTRIES).map(t => t.slice(0, MAX_TENSION_CHARS));
-  s.resonance.avoid = s.resonance.avoid.slice(0, 3).map(a => a.slice(0, 20));
+  s.arc = s.arc.map(
+    ([ts, insight, v]) =>
+      [ts, insight.slice(0, MAX_ARC_INSIGHT_CHARS), v] as [number, string, string],
+  );
+  s.growth = s.growth.slice(-MAX_GROWTH_ENTRIES).map((g) => g.slice(0, MAX_GROWTH_CHARS));
+  s.tensions = s.tensions.slice(-MAX_TENSION_ENTRIES).map((t) => t.slice(0, MAX_TENSION_CHARS));
+  s.resonance.avoid = s.resonance.avoid.slice(0, 3).map((a) => a.slice(0, 20));
 
   // Pass 2: Drop arc entries oldest-first until under ceiling
   while (s.arc.length > 0 && byteSize(s) > MAX_SEED_BYTES) {
@@ -364,12 +373,10 @@ function byteSize(obj: unknown): number {
 import type { Turn } from "./storage/types";
 
 export function compressTranscript(transcript: Turn[], maxTurns: number = 20): string {
-  const valid = transcript.filter(t => t.text && t.text.trim().length > 0);
+  const valid = transcript.filter((t) => t.text && t.text.trim().length > 0);
   // Take last N turns, prioritizing user-initiated ones
   const selected = valid.slice(-maxTurns);
-  return selected
-    .map(t => `${t.user_initiated ? "U" : "A"}: ${t.text.slice(0, 120)}`)
-    .join("\n");
+  return selected.map((t) => `${t.user_initiated ? "U" : "A"}: ${t.text.slice(0, 120)}`).join("\n");
 }
 
 // ── BRIDGE: AuraSeed ↔ Legacy SeedData ───────────────────────────
@@ -426,16 +433,20 @@ export function buildCrystallizationPrompt(
   const prevJson = previousSeed ? JSON.stringify(previousSeed) : "null";
   const compressed = compressTranscript(transcript);
 
-  return SEED_WRITE_PROMPT
-    .replace("{{PREVIOUS_SEED}}", prevJson)
-    .replace("{{COMPRESSED_TRANSCRIPT}}", compressed);
+  return SEED_WRITE_PROMPT.replace("{{PREVIOUS_SEED}}", prevJson).replace(
+    "{{COMPRESSED_TRANSCRIPT}}",
+    compressed,
+  );
 }
 
 /** Parse and validate the model's JSON output into an AuraSeed. */
 export function parseCrystallizationOutput(raw: string, fallbackUid: string): AuraSeed | null {
   try {
     // Strip markdown fences if present
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const cleaned = raw
+      .replace(/```json\s*/g, "")
+      .replace(/```\s*/g, "")
+      .trim();
     const parsed = JSON.parse(cleaned) as AuraSeed;
 
     // Validate required fields

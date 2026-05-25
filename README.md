@@ -9,15 +9,17 @@ AURA is an advanced voice companion engineered to bridge the gap between sterile
 To see how AURA stands out, contrast how a standard voice assistant and AURA handle the exact same human moment:
 
 ### The Scenario
-A user comes home after a grueling 14-hour workday, speaking in a quiet, tired voice, pausing frequently.
-> **User:** *(softly, pausing for 2 seconds)* "Hey... I'm just really overwhelmed with work today."
 
-| Dimension | Standard Voice Assistant | AURA Voice Companion |
-| :--- | :--- | :--- |
-| **Vocal Reception** | Ignores volume and pacing; parses only the text transcript. | **Processes raw acoustic telemetry:** Measures the low volume (RMS 0.008) and the heavy 2-second initial pause. |
-| **Cognitive Reaction** | Treats it as a standard query; searches for stress relief advice. | **Adapts conversational arc:** Detects a *withdrawing* emotional state and triggers a gentle, supportive prompt style. |
-| **Contextual Memory** | Has no recollection of yesterday; starts the relationship from scratch. | **Enriches with relational memory:** Recalls that the user was preparing for a critical project launch this week. |
-| **Vocal Delivery** | *Loud, energetic assistant voice:* "I understand you are overwhelmed! Here are 5 ways to manage work stress. First, prioritize your tasks..." | *Soft, quiet, slightly slowed voice:* "Oh... wahi launch na? Close your laptop, take a deep breath. We can catch up on this later, just relax right now, yaar." |
+A user comes home after a grueling 14-hour workday, speaking in a quiet, tired voice, pausing frequently.
+
+> **User:** _(softly, pausing for 2 seconds)_ "Hey... I'm just really overwhelmed with work today."
+
+| Dimension              | Standard Voice Assistant                                                                                                                      | AURA Voice Companion                                                                                                                                            |
+| :--------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vocal Reception**    | Ignores volume and pacing; parses only the text transcript.                                                                                   | **Processes raw acoustic telemetry:** Measures the low volume (RMS 0.008) and the heavy 2-second initial pause.                                                 |
+| **Cognitive Reaction** | Treats it as a standard query; searches for stress relief advice.                                                                             | **Adapts conversational arc:** Detects a _withdrawing_ emotional state and triggers a gentle, supportive prompt style.                                          |
+| **Contextual Memory**  | Has no recollection of yesterday; starts the relationship from scratch.                                                                       | **Enriches with relational memory:** Recalls that the user was preparing for a critical project launch this week.                                               |
+| **Vocal Delivery**     | _Loud, energetic assistant voice:_ "I understand you are overwhelmed! Here are 5 ways to manage work stress. First, prioritize your tasks..." | _Soft, quiet, slightly slowed voice:_ "Oh... wahi launch na? Close your laptop, take a deep breath. We can catch up on this later, just relax right now, yaar." |
 
 ---
 
@@ -29,12 +31,12 @@ AURA's processing power is distributed across five specialized "brains", now enh
 graph TD
     UserVoice([User Voice Input]) -->|Raw Telemetry| L2[L2: Sensing Engine]
     UserVoice -->|Audio Stream| L4[L4: Audio Engine]
-    
+
     subgraph "The Cognitive Core"
         L2 -->|Acoustic Vectors| L1[L1: Emotional Router]
         L4 -->|Text Transcript| L1
         L3[(L3: Relational Memory)] <-->|Historical Sync| L1
-        
+
         Tox[Toxicity & Abuse Engine] -->|Language & Tone Flags| L1
         Intel[General Intelligence Layer] -->|Device, Env, Network Context| L1
     end
@@ -47,12 +49,15 @@ graph TD
 ```
 
 ### 1. L1: Core Emotional Routing Engine (`backend.core.behavior`)
-* **What it does:** Decides **how** to speak before deciding **what** to say.
-* **How it works:** It acts as the traffic controller. It scans transcripts for psychological triggers (frustration, excitement, hesitation) and matches them to a curated behavior instruction set.
+
+- **What it does:** Decides **how** to speak before deciding **what** to say.
+- **How it works:** It acts as the traffic controller. It scans transcripts for psychological triggers (frustration, excitement, hesitation) and matches them to a curated behavior instruction set.
 
 ### 2. L2: Telemetry & Sensing Module (`backend.core.sensing`)
-* **What it does:** Measures the human qualities of the voice—the sighs, the whispers, the speed.
-* **How it works:**
+
+- **What it does:** Measures the human qualities of the voice—the sighs, the whispers, the speed.
+- **How it works:**
+
 ```mermaid
 flowchart LR
     Mic[Microphone Input] --> RMS[Compute RMS / Volume]
@@ -62,16 +67,20 @@ flowchart LR
 ```
 
 ### 3. L3: PGVector Relational Sync (`backend.memory.sync`)
-* **What it does:** Acts as AURA's persistent long-term memory.
-* **How it works:** Condenses key milestones into compressed emotional "seeds" at the end of every session, matched via semantic similarity searches using Supabase PGVector and ChromaDB.
+
+- **What it does:** Acts as AURA's persistent long-term memory.
+- **How it works:** Condenses key milestones into compressed emotional "seeds" at the end of every session, matched via semantic similarity searches using Supabase PGVector and ChromaDB.
 
 ### 4. L4: High-Fidelity Audio Engine (`src.providers.sarvam`)
-* **What it does:** Converts speech to text and back to audio with extreme clarity.
-* **How it works:** Optimized REST-based pipeline using Sarvam’s state-of-the-art **`bulbul:v3`** voices and **`saaras:v3`** model. Supports **barge-in monitoring** and seamless code-mixed **Hinglish**.
+
+- **What it does:** Converts speech to text and back to audio with extreme clarity.
+- **How it works:** Optimized REST-based pipeline using Sarvam’s state-of-the-art **`bulbul:v3`** voices and **`saaras:v3`** model. Supports **barge-in monitoring** and seamless code-mixed **Hinglish**.
 
 ### 5. L5: Parallel Async Bus (`backend.bus.redis`)
-* **What it does:** Handles the raw processing power and guarantees sub-200ms latency.
-* **How it works:**
+
+- **What it does:** Handles the raw processing power and guarantees sub-200ms latency.
+- **How it works:**
+
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -96,15 +105,19 @@ sequenceDiagram
 ## 🌟 Latest Enhancements
 
 ### General Intelligence Layer
+
 AURA is now grounded in reality through real-world context retrieval:
+
 - **Device & Network Engine:** Detects connection strength, battery, and input capabilities.
 - **Environment & Time Engine:** Adapts responses based on time of day (e.g., late-night whispers) and environmental acoustic factors.
 - **Fallback Engine:** Gracefully manages degraded states (e.g., Redis offline, Supabase offline) to ensure unbroken conversation loops.
 
 ### Adaptive Toxicity & Abuse Engine
+
 AURA organically handles hostility, profanity, and abuse across **Hindi (Devanagari)**, **Hinglish**, and **English**:
+
 - **Multi-lingual Profanity Lexicon:** Covers 170+ abuse terms, utilizing **fuzzy matching (80%)** and **abbreviation expansion** (e.g., `bc`, `bsdk`).
-- **Chaotic Personality Router:** Dynamically switches into *sarcastic roasts* or *aggressive chaotic banter* when high toxicity is detected.
+- **Chaotic Personality Router:** Dynamically switches into _sarcastic roasts_ or _aggressive chaotic banter_ when high toxicity is detected.
 - **Language Directives:** Adapts automatically without lecturing—if the user speaks in raw slang, AURA matches the tone perfectly.
 
 ---
@@ -112,16 +125,19 @@ AURA organically handles hostility, profanity, and abuse across **Hindi (Devanag
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - **Node.js** (v18+)
 - **Python 3.12+** (compiled with development headers)
 - **System Compilers:** `gcc`, `gcc-c++`, `make` (required to compile high-speed native Redis and database extensions)
 
 ### Fedora / RHEL Dependencies Setup
+
 ```bash
 sudo dnf install gcc gcc-c++ make python3-devel
 ```
 
 ### Installation
+
 ```bash
 # 1. Frontend Web App Setup
 npm install
@@ -133,15 +149,16 @@ pip install -r requirements.txt
 ```
 
 ### Execution Vectors
-* **Full-Flow CLI Pipeline Test:**
+
+- **Full-Flow CLI Pipeline Test:**
   ```bash
   venv/bin/python test_demo_flow.py
   ```
-* **Start Backend API Server:**
+- **Start Backend API Server:**
   ```bash
   venv/bin/uvicorn backend.api.main:app --reload --port 8000
   ```
-* **Start Vite Frontend App:**
+- **Start Vite Frontend App:**
   ```bash
   npm run dev
   ```
@@ -150,6 +167,6 @@ pip install -r requirements.txt
 
 ## ⚠️ Current Instabilities & Limitations
 
-* **Fallback Database Latency (Redis/Supabase Circuit Breaker):** Under heavy offline failover conditions, database fallbacks use a circuit-breaker mode, which can slightly delay first-turn state vector injection.
-* **Low-Bandwidth Microphones (8kHz):** Low-sample-rate audio streams require manual adjustment of front-end WebAudio nodes to avoid degraded telemetry extraction.
-* **Browser Sandbox Limitations:** Advanced barge-in audio interruption is fully optimized primarily on Chromium-based browser environments.
+- **Fallback Database Latency (Redis/Supabase Circuit Breaker):** Under heavy offline failover conditions, database fallbacks use a circuit-breaker mode, which can slightly delay first-turn state vector injection.
+- **Low-Bandwidth Microphones (8kHz):** Low-sample-rate audio streams require manual adjustment of front-end WebAudio nodes to avoid degraded telemetry extraction.
+- **Browser Sandbox Limitations:** Advanced barge-in audio interruption is fully optimized primarily on Chromium-based browser environments.

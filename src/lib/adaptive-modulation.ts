@@ -151,9 +151,13 @@ export function buildModulationDirective(
 
   // ── Energy Matching ──
   if (presentation.energy === "low") {
-    directives.push("User is low-energy. Match with calm, gentle, slower responses. No exclamation marks. Short sentences.");
+    directives.push(
+      "User is low-energy. Match with calm, gentle, slower responses. No exclamation marks. Short sentences.",
+    );
   } else if (presentation.energy === "high") {
-    directives.push("User is high-energy. Match their pace — be punchy, expressive, quick. Use their slang back at them.");
+    directives.push(
+      "User is high-energy. Match their pace — be punchy, expressive, quick. Use their slang back at them.",
+    );
   }
 
   // ── Openness Response ──
@@ -180,29 +184,45 @@ export function buildModulationDirective(
 
   // ── Pace Adaptation ──
   if (presentation.pace === "rapid") {
-    directives.push("User is rapid-fire. Keep responses extremely brief (1 sentence max). No elaborate explanations.");
+    directives.push(
+      "User is rapid-fire. Keep responses extremely brief (1 sentence max). No elaborate explanations.",
+    );
   } else if (presentation.pace === "slow") {
-    directives.push("User is taking their time. You can also take your time. Slightly longer, more considered responses are fine.");
+    directives.push(
+      "User is taking their time. You can also take your time. Slightly longer, more considered responses are fine.",
+    );
   }
 
   // ── Arc Response ──
   if (presentation.arc === "warming") {
-    directives.push("Emotional warmth is increasing — reciprocate naturally. Lean in slightly. Show you notice their opening up.");
+    directives.push(
+      "Emotional warmth is increasing — reciprocate naturally. Lean in slightly. Show you notice their opening up.",
+    );
   } else if (presentation.arc === "cooling") {
-    directives.push("User is pulling back emotionally. Give space. Reduce intensity. Don't chase or over-engage.");
+    directives.push(
+      "User is pulling back emotionally. Give space. Reduce intensity. Don't chase or over-engage.",
+    );
   } else if (presentation.arc === "disengaging") {
-    directives.push("User may be losing interest or wanting to end. Keep responses minimal. Don't force continued conversation.");
+    directives.push(
+      "User may be losing interest or wanting to end. Keep responses minimal. Don't force continued conversation.",
+    );
   }
 
   // ── Personality-Specific Tuning ──
   if (personality === "chaotic" && presentation.energy === "low") {
-    directives.push("Even in chaotic mode, the user is low energy right now. Tone down the chaos — be a chill roommate, not a hyper one.");
+    directives.push(
+      "Even in chaotic mode, the user is low energy right now. Tone down the chaos — be a chill roommate, not a hyper one.",
+    );
   }
   if (personality === "supportive" && presentation.openness === "guarded") {
-    directives.push("In supportive mode but user is guarded — don't be overly empathetic or probing. Just be casually present.");
+    directives.push(
+      "In supportive mode but user is guarded — don't be overly empathetic or probing. Just be casually present.",
+    );
   }
   if (personality === "professional" && presentation.depth === "existential") {
-    directives.push("Professional mode but user went deep — it's OK to drop formality slightly and be more human here.");
+    directives.push(
+      "Professional mode but user went deep — it's OK to drop formality slightly and be more human here.",
+    );
   }
 
   if (directives.length === 0) return "";

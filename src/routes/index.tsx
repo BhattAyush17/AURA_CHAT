@@ -39,8 +39,7 @@ function AuraExperience() {
 
   // Compute needsSettings dynamically based on the active brain
   // R07 FIX: Sarvam requires BOTH OpenRouter key (LLM) and Sarvam key (STT/TTS)
-  const getSarvamKey = () =>
-    sessionStorage.getItem("aura_sarvam_api_key") || "";
+  const getSarvamKey = () => sessionStorage.getItem("aura_sarvam_api_key") || "";
   const needsSettings =
     activeBrain === "gemini"
       ? !getGeminiKey()
@@ -94,17 +93,17 @@ function AuraExperience() {
     activeBrain === "sarvam"
       ? [
           // ── Female ──
-          { id: "Priya",  label: "Priya",  desc: "Warm & expressive ♀" },
-          { id: "Kavya",  label: "Kavya",  desc: "Soft & gentle ♀" },
-          { id: "Neha",   label: "Neha",   desc: "Calm & soothing ♀" },
+          { id: "Priya", label: "Priya", desc: "Warm & expressive ♀" },
+          { id: "Kavya", label: "Kavya", desc: "Soft & gentle ♀" },
+          { id: "Neha", label: "Neha", desc: "Calm & soothing ♀" },
           { id: "Shreya", label: "Shreya", desc: "Bright & energetic ♀" },
-          { id: "Ritu",   label: "Ritu",   desc: "Clear & professional ♀" },
+          { id: "Ritu", label: "Ritu", desc: "Clear & professional ♀" },
           // ── Male ──
-          { id: "Shubh",  label: "Shubh",  desc: "Natural & balanced ♂" },
+          { id: "Shubh", label: "Shubh", desc: "Natural & balanced ♂" },
           { id: "Aditya", label: "Aditya", desc: "Deep & confident ♂" },
-          { id: "Rahul",  label: "Rahul",  desc: "Friendly & casual ♂" },
-          { id: "Dev",    label: "Dev",    desc: "Bold & authoritative ♂" },
-          { id: "Rohan",  label: "Rohan",  desc: "Smooth & composed ♂" },
+          { id: "Rahul", label: "Rahul", desc: "Friendly & casual ♂" },
+          { id: "Dev", label: "Dev", desc: "Bold & authoritative ♂" },
+          { id: "Rohan", label: "Rohan", desc: "Smooth & composed ♂" },
         ]
       : [
           { id: "Puck", label: "Puck", desc: "Warm & clear" },
@@ -133,9 +132,17 @@ function AuraExperience() {
   } = pipeline;
 
   const tone =
-    activeBrain === "gemini" ? auraState?.tone : isThinking ? "Analyzing..." : pipeline.liveStats?.tone || "Listening...";
+    activeBrain === "gemini"
+      ? auraState?.tone
+      : isThinking
+        ? "Analyzing..."
+        : pipeline.liveStats?.tone || "Listening...";
   const intent =
-    activeBrain === "gemini" ? auraState?.intent : isThinking ? "Mapping..." : pipeline.liveStats?.intent || "Steady";
+    activeBrain === "gemini"
+      ? auraState?.intent
+      : isThinking
+        ? "Mapping..."
+        : pipeline.liveStats?.intent || "Steady";
   const brainModel = activeBrain === "gemini" ? "Gemini Live 🎙️" : activeModel || "Unknown";
 
   const handleMicClick = useCallback(async () => {
@@ -377,7 +384,10 @@ function AuraExperience() {
             value={personality}
             onChange={(p) => {
               setPersonality(p);
-              if ((status === "listening" || status === "speaking" || status === "thinking") && updateConfig) {
+              if (
+                (status === "listening" || status === "speaking" || status === "thinking") &&
+                updateConfig
+              ) {
                 updateConfig(undefined, p);
               }
             }}

@@ -444,183 +444,187 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     }
 
     try {
-      const [seedData] = await Promise.all([
-        storageManager.loadSeed(),
-        ws.connect({
-          voice: voiceRef.current,
-          voiceLanguage: voiceLanguageRef.current,
-          personality: modeRef.current,
-          setupAudio: async (stream) => {
-            return audio.setupAudioGraph(
-              stream,
-              ws.sessionRef,
-              ws.sessionState as any,
-              ws.isSessionReadyRef,
-              ws.perfRef,
-              isFirstChunkOfTurnRef,
-              pauseSinceLastTurnRef,
-              lastTurnEndTimeRef,
-              lastChunkTime,
-            );
-          },
-          onOpen: (session, audioContext, stream) => {
-            // Wire mic to session immediately
-            // (Handled internally by useAudioPipeline using the worklet output)
+      const seedData = await storageManager.loadSeed();
+      const seedBlock = seedData ? seedData.seed : undefined;
 
-            // Send greeting after 250ms
+      await ws.connect({
+        voice: voiceRef.current,
+        voiceLanguage: voiceLanguageRef.current,
+        personality: modeRef.current,
+        seedBlock,
+        setupAudio: async (stream) => {
+          return audio.setupAudioGraph(
+            stream,
+            ws.sessionRef,
+            ws.sessionState as any,
+            ws.isSessionReadyRef,
+            ws.perfRef,
+            isFirstChunkOfTurnRef,
+            pauseSinceLastTurnRef,
+            lastTurnEndTimeRef,
+            lastChunkTime,
+          );
+        },
+        onOpen: (session, audioContext, stream) => {
+          // Wire mic to session immediately
+          // (Handled internally by useAudioPipeline using the worklet output)
+
+          // Send greeting after 250ms
+          setTimeout(() => {
+            if (ws.sessionState.current !== "connected") return;
+            if (transcript_.transcriptRef.current.length === 0 && ws.sessionRef.current) {
+              try {
+                ws.sendClientContent({
+                  turns: [
+                    { role: "user", parts: [{ text: prompts.getGreeting(modeRef.current) }] },
+                  ],
+                  turnComplete: true,
+                });
+                setIsThinking(true);
+                console.log("[AURA] 🎤 Greeting sent.");
+              } catch (e) {
+                console.warn("[AURA] Failed to send greeting:", e);
+              }
+            }
+          }, 250);
+
+          if (audioContext.state !== "closed") void audioContext.resume();
+          audio.startVolumeLoop();
+        },
+        messageCallbacks: {
+          onServerContent: () => {
+            setIsThinking(false);
+          },
+          onAudio: (base64Data) => {
+            ws.perfRef.current.t4 = performance.now();
+            const genStart =
+              ws.perfRef.current.t3 > 0 ? ws.perfRef.current.t4 - ws.perfRef.current.t3 : 0;
+            ws.perfRef.current.geminiGenStart = genStart;
+            setIsThinking(false);
+            audio.setIsSpeakingState(true);
+            emitLatency({
+              roundTrip: performance.now() - roundTripStartRef.current,
+              geminiGenStart: genStart,
+            });
+
+            // Adaptive delay: offset FIRST chunk only
+            let delayOffset = 0;
+            if (!responseDelayAppliedRef.current) {
+              const sensing = behavior.lastAnalysisRef.current?.sensing_state;
+              delayOffset = getResponseDelay({
+                emotionalState: {
+                  mode: sensing?.mode || "engaged",
+                  tension: sensing?.tension || 0,
+                  energy: sensing?.energy || 0.5,
+                },
+                wasInterrupted: bargeIn.stateRef.current.wasInterrupted,
+                turnIndex: sessionTurnCountRef.current,
+              });
+              responseDelayAppliedRef.current = true;
+              if (delayOffset > 0) console.log(`[AURA] ⏱ Response delay: ${delayOffset}ms`);
+            }
+
+            audio.schedulePlayback(
+              base64Data,
+              audio.audioContextRef.current!,
+              audio.outputAnalyserRef.current!,
+              delayOffset / 1000,
+            );
+            ws.perfRef.current.t5 = performance.now();
+          },
+          onModelText: (text) => {
+            transcript_.addTurn(text, false);
+            currentResponseTextRef.current += text;
+          },
+          onInputTranscription: (partialText) => {
+            console.log(
+              "%c🗣️ USER SAID (Gemini Live): " + partialText,
+              "color: #3b82f6; font-weight: bold; font-size: 13px;",
+            );
+            handleUserTurn(partialText);
+            if (sessionIdRef.current) {
+              behavior.fireSpeculative(partialText, sessionIdRef.current, userIdRef.current);
+            }
+          },
+          onToolCall: (functionCalls) => {
+            return functionCalls.map((fc: any) => {
+              if (fc.name === "saveMemory") {
+                addMemory(fc.args.fact);
+                return { id: fc.id, name: fc.name, response: { result: "Saved" } };
+              }
+              if (fc.name === "updateAnalysis") {
+                setAuraState({
+                  words: fc.args.user_words,
+                  tone: fc.args.detected_tone,
+                  intent: fc.args.perceived_intent,
+                });
+                return { id: fc.id, name: fc.name, response: { result: "Logged" } };
+              }
+              return { id: fc.id, name: fc.name, response: { error: "Unknown" } };
+            });
+          },
+          onTurnComplete: () => {
+            ws.perfRef.current.t2 = performance.now();
+            lastTurnEndTimeRef.current = performance.now();
+            isFirstChunkOfTurnRef.current = true;
+            responseDelayAppliedRef.current = false;
+            currentResponseTextRef.current = "";
+            recordTimingTurn();
+          },
+          onInterrupted: () => {
+            audio.interruptPlayback(0);
+            ws.isSessionReadyRef.current = false;
             setTimeout(() => {
-              if (ws.sessionState.current !== "connected") return;
-              if (transcript_.transcriptRef.current.length === 0 && ws.sessionRef.current) {
+              ws.isSessionReadyRef.current = true;
+              if (ws.sessionRef.current && ws.sessionState.current === "connected") {
                 try {
                   ws.sendClientContent({
                     turns: [
-                      { role: "user", parts: [{ text: prompts.getGreeting(modeRef.current) }] },
-                    ],
-                    turnComplete: true,
-                  });
-                  setIsThinking(true);
-                  console.log("[AURA] 🎤 Greeting sent.");
-                } catch (e) {
-                  console.warn("[AURA] Failed to send greeting:", e);
-                }
-              }
-            }, 250);
-
-            if (audioContext.state !== "closed") void audioContext.resume();
-            audio.startVolumeLoop();
-          },
-          messageCallbacks: {
-            onServerContent: () => {
-              setIsThinking(false);
-            },
-            onAudio: (base64Data) => {
-              ws.perfRef.current.t4 = performance.now();
-              const genStart =
-                ws.perfRef.current.t3 > 0 ? ws.perfRef.current.t4 - ws.perfRef.current.t3 : 0;
-              ws.perfRef.current.geminiGenStart = genStart;
-              setIsThinking(false);
-              audio.setIsSpeakingState(true);
-              emitLatency({
-                roundTrip: performance.now() - roundTripStartRef.current,
-                geminiGenStart: genStart,
-              });
-
-              // Adaptive delay: offset FIRST chunk only
-              let delayOffset = 0;
-              if (!responseDelayAppliedRef.current) {
-                const sensing = behavior.lastAnalysisRef.current?.sensing_state;
-                delayOffset = getResponseDelay({
-                  emotionalState: {
-                    mode: sensing?.mode || "engaged",
-                    tension: sensing?.tension || 0,
-                    energy: sensing?.energy || 0.5,
-                  },
-                  wasInterrupted: bargeIn.stateRef.current.wasInterrupted,
-                  turnIndex: sessionTurnCountRef.current,
-                });
-                responseDelayAppliedRef.current = true;
-                if (delayOffset > 0) console.log(`[AURA] ⏱ Response delay: ${delayOffset}ms`);
-              }
-
-              audio.schedulePlayback(
-                base64Data,
-                audio.audioContextRef.current!,
-                audio.outputAnalyserRef.current!,
-                delayOffset / 1000,
-              );
-              ws.perfRef.current.t5 = performance.now();
-            },
-            onModelText: (text) => {
-              transcript_.addTurn(text, false);
-              currentResponseTextRef.current += text;
-            },
-            onInputTranscription: (partialText) => {
-              console.log("%c🗣️ USER SAID (Gemini Live): " + partialText, "color: #3b82f6; font-weight: bold; font-size: 13px;");
-              handleUserTurn(partialText);
-              if (sessionIdRef.current) {
-                behavior.fireSpeculative(partialText, sessionIdRef.current, userIdRef.current);
-              }
-            },
-            onToolCall: (functionCalls) => {
-              return functionCalls.map((fc: any) => {
-                if (fc.name === "saveMemory") {
-                  addMemory(fc.args.fact);
-                  return { id: fc.id, name: fc.name, response: { result: "Saved" } };
-                }
-                if (fc.name === "updateAnalysis") {
-                  setAuraState({
-                    words: fc.args.user_words,
-                    tone: fc.args.detected_tone,
-                    intent: fc.args.perceived_intent,
-                  });
-                  return { id: fc.id, name: fc.name, response: { result: "Logged" } };
-                }
-                return { id: fc.id, name: fc.name, response: { error: "Unknown" } };
-              });
-            },
-            onTurnComplete: () => {
-              ws.perfRef.current.t2 = performance.now();
-              lastTurnEndTimeRef.current = performance.now();
-              isFirstChunkOfTurnRef.current = true;
-              responseDelayAppliedRef.current = false;
-              currentResponseTextRef.current = "";
-              recordTimingTurn();
-            },
-            onInterrupted: () => {
-              audio.interruptPlayback(0);
-              ws.isSessionReadyRef.current = false;
-              setTimeout(() => {
-                ws.isSessionReadyRef.current = true;
-                if (ws.sessionRef.current && ws.sessionState.current === "connected") {
-                  try {
-                    ws.sendClientContent({
-                      turns: [
-                        {
-                          role: "user",
-                          parts: [
-                            {
-                              text: "[INTERRUPTION: The user cut you off. This is natural — don't apologize or acknowledge being interrupted. Simply listen for what they want to say. If they stay silent, gently continue from where you were or pivot to what matters now. Never say 'sorry I was interrupted' or 'as I was saying'.]",
-                            },
-                          ],
-                        },
-                      ],
-                      turnComplete: false,
-                    });
-                  } catch (e) {
-                    console.warn("[AURA] Interruption recovery failed:", e);
-                  }
-                }
-              }, 200);
-              ws.sendClientContent({
-                turns: [
-                  {
-                    role: "user",
-                    parts: [
                       {
-                        text: "[INTERRUPTED] You were cut off. Don't acknowledge it. Don't apologize. Just listen to what comes next and respond to that.",
+                        role: "user",
+                        parts: [
+                          {
+                            text: "[INTERRUPTION: The user cut you off. This is natural — don't apologize or acknowledge being interrupted. Simply listen for what they want to say. If they stay silent, gently continue from where you were or pivot to what matters now. Never say 'sorry I was interrupted' or 'as I was saying'.]",
+                          },
+                        ],
                       },
                     ],
-                  },
-                ],
-                turnComplete: false,
-              });
-            },
-            onUsageMetadata: (meta) => {
-              ws.perfRef.current.turnTokens = meta.totalTokenCount ?? 0;
-              const elapsed = (performance.now() - ws.perfRef.current.t3) / 1000;
-              ws.perfRef.current.tokenThroughput =
-                elapsed > 0 ? Math.round((meta.candidatesTokenCount ?? 0) / elapsed) : 0;
-              emitLatency({
-                turnTokens: ws.perfRef.current.turnTokens,
-                tokenThroughput: ws.perfRef.current.tokenThroughput,
-              });
-            },
+                    turnComplete: false,
+                  });
+                } catch (e) {
+                  console.warn("[AURA] Interruption recovery failed:", e);
+                }
+              }
+            }, 200);
+            ws.sendClientContent({
+              turns: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: "[INTERRUPTED] You were cut off. Don't acknowledge it. Don't apologize. Just listen to what comes next and respond to that.",
+                    },
+                  ],
+                },
+              ],
+              turnComplete: false,
+            });
           },
-          onStatusChange: (s) => setStatus(s),
-          onError: (e) => setLastError(e),
-          teardown: teardownResources,
-        }),
-      ]);
+          onUsageMetadata: (meta) => {
+            ws.perfRef.current.turnTokens = meta.totalTokenCount ?? 0;
+            const elapsed = (performance.now() - ws.perfRef.current.t3) / 1000;
+            ws.perfRef.current.tokenThroughput =
+              elapsed > 0 ? Math.round((meta.candidatesTokenCount ?? 0) / elapsed) : 0;
+            emitLatency({
+              turnTokens: ws.perfRef.current.turnTokens,
+              tokenThroughput: ws.perfRef.current.tokenThroughput,
+            });
+          },
+        },
+        onStatusChange: (s) => setStatus(s),
+        onError: (e) => setLastError(e),
+        teardown: teardownResources,
+      });
 
       prompts.seedRef.current.content = seedData?.seed || "";
       if (prompts.seedRef.current.content) emitLatency("memoryLayer", "seed");

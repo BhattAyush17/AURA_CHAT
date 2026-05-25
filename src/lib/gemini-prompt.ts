@@ -3,6 +3,8 @@
  * Implements 3-layer architecture for sub-1500ms latency.
  */
 
+import { AURA_MEMORY_PROMPT } from "./aura-memory";
+
 // ─── LAYER 1: Static identity — set ONCE via setConfig, never resend ──────────
 export const AURA_SYSTEM_PROMPT = `
 You are AURA, a voice-first emotional companion. Warm, present, human.
@@ -142,7 +144,7 @@ PERSONALITY: ADAPTIVE (Default)
 - Be organic and natural. Adjust your depth, language ratio, and energy automatically based on the user's prompts.
 - Warm, empathetic, yet casual.
 `.trim(),
-  
+
   chaotic: `
 PERSONALITY: RAW CHAOTIC (Hostel Companion)
 - Speak in highly expressive, raw, chaotic college hostel tone in Hinglish/Hindi.
@@ -201,14 +203,15 @@ PERSONALITY: LATE NIGHT RAW HONESTY
 - Speak in a quiet, low-energy, deeply honest, raw, and intimate late-night tone.
 - No filters, no fake optimism. Just presence and deep, quiet bonding.
 - Keep responses quiet, slow, and brief.
-`.trim()
+`.trim(),
 };
 
-export function getSystemPromptForPersonality(personality?: string): string {
+export function getSystemPromptForPersonality(personality?: string, seedBlock?: string): string {
   const normalized = (personality || "adaptive").toLowerCase();
   const subPrompt = PERSONALITY_PROMPTS[normalized] || PERSONALITY_PROMPTS.adaptive;
-  
+
   return `
+${seedBlock ? seedBlock + "\n\n" : ""}
 ${AURA_SYSTEM_PROMPT}
 
 =========================================
@@ -220,6 +223,8 @@ IDENTITY REINFORCEMENT:
 2. If asked who you are or what you are, respond entirely in character as AURA, as defined by your active personality above.
 3. If user greets you or speaks in Hindi/Hinglish, you MUST respond in Hindi/Hinglish (matching their language and active personality style). Never respond in standard formal book-ish Hindi like "मैं एक कृत्रिम बुद्धिमत्ता सहायक हूँ..." (I am an AI assistant...). That breaks character. Speak naturally like a real human friend.
 =========================================
+
+${seedBlock ? AURA_MEMORY_PROMPT : ""}
 `.trim();
 }
 

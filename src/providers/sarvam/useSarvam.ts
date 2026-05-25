@@ -12,12 +12,21 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getOpenRouterKey } from "@/lib/api";
 import { resolveUserId } from "@/lib/user-identity";
+import { getStorageManager } from "@/lib/storage/manager";
+import { generateSeed } from "@/lib/utils/seed-generator";
+import { hasSupabaseCredentials } from "@/lib/credentials";
+import { saveSyncMeta } from "@/lib/sync-meta";
 import { getCredential } from "@/lib/credentials";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
 import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
-import { JoyfulPassionSystemPrompt, isJoyfulPassionMode, detectActivationPhrase, detectDeactivationPhrase } from "../../modes/JoyfulPassionMode";
+import {
+  JoyfulPassionSystemPrompt,
+  isJoyfulPassionMode,
+  detectActivationPhrase,
+  detectDeactivationPhrase,
+} from "../../modes/JoyfulPassionMode";
 import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
@@ -41,7 +50,11 @@ const SENTENCE_END = /[^.!?।\n]+[.!?।\n]+/g;
 const BARGE_IN_THRESHOLD = 0.018;
 
 // Downsample PCM buffer to a target rate (e.g. 16kHz)
-function downsampleBuffer(buffer: Float32Array, inputSampleRate: number, outputSampleRate: number): Float32Array {
+function downsampleBuffer(
+  buffer: Float32Array,
+  inputSampleRate: number,
+  outputSampleRate: number,
+): Float32Array {
   if (inputSampleRate === outputSampleRate) {
     return buffer;
   }
@@ -107,7 +120,7 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
   let offset = 44;
   for (let i = 0; i < samples.length; i++, offset += 2) {
     const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
   }
 
   return new Blob([view], { type: "audio/wav" });
@@ -125,23 +138,23 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const voiceToSpeaker: Record<string, string> = {
     // ── Bulbul v3 native voices ──
     // Female
-    Priya:  "priya",
-    Kavya:  "kavya",
-    Neha:   "neha",
+    Priya: "priya",
+    Kavya: "kavya",
+    Neha: "neha",
     Shreya: "shreya",
-    Ritu:   "ritu",
+    Ritu: "ritu",
     // Male
-    Shubh:  "shubh",
+    Shubh: "shubh",
     Aditya: "aditya",
-    Rahul:  "rahul",
-    Dev:    "dev",
-    Rohan:  "rohan",
+    Rahul: "rahul",
+    Dev: "dev",
+    Rohan: "rohan",
     // ── Legacy Gemini aliases (backward compat) ──
-    Puck:   "priya",
+    Puck: "priya",
     Fenrir: "aditya",
-    Kore:   "neha",
+    Kore: "neha",
     Charon: "dev",
-    Aoede:  "kavya",
+    Aoede: "kavya",
   };
   const speaker = voiceToSpeaker[voice] || "priya";
 
@@ -176,7 +189,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
 
   // Session control
-  const isSessionActiveRef = useRef(false);
+  const isSessionActiveRef = useRef<boolean>(false);
+  const seedRef = useRef<string | undefined>(undefined);
   const startSessionRef = useRef<(() => Promise<void>) | null>(null);
   const recognitionRef = useRef<any>(null);
   const isSpeakingRef = useRef(false);
@@ -353,8 +367,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const currentSpeaker = speakerRef.current;
       console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker}`);
       const base64 = await generateSpeech(text, currentSpeaker);
-      
-      // CRITICAL FIX: If the user barged in and started a new turn while we were waiting 
+
+      // CRITICAL FIX: If the user barged in and started a new turn while we were waiting
       // for the 10s Sarvam timeout, DO NOT fall back to native TTS or play this audio!
       if (turnId !== currentTurnIdRef.current) {
         onDone?.();
@@ -436,7 +450,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   };
 
   // ── Depth detection — decides if user wants a long, detailed answer ──
-  const DEPTH_TRIGGERS = /\b(explain|detail|describe|elaborate|tell me (about|more)|how does|why does|what is|what are|can you (explain|describe|tell)|in depth|in detail|go on|keep going|continue|feelings?|feel about|think about|meaning of|history of|story|experience|share|express|opinion|perspective|explore|walk me through|break it down|deep dive)\b/i;
+  const DEPTH_TRIGGERS =
+    /\b(explain|detail|describe|elaborate|tell me (about|more)|how does|why does|what is|what are|can you (explain|describe|tell)|in depth|in detail|go on|keep going|continue|feelings?|feel about|think about|meaning of|history of|story|experience|share|express|opinion|perspective|explore|walk me through|break it down|deep dive)\b/i;
 
   const detectResponseDepth = (text: string): "deep" | "normal" => {
     // Long user messages (20+ words) often expect longer replies
@@ -502,9 +517,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // ── Depth-aware response sizing ──────────────────────────────
       const responseDepth = detectResponseDepth(userText);
-      const depthDirective = responseDepth === "deep"
-        ? "[RESPONSE LENGTH]: The user is asking for depth, explanation, or emotional expression. Respond with AT LEAST 5-6 full sentences. Be thorough, expressive, and complete. Do NOT cut short — give the user the full answer they're asking for."
-        : "";
+      const depthDirective =
+        responseDepth === "deep"
+          ? "[RESPONSE LENGTH]: The user is asking for depth, explanation, or emotional expression. Respond with AT LEAST 5-6 full sentences. Be thorough, expressive, and complete. Do NOT cut short — give the user the full answer they're asking for."
+          : "";
       const tokenLimit = responseDepth === "deep" ? 400 : 100;
 
       // ── System prompt: personality-aware identity + live context ──
@@ -512,7 +528,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // RULE: The explicit prompt is NEVER auto-injected. The user MUST say
       // the activation phrase "boundless sexuality" first. Once activated,
       // it persists for the rest of the session.
-      
+
       // Check for deactivation first
       let isFirstDeactivation = false;
       if (boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
@@ -520,14 +536,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         isFirstDeactivation = true;
         console.log(
           "%c❄️ BOUNDLESS DESEXUALITY ACTIVATED (MODE OFF)",
-          "color: #3b82f6; font-size: 16px; font-weight: bold; text-shadow: 0 0 10px #3b82f6;"
+          "color: #3b82f6; font-size: 16px; font-weight: bold; text-shadow: 0 0 10px #3b82f6;",
         );
         console.log("[AURA/Sarvam] Mode deactivated — phrase detected in:", userText);
       }
 
       let explicitModeActivated = boundlessModeActiveRef.current;
       let isFirstActivation = false;
-      let basePrompt = getSystemPromptForPersonality(modeRef.current);
+      let basePrompt = getSystemPromptForPersonality(modeRef.current, seedRef.current);
 
       if (!explicitModeActivated && isJoyfulPassionMode && detectActivationPhrase(userText)) {
         explicitModeActivated = true;
@@ -535,9 +551,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         boundlessModeActiveRef.current = true;
         console.log(
           "%c🔥 BOUNDLESS SEXUALITY ACTIVATED",
-          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;"
+          "color: #ff2d55; font-size: 18px; font-weight: bold; text-shadow: 0 0 10px #ff2d55;",
         );
-        console.log("[AURA/Sarvam] Boundless Sexuality mode activated — phrase detected in:", userText);
+        console.log(
+          "[AURA/Sarvam] Boundless Sexuality mode activated — phrase detected in:",
+          userText,
+        );
       }
 
       if (explicitModeActivated) {
@@ -551,7 +570,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
       } else if (!boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
         // If we just deactivated this turn
-        basePrompt += "\n\n[HIDDEN PERSONA DEACTIVATED] Switch back to your normal assigned personality mode IMMEDIATELY.\n" +
+        basePrompt +=
+          "\n\n[HIDDEN PERSONA DEACTIVATED] Switch back to your normal assigned personality mode IMMEDIATELY.\n" +
           "IMPORTANT: Your VERY FIRST response must be a brief confirmation that you have cooled down and returned to normal. " +
           "Something like acknowledging the deactivation (e.g. 'Alright, cooling down.' or 'Back to normal, what's on your mind?').";
       }
@@ -602,11 +622,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             body: JSON.stringify({
               model: modelToTry,
               messages: [systemMsg, ...messagesForApi],
-              stream: true,           // First word spoken ~600 ms
-              temperature: 0.7,       // Natural word choice, not stiff
-              max_tokens: tokenLimit,  // Dynamic: 100 for casual, 400 for depth
-              top_p: 0.9,             // Keeps responses focused
-              frequency_penalty: 0.5,  // Stops repetitive phrasing
+              stream: true, // First word spoken ~600 ms
+              temperature: 0.7, // Natural word choice, not stiff
+              max_tokens: tokenLimit, // Dynamic: 100 for casual, 400 for depth
+              top_p: 0.9, // Keeps responses focused
+              frequency_penalty: 0.5, // Stops repetitive phrasing
             }),
           });
 
@@ -756,8 +776,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
     }
 
-    // Warm L2 cache + open mic analyser in parallel
-    await Promise.all([prompts.warmL2Cache(), setupMicAnalyser()]);
+    // Warm L2 cache, open mic, and fetch Memory Core in parallel
+    const [, , seedData] = await Promise.all([
+      prompts.warmL2Cache(),
+      setupMicAnalyser(),
+      storageManager.loadSeed(),
+    ]);
+    seedRef.current = seedData ? seedData.seed : undefined;
 
     const lang = localStorage.getItem("aura_voice_language") || "en-US";
     const SpeechRecognition =
@@ -828,11 +853,27 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const finalText = transcript || fallbackTranscriptRef.current;
       const audioContextXML = stopTrackingAndAnalyze(finalText);
 
-      console.log("%c🎙️ SARVAM STT DIAGNOSTICS", "color: #8b5cf6; font-weight: bold; font-size: 14px;");
-      console.log("├─ Sarvam Transcribed (saaras:v3):", transcript ? `"${transcript}"` : "[Empty/Failed]");
-      console.log("├─ Fallback (Browser WebSpeech):", fallbackTranscriptRef.current ? `"${fallbackTranscriptRef.current}"` : "[Empty]");
-      console.log("└─ Chosen Final Text:", `%c"${finalText}"`, "color: #8b5cf6; font-weight: bold;");
-      console.log("%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML, "color: #eab308; font-size: 11px;");
+      console.log(
+        "%c🎙️ SARVAM STT DIAGNOSTICS",
+        "color: #8b5cf6; font-weight: bold; font-size: 14px;",
+      );
+      console.log(
+        "├─ Sarvam Transcribed (saaras:v3):",
+        transcript ? `"${transcript}"` : "[Empty/Failed]",
+      );
+      console.log(
+        "├─ Fallback (Browser WebSpeech):",
+        fallbackTranscriptRef.current ? `"${fallbackTranscriptRef.current}"` : "[Empty]",
+      );
+      console.log(
+        "└─ Chosen Final Text:",
+        `%c"${finalText}"`,
+        "color: #8b5cf6; font-weight: bold;",
+      );
+      console.log(
+        "%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML,
+        "color: #eab308; font-size: 11px;",
+      );
 
       // If both Sarvam STT and browser STT returned empty,
       // show feedback instead of silently going idle
@@ -901,11 +942,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           interim += event.results[i][0].transcript;
         }
       }
-      
+
       if (!isFinal && interim) {
         setWords(interim);
       }
-      
+
       if (isFinal) {
         fallbackTranscriptRef.current = currentFinal;
         handleStopRecording();
@@ -942,13 +983,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   }, [behavior, prompts, processTurn, setupMicAnalyser]);
 
   // ── End session ───────────────────────────────────────────────────
-  const endSession = useCallback(() => {
+  const endSession = useCallback(async () => {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
-    
+
     isRecordingRef.current = false;
     pcmSamplesRef.current = [];
     if (scriptProcessorRef.current) {
@@ -957,8 +998,43 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       } catch {}
       scriptProcessorRef.current = null;
     }
-    
+
     behavior.resetSpeculative();
+
+    // Save memory core
+    const t = transcript_.transcriptRef.current;
+    if (t && t.length >= 3) {
+      try {
+        const storageManager = getStorageManager(userIdRef.current);
+        const prevSeed = await storageManager.loadSeed();
+        const newSeed = generateSeed(t, prevSeed ?? undefined);
+        await storageManager.saveSeed(newSeed);
+
+        const sessionData = {
+          session_id: sessionIdRef.current ?? Date.now().toString(),
+          transcript: t,
+          user_id: userIdRef.current,
+          last_active: new Date().toISOString(),
+        };
+        await storageManager.save(sessionData);
+
+        if (hasSupabaseCredentials()) {
+          try {
+            storageManager.initializeRemoteAdapter();
+            await storageManager.save(sessionData);
+            await storageManager.saveSeed(newSeed);
+          } catch {}
+        }
+
+        saveSyncMeta(userIdRef.current, {
+          updatedAt: newSeed.updatedAt,
+          hasCloudCopy: hasSupabaseCredentials(),
+        });
+      } catch (err) {
+        console.error("[Sarvam] Session memory compilation failed:", err);
+      }
+    }
+
     transcript_.reset();
     userIdRef.current = "local-user";
     setStatus("idle");
