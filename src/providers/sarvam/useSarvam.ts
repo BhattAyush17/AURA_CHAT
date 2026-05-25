@@ -181,6 +181,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const recognitionRef = useRef<any>(null);
   const isSpeakingRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const currentTurnIdRef = useRef<number>(0);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const fallbackTranscriptRef = useRef<string>("");
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
@@ -280,11 +281,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       window.speechSynthesis.cancel();
     }
     isSpeakingRef.current = false;
+    currentTurnIdRef.current += 1;
   };
 
   const speakChunkNative = useCallback(
-    (text: string, lang: string, onDone?: () => void) => {
-      if (isInactiveRef.current) {
+    (text: string, lang: string, turnId: number, onDone?: () => void) => {
+      if (isInactiveRef.current || turnId !== currentTurnIdRef.current) {
         onDone?.();
         return;
       }
@@ -319,8 +321,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   );
 
   const speakChunk = useCallback(
-    async (text: string, lang: string, onDone?: () => void) => {
-      if (isInactiveRef.current) {
+    async (text: string, lang: string, turnId: number, onDone?: () => void) => {
+      if (isInactiveRef.current || turnId !== currentTurnIdRef.current) {
         onDone?.();
         return;
       }
@@ -329,8 +331,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const currentSpeaker = speakerRef.current;
       console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker}`);
       const base64 = await generateSpeech(text, currentSpeaker);
+      
+      // CRITICAL FIX: If the user barged in and started a new turn while we were waiting 
+      // for the 10s Sarvam timeout, DO NOT fall back to native TTS or play this audio!
+      if (turnId !== currentTurnIdRef.current) {
+        onDone?.();
+        return;
+      }
+
       if (!base64 || !audioCtxRef.current) {
-        speakChunkNative(text, lang, onDone);
+        speakChunkNative(text, lang, turnId, onDone);
         return;
       }
 
@@ -359,7 +369,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         source.start(0);
       } catch (e) {
         console.warn("[Sarvam TTS] Audio decode failed, falling back to native:", e);
-        speakChunkNative(text, lang, onDone);
+        speakChunkNative(text, lang, turnId, onDone);
       }
     },
     [speakChunkNative, setStatus],
@@ -604,6 +614,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               stopSpeech();
               isSpeakingRef.current = false;
               fetchAbortRef.current?.abort();
+              // Increment turn ID immediately so any awaiting TTS requests silently fail
+              currentTurnIdRef.current += 1;
               if (isSessionActiveRef.current && startSessionRef.current) {
                 startSessionRef.current();
               } else {
@@ -628,7 +640,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 }
                 return;
               }
-              speakChunk(next, lang, drainQueue);
+              speakChunk(next, lang, currentTurnIdRef.current, drainQueue);
             };
             drainQueue();
           };
