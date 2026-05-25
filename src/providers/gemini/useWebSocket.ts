@@ -441,10 +441,12 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                   activeOpts.onStatusChange("error");
                   if (code === 1008) {
                     activeOpts.onError(
-                      "Connection closed by Google (Code: 1008 - Policy/Billing Violation). The Gemini Live API requires a Paid Tier project with billing enabled and a positive prepay balance of at least $10. Please check your Google AI Studio billing status.",
+                      `Connection closed by Google (Code: 1008 - Policy/Billing). ${reason ? `Reason: "${reason}". ` : ""}The Gemini Live API requires a Paid Tier project with billing enabled and a positive prepay balance of at least $10. Please check your Google AI Studio billing status.`,
                     );
                   } else {
-                    activeOpts.onError(`Could not maintain connection. (Code: ${code})`);
+                    activeOpts.onError(
+                      `Could not maintain connection (Code: ${code})${reason ? `. Reason: "${reason}"` : ""}`,
+                    );
                   }
                   reset();
                 }
@@ -528,6 +530,8 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
         setInternalState("failed");
         isCascadingRef.current = false;
         activeOpts.onStatusChange("error");
+        const errMsg = err?.message || String(err);
+        activeOpts.onError(errMsg);
         throw err;
       }
     },
