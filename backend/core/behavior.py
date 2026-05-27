@@ -8,6 +8,7 @@ import json
 import re
 import time
 import asyncio
+from collections import OrderedDict
 from typing import Dict, Any, List, Tuple, Optional
 from dotenv import load_dotenv
 
@@ -310,22 +311,34 @@ def detect_energy(text: str) -> str:
     return best
 
 # Add alongside existing session stores
-_sensing_engines: dict[str, SensingEngine] = {}
+# LRU-capped to prevent unbounded memory growth (OOM on long-running workers)
+_SENSING_ENGINE_MAX = 500
+_sensing_engines: OrderedDict[str, SensingEngine] = OrderedDict()
 
 def get_sensing_engine(session_id: str, seed: str = "", user_id: str = "") -> SensingEngine:
-    if session_id not in _sensing_engines:
-        _sensing_engines[session_id] = SensingEngine(previous_seed=seed)
-        # Load vocab profile from previous seed
-        if user_id and seed and "[VOCAB]" in seed:
-            try:
-                from vocab_learner import vocab_learner
-                start = seed.index("[VOCAB]") + 7
-                end = seed.index("[/VOCAB]")
-                vocab_json = seed[start:end].strip()
-                vocab_learner.load_from_seed(user_id, vocab_json)
-            except (ValueError, IndexError):
-                pass
-    return _sensing_engines[session_id]
+    if session_id in _sensing_engines:
+        # Move to end (most recently used)
+        _sensing_engines.move_to_end(session_id)
+        return _sensing_engines[session_id]
+
+    engine = SensingEngine(previous_seed=seed)
+    _sensing_engines[session_id] = engine
+
+    # Evict oldest sessions when cap is exceeded
+    while len(_sensing_engines) > _SENSING_ENGINE_MAX:
+        _sensing_engines.popitem(last=False)
+
+    # Load vocab profile from previous seed
+    if user_id and seed and "[VOCAB]" in seed:
+        try:
+            from vocab_learner import vocab_learner
+            start = seed.index("[VOCAB]") + 7
+            end = seed.index("[/VOCAB]")
+            vocab_json = seed[start:end].strip()
+            vocab_learner.load_from_seed(user_id, vocab_json)
+        except (ValueError, IndexError):
+            pass
+    return engine
 
 def build_sensing_injection(session_id: str, turn: dict, seed: str = "", user_id: str = "") -> tuple:
     engine = get_sensing_engine(session_id, seed, user_id)
@@ -365,19 +378,20 @@ class RuntimeEngine:
         self.templates = TemplateManager(os.path.join(data_dir, "_all_templates.json"))
         self.emotion_router = EmotionalStateRouter()
         self.silence_machine = SilenceStateMachine()
-        self.turn_history = []
         print("[AURA] Emotional Engine Ready.")
     
-    def analyze(self, transcript: str, ideology: Optional[str] = None, user_initiated: bool = True) -> dict:
+    def analyze(self, transcript: str, ideology: Optional[str] = None, user_initiated: bool = True, turn_history: Optional[List[dict]] = None) -> dict:
         
         current_turn = {"text": transcript, "user_initiated": user_initiated}
+        if turn_history is None:
+            turn_history = []
         
         # ROUTE emotional state
-        routing = self.emotion_router.resolve(self.turn_history, current_turn)
+        routing = self.emotion_router.resolve(turn_history, current_turn)
         
         # Track history
-        self.turn_history.append(current_turn)
-        if len(self.turn_history) > 10: self.turn_history.pop(0)
+        turn_history.append(current_turn)
+        if len(turn_history) > 10: turn_history.pop(0)
 
         # Standard Analysis
         act = detect_speech_act(transcript)

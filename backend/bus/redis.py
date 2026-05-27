@@ -52,26 +52,39 @@ class RedisBus:
         self._client: Optional[aioredis.Redis] = None
         self._available: bool = False
         self._connect_lock = asyncio.Lock()
+        self._last_url: Optional[str] = None
 
     async def initialize(self) -> bool:
         """
         Connect to Redis. Safe to call multiple times.
         Returns True if connected, False if Redis is unreachable.
         """
+        current_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         async with self._connect_lock:
-            if self._client and self._available:
+            if self._client and self._available and self._last_url == current_url:
                 return True
+
+            # If URL changed or previous connection failed, clean up old client
+            if self._client and (self._last_url != current_url or not self._available):
+                try:
+                    await self._client.close()
+                except Exception:
+                    pass
+                self._client = None
+                self._available = False
+
             try:
                 self._client = aioredis.from_url(
-                    REDIS_URL,
+                    current_url,
                     decode_responses=True,
                     socket_connect_timeout=3,
-                    socket_timeout=2,
+                    socket_timeout=10,
                     retry_on_timeout=True,
                 )
                 await self._client.ping()
                 self._available = True
-                log.info("redis_connected", url=REDIS_URL)
+                self._last_url = current_url
+                log.info("redis_connected", url=current_url)
 
                 # Create consumer group if it doesn't exist
                 try:
@@ -87,8 +100,9 @@ class RedisBus:
 
                 return True
             except Exception as e:
-                log.warning("redis_connect_failed", error=str(e))
+                log.warning("redis_connect_failed", url=current_url, error=str(e))
                 self._available = False
+                self._last_url = current_url
                 return False
 
     @property

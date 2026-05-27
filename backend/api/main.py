@@ -43,17 +43,18 @@ from backend.bus.redis import (
     CONSUMER_GROUP,
 )
 from backend.infrastructure.embedding_cache import EmbeddingCache
-from google import genai
-from google.genai import types
+from backend.infrastructure.embedding_provider import embedding_provider
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env.local"))
+# Load .env.local from the project root (two directories up from backend/api)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+load_dotenv(os.path.join(project_root, ".env.local"))
 import sys
 import os
 
 # FIX: Import collision workaround. The local ./supabase/ directory (CLI) 
 # overrides the pip 'supabase' package. Temporarily drop cwd from path to import.
 _cwd = sys.path.pop(0) if sys.path and (sys.path[0] == '' or sys.path[0] == os.getcwd()) else None
-from supabase import create_client, Client
+from supabase._async.client import AsyncClient, create_client as async_create_client
 if _cwd is not None:
     sys.path.insert(0, _cwd)
 
@@ -73,7 +74,7 @@ ALLOWED_ORIGINS = [
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+supabase: AsyncClient | None = None
 
 from backend.core.behavior import RuntimeEngine, build_sensing_injection, detect_language_profile
 from backend.core.vocab import vocab_learner
@@ -86,17 +87,8 @@ _proactive_engine: ProactiveEngine | None = None
 _rate_limiter: RateLimiter | None = None
 _embedding_cache: EmbeddingCache | None = None
 
-async def gemini_embed_fn(text: str) -> list[float]:
-    """Async wrapper around Gemini embedding-001 (768-dim)."""
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-    def _call():
-        result = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=[text],
-            config=types.EmbedContentConfig(output_dimensionality=768),
-        )
-        return list(result.embeddings[0].values)
-    return await asyncio.to_thread(_call)
+# gemini_embed_fn removed — replaced by embedding_provider.embed()
+# which handles Gemini → Cohere → FastEmbed → None fallback chain.
 
 # C4 FIX: Initialize logging BEFORE app creation so get_logger returns configured loggers
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -135,6 +127,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.on_event("startup")
 async def startup_event():
+    global supabase
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase = await async_create_client(SUPABASE_URL, SUPABASE_KEY)
+
     asyncio.create_task(
         chroma_service.initialize(
             supabase_client=supabase,
@@ -151,7 +147,9 @@ async def startup_event():
         global _proactive_engine, _rate_limiter, _embedding_cache
         _proactive_engine = ProactiveEngine(redis_bus.client)
         _rate_limiter = RateLimiter(redis_bus.client)
-        _embedding_cache = EmbeddingCache(redis_bus.client, gemini_embed_fn)
+        # Wire embedding cache with the multi-tier provider's embed function.
+        # Cache works regardless of which backend (Gemini/Cohere/FastEmbed) is active.
+        _embedding_cache = EmbeddingCache(redis_bus.client, embedding_provider.embed)
         # P8 FIX: Wire vocab_learner singleton with persistence clients
         from backend.core.vocab import set_vocab_learner_clients
         set_vocab_learner_clients(redis_client=redis_bus.client, supabase_client=supabase)
@@ -303,9 +301,7 @@ class SessionStore:
         if supabase:
             try:
                 import asyncio
-                res = await asyncio.to_thread(
-                    lambda: supabase.table("aura_storage").select("data").eq("key", f"active_session_{session_id}").execute()
-                )
+                res = await supabase.table("aura_storage").select("data").eq("key", f"active_session_{session_id}").execute()
                 if res.data:
                     data = res.data[0]["data"]
                     self.local_cache[session_id] = data
@@ -318,14 +314,12 @@ class SessionStore:
         self.local_cache[session_id] = data
         if supabase:
             try:
-                await asyncio.to_thread(
-                    lambda: supabase.table("aura_storage").upsert({
-                        "user_id": data.get("user_id", "local-user"),
-                        "key": f"active_session_{session_id}",
-                        "data": data,
-                        "updated_at": datetime.utcnow().isoformat()
-                    }, on_conflict="user_id,key").execute()
-                )
+                await supabase.table("aura_storage").upsert({
+                    "user_id": data.get("user_id", "local-user"),
+                    "key": f"active_session_{session_id}",
+                    "data": data,
+                    "updated_at": datetime.utcnow().isoformat()
+                }, on_conflict="user_id,key").execute()
             except Exception as e:
                 log.warning("session_save_failed", error=str(e))
 
@@ -333,9 +327,7 @@ class SessionStore:
         val = self.local_cache.pop(session_id, default)
         if supabase:
             try:
-                await asyncio.to_thread(
-                    lambda: supabase.table("aura_storage").delete().eq("key", f"active_session_{session_id}").execute()
-                )
+                await supabase.table("aura_storage").delete().eq("key", f"active_session_{session_id}").execute()
             except Exception as e:
                 log.debug("session_pop_supabase_error", error=str(e))
         return val
@@ -385,6 +377,52 @@ async def cleanup_expired_sessions():
 
 
 # ═══════════════════════════════════════════════════════════════════
+_loaded_gemini_key = None
+_loaded_or_key = None
+_loaded_cohere_key = None
+_loaded_pinecone_key = None
+_loaded_redis_url = None
+
+async def update_byok_credentials(request: Request):
+    global _loaded_gemini_key, _loaded_or_key, _loaded_cohere_key, _loaded_pinecone_key, _loaded_redis_url
+    import os
+    
+    gemini_key = request.headers.get("x-gemini-key")
+    or_key = request.headers.get("x-openrouter-key")
+    cohere_key = request.headers.get("x-cohere-key")
+    pinecone_key = request.headers.get("x-pinecone-key")
+    redis_url = request.headers.get("x-redis-url")
+    
+    changed_embed = False
+    
+    if gemini_key is not None and gemini_key != _loaded_gemini_key:
+        os.environ["GEMINI_API_KEY"] = gemini_key
+        _loaded_gemini_key = gemini_key
+        changed_embed = True
+        
+    if or_key is not None and or_key != _loaded_or_key:
+        os.environ["OPENROUTER_API_KEY"] = or_key
+        _loaded_or_key = or_key
+        
+    if cohere_key is not None and cohere_key != _loaded_cohere_key:
+        os.environ["COHERE_API_KEY"] = cohere_key
+        _loaded_cohere_key = cohere_key
+        changed_embed = True
+        
+    if pinecone_key is not None and pinecone_key != _loaded_pinecone_key:
+        os.environ["PINECONE_API_KEY"] = pinecone_key
+        _loaded_pinecone_key = pinecone_key
+        
+    if redis_url is not None and redis_url != _loaded_redis_url:
+        os.environ["REDIS_URL"] = redis_url
+        _loaded_redis_url = redis_url
+        from backend.bus.redis import redis_bus
+        await redis_bus.initialize()
+        
+    if changed_embed:
+        from backend.infrastructure.embedding_provider import embedding_provider
+        await embedding_provider.initialize()
+
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════
 
@@ -405,6 +443,9 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
     # FIX 1: Origin check replaces the broken X-Internal-Key approach.
     if not is_allowed_origin(request):
         raise HTTPException(status_code=403, detail="Forbidden")
+
+    # ── BYOK: Extract API keys from headers and inject into environment ──
+    await update_byok_credentials(request)
 
     if not body.user_text.strip():
         raise HTTPException(status_code=400, detail="user_text cannot be empty")
@@ -438,6 +479,16 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
 
         # ── Brain 3 async path: publish + cache read ──────────────────
         if redis_bus.available:
+            turn_history = session_data.get("turn_history", []) if session_data else []
+            history_to_send = list(turn_history)
+            
+            turn_history.append({"text": body.user_text, "user_initiated": body.user_initiated})
+            if len(turn_history) > 10: turn_history.pop(0)
+            if session_data:
+                session_data["turn_history"] = turn_history
+                # Safe background task for setting session
+                _safe_background(active_sessions.set(body.session_id, session_data), name="set_session_data")
+                
             # Fire-and-forget publish to Redis Stream
             _safe_background(degradation.execute_with_circuit(
                 'redis',
@@ -452,6 +503,7 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
                         "ideology_hint": body.ideology_hint,
                         "user_initiated": body.user_initiated,
                         "seed": seed,
+                        "turn_history": history_to_send,
                     },
                 ),
                 fallback=None,
@@ -487,48 +539,42 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
                 return AnalyzeResponse(**cached)
 
         # ── Sync fallback: Redis down or cache cold (first turn) ─────
-        result = engine.analyze(body.user_text, body.ideology_hint, body.user_initiated)
-        
-        # Language detection
-        lang_profile = detect_language_profile(body.user_text)
+        # Delegate all analysis to the shared pipeline (eliminates DRY violation with consumer.py)
+        from backend.core.pipeline import run_turn_pipeline
 
-        # Build sensing injection (includes language directive)
-        turn_data = {
-            "text": body.user_text,
-            "audio_rms": body.audio_rms,
-            "pause_ms": body.pause_ms,
-            "frustration_score": result["all_scores"].get("frustration", 0.0),
-            "withdrawal_score": result["all_scores"].get("withdrawal", 0.0),
-            "language_profile": lang_profile,
-        }
-        
-        sensing_injection, state_vector, directive = build_sensing_injection(body.session_id, turn_data, seed, user_id=body.user_id or "anonymous")
-        
+        turn_history = session_data.get("turn_history", []) if session_data else []
+        client_ip = request.client.host if request.client else None
+
+        turn_result = await run_turn_pipeline(
+            engine=engine,
+            user_text=body.user_text,
+            session_id=body.session_id,
+            user_id=body.user_id or "anonymous",
+            ideology_hint=body.ideology_hint,
+            user_initiated=body.user_initiated,
+            audio_rms=body.audio_rms,
+            pause_ms=body.pause_ms,
+            seed=seed,
+            turn_history=turn_history,
+            vocab_learner=vocab_learner,
+            embedding_cache=_embedding_cache,
+            ip_address=client_ip,
+            memory_timeout=0.4,  # Tighter on sync path — must stay fast
+        )
+
+        # Update session turn history after analysis (pipeline mutates passed list)
+        if session_data:
+            session_data["turn_history"] = turn_history
+            _safe_background(active_sessions.set(body.session_id, session_data), name="set_session_data_sync")
+
         # Persist StateVector to Supabase async — never blocks response
+        # (state_vector is inside sensing_state dict from pipeline result)
         _safe_background(degradation.execute_with_circuit(
             'supabase',
-            persist_state_vector(supabase, body.session_id, state_vector),
+            persist_state_vector(supabase, body.session_id, type('_sv', (), turn_result.sensing_state)()),
             fallback=None,
             timeout=2.0,
         ), name="persist_state_vector")
-
-        # Get memory enrichment — sync fallback with tighter timeout (was 800ms)
-        enrichment = await degradation.execute_with_circuit(
-            'embedding_api',
-            get_chromadb_enrichment_v2(
-                current_text=body.user_text,
-                state_vector={
-                    "arc": state_vector.arc,
-                    "energy": state_vector.energy,
-                    "trust": state_vector.trust
-                },
-                user_id=body.user_id or "anonymous",
-                timeout=0.4,  # Tighter than default — sync path must stay fast
-                embedding_cache=_embedding_cache
-            ),
-            fallback="",
-            timeout=0.5,
-        )
 
         # Store significant emotional moments async
         _safe_background(degradation.execute_with_circuit(
@@ -539,94 +585,53 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
                 user_id=body.user_id,
                 session_id=body.session_id,
                 turn_text=body.user_text,
-                state=state_vector,
-                turn_number=state_vector.session_turn if hasattr(state_vector, "session_turn") else 0,
+                state=type('_sv', (), turn_result.sensing_state)(),
+                turn_number=turn_result.sensing_state.get("session_turn", 0),
                 embedding_cache=_embedding_cache
             ),
             fallback=None,
             timeout=3.0,
         ), name="store_memory")
-        
-        # Determine emotional state for vocab learning
-        emotional_state = (
-            "anger" if result["all_scores"].get("frustration", 0) > 0.6
-            else "sadness" if state_vector.arc == "withdrawing"
-            else "joy" if state_vector.arc == "building"
-            else "frustration" if result["all_scores"].get("frustration", 0) > 0.3
-            else "neutral"
-        )
 
-        # Ingest this turn into vocab learner
-        vocab_learner.ingest_turn(
-            user_id=body.user_id or "anonymous",
-            text=body.user_text,
-            lang_profile=lang_profile,
-            emotional_state=emotional_state,
-            is_greeting=state_vector.session_turn <= 1
-        )
-
-        # Enrich lang_profile with learned user abuse vocab
-        vocab_summary_dict = vocab_learner.get_vocab_summary(body.user_id or "anonymous")
-        if vocab_summary_dict.get("abuse_vocab"):
-            lang_profile["user_abuse_vocab"] = vocab_summary_dict["abuse_vocab"]
-
-        # Build vocab injection and combine with sensing injection
-        vocab_injection = vocab_learner.build_vocab_injection(body.user_id or "anonymous")
-        combined_injection = sensing_injection + (vocab_injection or "")
-
-        # ── General Intelligence Context Layer (Middleware) ──
-        client_ip = request.client.host if request.client else None
-        intel_ctx = await composer.get_context(
-            query=body.user_text,
-            ip_address=client_ip,
-            client_device_info={"mic_available": body.audio_rms > 0},
-            session_id=body.session_id
-        )
-        intel_prompt = composer.serialize_to_prompt(intel_ctx)
-        
-        # Prepend intelligence prompt
-        combined_injection = f"{intel_prompt}\n\n{combined_injection}"
-
-        # Update result with full combined injection
-        result["sensing_injection"] = f"{combined_injection}\n\n{enrichment}"
-        instructions = engine.build_instructions(result)
-        
+        ss = turn_result.sensing_state
         resp = AnalyzeResponse(
-            act=result["act"],
-            tags=result["tags"],
-            template=result.get("template"),
-            source=result["source"],
-            energy=result["energy"],
-            behavior_instructions=instructions,
-            emotional_state=result["emotional_state"],
-            intensity=result["intensity"],
+            act=turn_result.act,
+            tags=turn_result.tags,
+            template=turn_result.template,
+            source=turn_result.source,
+            energy=turn_result.energy,
+            behavior_instructions=turn_result.behavior_instructions,
+            emotional_state=turn_result.emotional_state,
+            intensity=turn_result.intensity,
             sensing_state=SensingStateResponse(
-                energy=round(state_vector.energy, 2),
-                warmth=round(state_vector.warmth, 2),
-                engagement=round(state_vector.engagement, 2),
-                trust=round(state_vector.trust, 2),
-                tension=round(state_vector.tension, 2),
-                arc=state_vector.arc,
-                arc_turns=state_vector.arc_turns,
-                mode=directive["mode"],
-                injection_type=directive.get("injection_type", "passive"),
-                session_turn=state_vector.session_turn,
+                energy=ss.get("energy", 0.5),
+                warmth=ss.get("warmth", 0.5),
+                engagement=ss.get("engagement", 0.5),
+                trust=ss.get("trust", 0.3),
+                tension=ss.get("tension", 0.0),
+                arc=ss.get("arc", "opening"),
+                arc_turns=ss.get("arc_turns", 0),
+                mode=ss.get("mode", "normal"),
+                injection_type=ss.get("injection_type", "passive"),
+                session_turn=ss.get("session_turn", 0),
                 chroma_ready=chroma_service.is_ready,
-                response_delay_hint=directive.get("response_delay_hint", 300)
+                response_delay_hint=ss.get("response_delay_hint", 300)
             ),
             status="success",
-            memory_enrichment=enrichment,
-            language_profile=lang_profile,
+            memory_enrichment=turn_result.memory_enrichment,
+            language_profile=turn_result.language_profile,
             degradation_level=level.value,
-            intelligence_context=intel_ctx,
+            intelligence_context=turn_result.intelligence_context,
         )
-        log.info("analyze_request", session_id=body.session_id, cache_hit=False, degradation_level=level.value, duration_ms=round((time.perf_counter() - t0) * 1000, 2), instruction_length=len(instructions), has_memories=bool(enrichment))
+        log.info("analyze_request", session_id=body.session_id, cache_hit=False, degradation_level=level.value, duration_ms=round((time.perf_counter() - t0) * 1000, 2), instruction_length=len(turn_result.behavior_instructions), has_memories=bool(turn_result.memory_enrichment))
         return resp
     except Exception as e:
+
         # FIX 4: Never expose internal exception details in production
         if ENVIRONMENT == "production":
             raise HTTPException(status_code=500, detail="Internal server error")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 from backend.core.behavior import generate_memory_seed, _sensing_engines
@@ -663,6 +668,101 @@ def get_time_context(user_timezone: str = "Asia/Kolkata") -> dict:
     }
 
 
+# NOTE: Simple /health removed — the detailed /health endpoint (below) handles
+# all health checks and returns checks.supabase.ok for frontend mode detection.
+
+
+class ChatRequest(BaseModel):
+    text: str = Field(..., max_length=2000)
+    user_id: str = Field(..., max_length=200)
+    session_id: Optional[str] = Field(None, max_length=200)
+    conversation_history: List[Dict[str, str]] = Field(default_factory=list)
+    # Phase 3: client-side memory injection for local browser mode
+    client_memories: Optional[List[Dict[str, Any]]] = Field(None, max_length=5)
+    memory_mode: Optional[str] = Field("supabase", max_length=20)
+
+@app.post("/chat")
+async def chat_endpoint(body: ChatRequest, request: Request):
+    import time
+    import os
+    t_start = time.perf_counter()
+    
+    # ── BYOK: Extract API keys from headers and inject into environment ──
+    await update_byok_credentials(request)
+
+    from backend.core.pipeline import run_turn_pipeline
+    from backend.core.intelligence.llm_pipeline import generate_response
+    import uuid
+
+    session_id = body.session_id or str(uuid.uuid4())
+    user_id = body.user_id or "anonymous"
+    client_ip = request.client.host if request.client else None
+
+    # L1-L5 pipeline shared with /api/analyze (Phase 2 DRY fix)
+    turn_result = await run_turn_pipeline(
+        engine=engine,
+        user_text=body.text,
+        session_id=session_id,
+        user_id=user_id,
+        user_initiated=True,
+        vocab_learner=vocab_learner,
+        embedding_cache=_embedding_cache,
+        ip_address=client_ip,
+        memory_timeout=0.4,
+    )
+
+    # Determine which memories to use (client-provided vs server-fetched)
+    active_memory_mode = body.memory_mode or "supabase"
+    if body.client_memories and len(body.client_memories) > 0:
+        # Client provided local memories — override server retrieval
+        memory_lines = [f"- {(m.get('content') or m.get('text', ''))[:150]}" for m in body.client_memories[:5] if m.get('content') or m.get('text')]
+        memory_context = "Past context:\n" + "\n".join(memory_lines) if memory_lines else ""
+        if memory_context:
+            turn_result.sensing_injection += f"\n\n[MEMORY ENRICHMENT]\n{memory_context}\n[END MEMORY]"
+        active_memory_mode = "local"
+        memories_used = [m.get("content") or m.get("text", "") for m in body.client_memories[:5]]
+    else:
+        # Used server retrieved memories from pipeline
+        memories_used = [turn_result.memory_enrichment] if turn_result.memory_enrichment else []
+
+    # Format the final LLM prompt (L4)
+    # The pipeline's sensing_injection already contains behavior instructions + memory enrichment
+    emotion_str = ", ".join([f"{k}={v:.1f}" for k, v in turn_result.all_scores.items()]) if turn_result.all_scores else turn_result.emotional_state
+    system_prompt = f"{turn_result.sensing_injection}\n\nCurrent emotional state: {emotion_str}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
+
+    # L4 — LLM generation
+    response_text, is_stale, active_llm = await generate_response(body.conversation_history, system_prompt)
+
+    # Store interaction (only when server manages storage — Mode A)
+    if active_memory_mode == "supabase":
+        _safe_background(degradation.execute_with_circuit(
+            'supabase',
+            store_and_backup_memory(
+                supabase_client=supabase,
+                chroma_service=chroma_service,
+                user_id=user_id,
+                session_id=session_id,
+                turn_text=body.text,
+                state=type('_sv', (), turn_result.sensing_state)(),
+                turn_number=turn_result.sensing_state.get("session_turn", 0),
+                embedding_cache=_embedding_cache
+            ),
+            fallback=None,
+            timeout=3.0,
+        ), name="store_chat_memory")
+
+    return {
+        "response_text": response_text,
+        "emotional_state": turn_result.all_scores or {"dominant": turn_result.emotional_state},
+        "memories_used": memories_used,
+        "memory_mode": active_memory_mode,
+        "latency": round((time.perf_counter() - t_start) * 1000, 2),
+        "is_stale": is_stale,
+        "active_llm": active_llm
+    }
+
+
+
 @app.post("/session/start")
 @limiter.limit("5/minute")            # FIX 2: Rate limit was missing here
 async def start_session(request: Request, user_id: str, seed: Optional[str] = "", device_id: Optional[str] = "unknown"):
@@ -689,14 +789,7 @@ async def start_session(request: Request, user_id: str, seed: Optional[str] = ""
     # Rehydrate StateVector from Supabase if available
     try:
         if supabase:
-            saved_state = await asyncio.to_thread(
-                lambda: supabase
-                    .table("aura_storage")
-                    .select("data")
-                    .eq("user_id", "system")
-                    .eq("key", f"state_vector_{session_id}")
-                    .execute()
-            )
+            saved_state = await supabase.table("aura_storage").select("data").eq("user_id", "system").eq("key", f"state_vector_{session_id}").execute()
             if saved_state.data and saved_state.data[0].get("data"):
                 sv = saved_state.data[0]["data"]
                 engine = _sensing_engines[session_id]
@@ -728,13 +821,7 @@ async def start_session(request: Request, user_id: str, seed: Optional[str] = ""
     last_seen = ""
     try:
         if supabase:
-            seed_row = await asyncio.to_thread(
-                lambda: supabase.table("aura_seeds")
-                    .select("updated_at")
-                    .eq("user_id", user_id)
-                    .order("updated_at", desc=True)
-                    .limit(1).execute()
-            )
+            seed_row = await supabase.table("aura_seeds").select("updated_at").eq("user_id", user_id).order("updated_at", desc=True).limit(1).execute()
             if seed_row.data:
                 last_seen = seed_row.data[0].get("updated_at", "")
     except Exception:
@@ -1030,9 +1117,7 @@ async def health(request: Request, response: Response):
             t0 = _time.monotonic()
             # Lightweight probe: read one row from a table we know exists.
             # This validates both the connection and the service-role key.
-            res = await asyncio.to_thread(
-                lambda: supabase.table("aura_storage").select("key").limit(1).execute()
-            )
+            res = await supabase.table("aura_storage").select("key").limit(1).execute()
             latency = round((_time.monotonic() - t0) * 1000, 2)
             return True, latency
 

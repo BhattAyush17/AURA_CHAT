@@ -1,4 +1,5 @@
 import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
+import { MemoryProvider } from "@/providers/MemoryProvider";
 import "../styles.css";
 
 function NotFoundComponent() {
@@ -29,7 +30,12 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
-  // Since we are now a pure SPA, we just return the Outlet.
-  // The <html>, <head>, and <body> tags are already provided by index.html
-  return <Outlet />;
+  // MemoryProvider auto-detects storage mode (Supabase vs local)
+  // and renders a subtle status indicator. All child components
+  // can access useMemory() for the L3 contract.
+  return (
+    <MemoryProvider>
+      <Outlet />
+    </MemoryProvider>
+  );
 }

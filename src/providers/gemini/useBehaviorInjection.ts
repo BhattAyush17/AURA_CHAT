@@ -60,10 +60,9 @@ export interface BehaviorInjectionAPI {
    */
   applyBehavioralInjection: (
     result: BehaviorAnalysis,
-    session: LiveSession,
     userText?: string,
     personality?: string,
-  ) => void;
+  ) => string;
 
   /** Clear all speculative state (on session end). */
   resetSpeculative: () => void;
@@ -155,8 +154,9 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
    * Psyche fragments fire conditionally via local intent routing (<1ms).
    */
   const applyBehavioralInjection = useCallback(
-    (result: BehaviorAnalysis, session: LiveSession, userText?: string, personality?: string) => {
-      if (!result.behavior_instructions || !session) return;
+    (result: BehaviorAnalysis, userText?: string, personality?: string): string => {
+      let injectedText = "";
+      if (!result.behavior_instructions) return injectedText;
       try {
         const isUrgent = (result as any).sensing_state?.injection_type === "urgent";
 
@@ -164,20 +164,9 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
           console.log(
             `[AURA] Urgent injection — mode: ${(result as any).sensing_state?.mode}, turn: ${(result as any).sensing_state?.session_turn}`,
           );
-          (session as any).sendClientContent({
-            turns: [
-              {
-                role: "user",
-                parts: [{ text: `[BEHAVIORAL CONTEXT]: ${result.behavior_instructions}` }],
-              },
-            ],
-            turnComplete: false,
-          });
+          injectedText += `\n[BEHAVIORAL CONTEXT]: ${result.behavior_instructions}\n`;
         } else {
-          (session as any).sendClientContent({
-            turns: [{ role: "user", parts: [{ text: result.behavior_instructions }] }],
-            turnComplete: false,
-          });
+          injectedText += `\n${result.behavior_instructions}\n`;
         }
 
         // ── Adaptive Modulation Injection (local, <1ms) ───────────────
@@ -195,15 +184,7 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
             console.log(
               `[AURA] 🎯 Adaptive modulation: energy=${presentation.energy}, openness=${presentation.openness}, depth=${presentation.depth}, arc=${presentation.arc}`,
             );
-            (session as any).sendClientContent({
-              turns: [
-                {
-                  role: "user",
-                  parts: [{ text: directive }],
-                },
-              ],
-              turnComplete: false,
-            });
+            injectedText += `\n${directive}\n`;
           }
         }
 
@@ -235,20 +216,13 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
           const psyche = routePsycheModule(userText, emotionalState, trustDelta);
           if (psyche) {
             console.log(`[AURA] 🧠 Psyche injection: ${psyche.key}`);
-            (session as any).sendClientContent({
-              turns: [
-                {
-                  role: "user",
-                  parts: [{ text: psyche.content }],
-                },
-              ],
-              turnComplete: false,
-            });
+            injectedText += `\n${psyche.content}\n`;
           }
         }
       } catch (e) {
         console.warn("[AURA] Failed to apply behavioral injection:", e);
       }
+      return injectedText;
     },
     [],
   );

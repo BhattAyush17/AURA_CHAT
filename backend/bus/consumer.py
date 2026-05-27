@@ -49,32 +49,49 @@ from backend.core.vocab import VocabLearner, set_vocab_learner_clients
 from backend.core.relationship import RelationshipTracker
 from backend.infrastructure.embedding_cache import EmbeddingCache
 from backend.core.intelligence import composer
-from google import genai
-from google.genai import types
+from backend.infrastructure.embedding_provider import embedding_provider
 
 # ─── Per-user VocabLearner cache ──────────────────────────────────────────────
 # Each user gets their own VocabLearner instance (loaded from Redis/Supabase).
 # Evict entries idle for > 30 minutes to bound memory.
 
 _VOCAB_CACHE_TTL = 1800  # 30 minutes in seconds
+_VOCAB_CACHE_MAX = 200   # Hard cap — evict oldest when exceeded (prevents OOM under burst)
 
 class _VocabCache:
+    """
+    Per-user VocabLearner cache with dual-mode eviction:
+      1. Size cap: LRU eviction when > _VOCAB_CACHE_MAX entries.
+      2. TTL eviction: entries idle > _VOCAB_CACHE_TTL seconds are reaped
+         every EVICT_EVERY_N processed messages.
+
+    Using a plain dict here (insertion-order preserved in Python 3.7+)
+    lets us do O(1) LRU via move-to-end pattern identical to behavior.py.
+    """
     def __init__(self):
-        self._cache: dict[str, tuple[VocabLearner, float]] = {}  # user_id → (learner, last_used_ts)
+        # user_id → (learner, last_used_ts); insertion order = LRU order
+        self._cache: dict[str, tuple[VocabLearner, float]] = {}
 
     def get(self, user_id: str, redis_client=None, supabase_client=None) -> VocabLearner:
-        learner, _ = self._cache.get(user_id, (None, 0))
-        if learner is None:
+        entry = self._cache.pop(user_id, None)
+        if entry is None:
             if supabase_client is None:
                 try:
-                    from server import supabase as _supabase_client
+                    from backend.api.main import supabase as _supabase_client
                     supabase_client = _supabase_client
                 except Exception:
                     pass
             learner = VocabLearner(redis_client=redis_client, supabase_client=supabase_client)
-            self._cache[user_id] = (learner, time.monotonic())
         else:
-            self._cache[user_id] = (learner, time.monotonic())
+            learner, _ = entry
+
+        # Re-insert at end (most-recently-used position)
+        self._cache[user_id] = (learner, time.monotonic())
+
+        # Enforce hard size cap — evict the least-recently-used entry
+        while len(self._cache) > _VOCAB_CACHE_MAX:
+            self._cache.pop(next(iter(self._cache)))
+
         return learner
 
     def evict_stale(self):
@@ -84,6 +101,7 @@ class _VocabCache:
             del self._cache[uid]
 
 _vocab_cache = _VocabCache()
+
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -118,21 +136,7 @@ _evict_counter: int = 0
 EVICT_EVERY_N = 50  # Evict stale VocabLearner entries every N processed messages
 
 # ─── Embedding Cache ──────────────────────────────────────────────────────────
-async def gemini_embed_fn(text: str) -> list[float]:
-    """Async wrapper around Gemini embedding-001 (768-dim)."""
-    # Note: Using same model as memory_sync.py for consistency
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-    
-    def _call():
-        result = client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=[text],
-            config=types.EmbedContentConfig(output_dimensionality=768),
-        )
-        return list(result.embeddings[0].values)
-    
-    return await asyncio.to_thread(_call)
-
+# Uses the multi-tier embedding_provider (Gemini → Cohere → FastEmbed → None)
 embedding_cache: Optional[EmbeddingCache] = None
 
 
@@ -224,12 +228,16 @@ async def run_behavior_consumer(engine: RuntimeEngine) -> None:
 
     # Inject Redis + Supabase clients into global singleton and cache factory
     # P8 FIX: Previously only Redis was passed — Supabase saves were no-ops
-    from server import supabase as _supabase_client
+    from backend.api.main import supabase as _supabase_client
     set_vocab_learner_clients(redis_client=client, supabase_client=_supabase_client)
 
-    # Initialize Embedding Cache
+    # Initialize Embedding Cache (uses multi-tier provider)
     global embedding_cache
-    embedding_cache = EmbeddingCache(redis_client=client, embed_fn=gemini_embed_fn)
+    embedding_cache = EmbeddingCache(
+        redis_client=client,
+        embed_fn=embedding_provider.embed,
+        provider_name=embedding_provider.provider_name,
+    )
 
     log.info("consumer_listening", stream=STREAM_KEY, consumer=CONSUMER_NAME)
 
@@ -306,15 +314,18 @@ async def run_behavior_consumer(engine: RuntimeEngine) -> None:
 # TURN PROCESSOR — Calls existing analysis pipeline
 # ═══════════════════════════════════════════════════════════════════
 
+
 async def _process_turn(engine: RuntimeEngine, fields: dict, redis_client=None) -> None:
     """
-    Process a single transcript turn through the existing
-    behavior engine pipeline. Writes result to Redis cache.
+    Process a single transcript turn through the shared core pipeline.
+    Writes result to Redis hot-cache for the next /api/analyze response.
 
-    This function calls the EXACT SAME code paths as the
-    current synchronous /api/analyze handler.
+    All heavy lifting is delegated to backend.core.pipeline.run_turn_pipeline()
+    which is also used by the main.py sync fallback — eliminating the prior
+    DRY violation (see docs/architecture/prioritized_fixes.md P2 #9).
     """
-    t0 = time.perf_counter()
+    from backend.core.pipeline import run_turn_pipeline
+
     session_id = fields.get("session_id", "")
     payload_raw = fields.get("payload", "{}")
     payload = json.loads(payload_raw)
@@ -324,188 +335,75 @@ async def _process_turn(engine: RuntimeEngine, fields: dict, redis_client=None) 
         return
 
     user_id = payload.get("user_id", "anonymous")
-    ideology_hint = payload.get("ideology_hint")
-    user_initiated = payload.get("user_initiated", True)
-    audio_rms = float(payload.get("audio_rms", 0.04))
-    pause_ms = float(payload.get("pause_ms", 500))
-    seed = payload.get("seed", "")
-    frustration_score = float(payload.get("frustration_score", 0.0))
-    withdrawal_score = float(payload.get("withdrawal_score", 0.0))
-    personality_mode = payload.get("personality_mode", "adaptive")
 
-    # ── Step 1: Keyword + Emotional Routing (existing RuntimeEngine) ──
-    result = engine.analyze(user_text, ideology_hint, user_initiated)
-
-    # ── Step 2: Language Detection (existing) ──
-    lang_profile = detect_language_profile(user_text)
-
-    # ── Step 3: Sensing Injection (existing) ──
-    turn_data = {
-        "text": user_text,
-        "audio_rms": audio_rms,
-        "pause_ms": pause_ms,
-        "frustration_score": result["all_scores"].get("frustration", frustration_score),
-        "withdrawal_score": result["all_scores"].get("withdrawal", withdrawal_score),
-        "language_profile": lang_profile,
-    }
-
-    sensing_injection, state_vector, directive = build_sensing_injection(
-        session_id, turn_data, seed, user_id=user_id
-    )
-
-    # ── Step 4: Vocab Learning (per-user instance, with persistence) ──
-    emotional_state = (
-        "anger" if result["all_scores"].get("frustration", 0) > 0.6
-        else "sadness" if state_vector.arc == "withdrawing"
-        else "joy" if state_vector.arc == "building"
-        else "frustration" if result["all_scores"].get("frustration", 0) > 0.3
-        else "neutral"
-    )
-
+    # Resolve per-user vocab learner from the LRU cache
     learner = _vocab_cache.get(user_id, redis_client=redis_client)
-    # Load from Redis/Supabase if this is the first time we see this user this session
-    if user_id not in learner._profiles:
-        await learner.load(user_id)
 
-    learner.ingest_turn(
-        user_id=user_id,
-        text=user_text,
-        lang_profile=lang_profile,
-        emotional_state=emotional_state,
-        is_greeting=state_vector.session_turn <= 1,
-    )
-
-    # Auto-save every SAVE_EVERY_N_TURNS turns (fire-and-forget)
-    if learner.should_save(user_id):
-        learner.reset_save_counter(user_id)
-        asyncio.create_task(learner.save(user_id))
-
-    vocab_summary_dict = learner.get_vocab_summary(user_id)
-    if vocab_summary_dict.get("abuse_vocab"):
-        lang_profile["user_abuse_vocab"] = vocab_summary_dict["abuse_vocab"]
-
-    vocab_injection = learner.build_vocab_injection(user_id)
-    combined_injection = sensing_injection + (vocab_injection or "")
-
-    # ── General Intelligence Context Layer (Middleware) ──
-    intel_ctx = await composer.get_context(
-        query=user_text,
-        client_device_info={"mic_available": audio_rms > 0},
-        session_id=session_id
-    )
-    intel_prompt = composer.serialize_to_prompt(intel_ctx)
-    
-    # Prepend intelligence prompt
-    combined_injection = f"{intel_prompt}\n\n{combined_injection}"
-
-    # ── Personality & Toxicity Pipeline (Middleware) ──
-    toxicity_result = process_toxicity_pipeline(user_text, session_id=session_id, mode=personality_mode)
-    if toxicity_result.get("toxicity_detected"):
-        personality_prompt = (
-            f"[PERSONALITY OVERRIDE]\n"
-            f"Mode: {toxicity_result.get('personality_mode')}\n"
-            f"Intent: {toxicity_result.get('intent')}\n"
-            f"Style: {toxicity_result.get('response_style')}\n"
-            f"User Slang Profile: {', '.join(toxicity_result.get('user_custom_slang', []))}\n"
-            f"Matched Terms: {', '.join(toxicity_result.get('matched_terms', []))}\n"
-            f"[/PERSONALITY OVERRIDE]"
-        )
-        combined_injection = f"{combined_injection}\n\n{personality_prompt}"
-
-    # ── Step 4.5: Memory Retrieval (MOVED OFF HOT PATH — was in server.py) ──
-    # Uses match_memories_v2 for hybrid semantic + temporal scoring.
-    # Falls back to v1 if v2 RPC is not deployed yet.
-    memory_enrichment = ""
-    try:
-        t_mem = time.monotonic()
-        memory_enrichment = await asyncio.wait_for(
-            get_chromadb_enrichment_v2(
-                current_text=user_text,
-                state_vector={
-                    "arc": state_vector.arc,
-                    "energy": state_vector.energy,
-                    "trust": state_vector.trust,
-                },
-                user_id=user_id,
-                timeout=MEMORY_TIMEOUT_SECONDS,
-                embedding_cache=embedding_cache,
-            ),
-            timeout=MEMORY_TIMEOUT_SECONDS + 0.1,
-        )
-        mem_ms = round((time.monotonic() - t_mem) * 1000, 1)
-        if mem_ms > 500:
-            log.warning("memory_retrieval_slow", session_id=session_id, duration_ms=mem_ms)
-    except asyncio.TimeoutError:
-        log.warning("memory_retrieval_timeout", session_id=session_id)
-        memory_enrichment = ""
-    except Exception as e:
-        log.warning("memory_retrieval_failed", session_id=session_id, error=str(e))
-        memory_enrichment = ""
-
-    # ── Step 4.6: Relationship stage tracking ──
-    rel_injection = ""
-    try:
-        global _rel_tracker
-        if _rel_tracker is None and redis_bus.client:
-            # Lazy import to avoid circular dependency — server.py imports this module
-            from server import supabase as _supabase_client
+    # Lazily init relationship tracker
+    global _rel_tracker
+    if _rel_tracker is None and redis_bus.client:
+        try:
+            from backend.api.main import supabase as _supabase_client
             _rel_tracker = RelationshipTracker(
-                redis_client=redis_bus.client, 
+                redis_client=redis_bus.client,
                 supabase_client=_supabase_client
             )
-        if _rel_tracker:
-            # P6 FIX: update_trust returns the profile — no redundant get_profile() call
-            rel_profile = await _rel_tracker.update_trust(user_id, state_vector.trust)
-            rel_injection = rel_profile.to_prompt_injection()
-    except Exception as e:
-        log.debug("relationship_tracking_failed", error=str(e))
+        except Exception:
+            pass
 
-    # ── Step 5: Build final instructions (existing) ──
-    if memory_enrichment:
-        combined_injection = combined_injection + f"\n\n{memory_enrichment}"
-    result["sensing_injection"] = combined_injection
-    instructions = engine.build_instructions(result)
+    result = await run_turn_pipeline(
+        engine=engine,
+        user_text=user_text,
+        session_id=session_id,
+        user_id=user_id,
+        ideology_hint=payload.get("ideology_hint"),
+        user_initiated=payload.get("user_initiated", True),
+        audio_rms=float(payload.get("audio_rms", 0.04)),
+        pause_ms=float(payload.get("pause_ms", 500)),
+        seed=payload.get("seed", ""),
+        turn_history=payload.get("turn_history", []),
+        personality_mode=payload.get("personality_mode", "adaptive"),
+        vocab_learner=learner,
+        embedding_cache=embedding_cache,
+        rel_tracker=_rel_tracker,
+        memory_timeout=MEMORY_TIMEOUT_SECONDS,
+    )
 
-    # ── Step 6: Write to hot cache ──
+    # ── Write to hot cache (consumer-specific output step) ──────────────────
     cached_result = {
-        "act": result["act"],
-        "tags": result["tags"],
-        "template": result.get("template"),
-        "source": result["source"],
-        "energy": result["energy"],
-        "behavior_instructions": instructions,
-        "emotional_state": result["emotional_state"],
-        "intensity": result["intensity"],
-        "sensing_state": {
-            "energy": round(state_vector.energy, 2),
-            "warmth": round(state_vector.warmth, 2),
-            "engagement": round(state_vector.engagement, 2),
-            "trust": round(state_vector.trust, 2),
-            "tension": round(state_vector.tension, 2),
-            "arc": state_vector.arc,
-            "arc_turns": state_vector.arc_turns,
-            "mode": directive["mode"],
-            "injection_type": directive.get("injection_type", "passive"),
-            "session_turn": state_vector.session_turn,
-            "response_delay_hint": directive.get("response_delay_hint", 300),
-        },
+        "act": result.act,
+        "tags": result.tags,
+        "template": result.template,
+        "source": result.source,
+        "energy": result.energy,
+        "behavior_instructions": result.behavior_instructions,
+        "emotional_state": result.emotional_state,
+        "intensity": result.intensity,
+        "sensing_state": result.sensing_state,
         "status": "success",
         "memory_layer": "live",
-        "memory_enrichment": memory_enrichment,  # Now populated by worker, not server
-        "language_profile": lang_profile,
-        # Composite emotion vector (new — for prompt injection + frontend)
-        "emotion_vector": result.get("emotion_vector", {}).to_compact()
-            if hasattr(result.get("emotion_vector", {}), "to_compact") else "",
-        "all_scores": result.get("all_scores", {}),
-        # Metadata for cache freshness
-        "_turn_number": state_vector.session_turn,
+        "memory_enrichment": result.memory_enrichment,
+        "language_profile": result.language_profile,
+        "all_scores": result.all_scores,
+        "relationship": result.relationship,
+        "intelligence_context": result.intelligence_context,
+        "toxicity": result.toxicity,
+        # Metadata for cache freshness / debugging
+        "_turn_number": result.sensing_state.get("session_turn", 0),
         "_processed_by": "brain3",
         "_memory_retrieved_at": time.time(),
-        "relationship": rel_injection,
-        "intelligence_context": intel_ctx,
-        "toxicity": toxicity_result,
     }
 
     await write_cached_analysis(session_id, cached_result)
-    processing_ms = round((time.perf_counter() - t0) * 1000, 2)
-    log.info("message_consumed", session_id=session_id, user_id=user_id, turn_index=state_vector.session_turn, processing_ms=processing_ms, arc=state_vector.arc, mode=directive["mode"], has_memories=bool(memory_enrichment))
+    log.info(
+        "message_consumed",
+        session_id=session_id,
+        user_id=user_id,
+        turn_index=result.sensing_state.get("session_turn", 0),
+        processing_ms=result.processing_ms,
+        arc=result.sensing_state.get("arc", "?"),
+        mode=result.directive.get("mode", "?"),
+        has_memories=bool(result.memory_enrichment),
+    )
+
+

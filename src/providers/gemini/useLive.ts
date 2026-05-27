@@ -295,7 +295,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
 
   // ── User Turn Handler (addTurn + behavior + L2 + atomic send) ──
   const handleUserTurn = useCallback(
-    (text: string) => {
+    async (text: string) => {
       transcript_.addTurn(text, true);
 
       if (!sessionIdRef.current) return;
@@ -306,8 +306,8 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
 
       // Behavior analysis (with speculative short-circuit)
       const wasInterrupted = bargeIn.consumeInterrupted();
-      behavior
-        .analyzeForTurn(
+      try {
+        const result = await behavior.analyzeForTurn(
           text,
           sessionIdRef.current,
           audio.currentRmsRef.current,
@@ -315,21 +315,22 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
           modeRef.current,
           userIdRef.current,
           wasInterrupted,
-        )
-        .then((result) => {
-          if (result) {
-            behavior.applyBehavioralInjection(result, ws.sessionRef.current, text, modeRef.current);
-            prompts.processAnalysisForL2(result);
-          }
-        })
-        .catch((err) => console.warn("[AURA] Background analysis failed:", err));
+        );
 
-      // Atomic turn send (100ms delay for behavioral injection to settle)
-      const turnDelay = 100;
-      setTimeout(() => {
+        let behaviorText = "";
+        if (result) {
+          behaviorText = behavior.applyBehavioralInjection(result, text, modeRef.current);
+          prompts.processAnalysisForL2(result);
+        }
+
         if (ws.sessionRef.current) {
           ws.perfRef.current.t3 = performance.now();
-          const currentMode = (emotionForThisTurn as any)?.mode || "engaged";
+          // Use fresh emotion after L2 process to avoid 1-turn lag
+          const freshEmotion = prompts.lastEmotionRef.current;
+          const freshLayer2 = prompts.layer2Ref.current;
+          const freshEmotionChanged = prompts.emotionChangedRef.current;
+          
+          const currentMode = (freshEmotion as any)?.mode || "engaged";
           const ctx = prompts.buildContext(currentMode);
 
           const allTurns = transcript_.transcriptRef.current.map((t) => ({
@@ -345,21 +346,30 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
           }));
 
           if (payloadTurns.length > 0) {
-            payloadTurns[payloadTurns.length - 1].parts[0].text = ctx + text;
+            payloadTurns[payloadTurns.length - 1].parts[0].text = ctx + behaviorText + text;
           }
 
           ws.sendClientContent({
             turns: payloadTurns,
-            turnComplete: true,
-            ...(emotionChanged && { systemInstruction: { parts: [{ text: layer2ForThisTurn }] } }),
+            turnComplete: false,
+            ...(freshEmotionChanged && { systemInstruction: { parts: [{ text: freshLayer2 }] } }),
           });
 
-          if (emotionChanged) {
-            prompts.confirmL2Sent(emotionForThisTurn);
+          if (freshEmotionChanged) {
+            prompts.confirmL2Sent(freshEmotion);
           }
-          console.log("[AURA] ⚡ Atomic Layered Turn Sent");
+          console.log("[AURA] ⚡ Atomic Layered Turn Sent (Sync)");
         }
-      }, turnDelay);
+      } catch (err) {
+        console.warn("[AURA] Background analysis failed:", err);
+        // Fallback: send just the text if analysis completely fails
+        if (ws.sessionRef.current) {
+          ws.sendClientContent({
+            turns: [{ role: "user", parts: [{ text: text }] }],
+            turnComplete: false,
+          });
+        }
+      }
 
       transcript_.turnCountRef.current += 1;
 

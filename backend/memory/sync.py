@@ -2,9 +2,8 @@ import os
 import time
 import asyncio
 from datetime import datetime
-from google import genai
-from google.genai import types
 from backend.infrastructure.logging import get_logger
+from backend.infrastructure.embedding_provider import embedding_provider
 
 log = get_logger("memory_sync")
 
@@ -37,15 +36,7 @@ async def get_latest_seed(
     local_seed: str
 ) -> str:
     try:
-        result = await asyncio.to_thread(
-            lambda: supabase_client
-                .table("aura_seeds")
-                .select("seed, updated_at")
-                .eq("user_id", user_id)
-                .order("updated_at", desc=True)
-                .limit(1)
-                .execute()
-        )
+        result = await supabase_client.table("aura_seeds").select("seed, updated_at").eq("user_id", user_id).order("updated_at", desc=True).limit(1).execute()
 
         if not result.data:
             return local_seed
@@ -65,15 +56,13 @@ async def save_seed_to_supabase(
     device_id: str = "unknown"
 ):
     try:
-        await asyncio.to_thread(
-            lambda: supabase_client.table("aura_seeds").upsert({
-                "user_id": user_id,
-                "seed": seed,
-                "state_vector": state_vector,
-                "device_id": device_id,
-                "updated_at": datetime.utcnow().isoformat()
-            }).execute()
-        )
+        await supabase_client.table("aura_seeds").upsert({
+            "user_id": user_id,
+            "seed": seed,
+            "state_vector": state_vector,
+            "device_id": device_id,
+            "updated_at": datetime.utcnow().isoformat()
+        }).execute()
     except Exception as e:
         log.warning("seed_save_failed", user_id=user_id, error=str(e))
 
@@ -84,26 +73,24 @@ async def persist_state_vector(
     state
 ) -> None:
     try:
-        await asyncio.to_thread(
-            lambda: supabase_client.table("aura_storage").upsert({
-                "user_id": "system",
-                "key": f"state_vector_{session_id}",
-                "data": {
-                    "energy": round(state.energy, 3),
-                    "warmth": round(state.warmth, 3),
-                    "engagement": round(state.engagement, 3),
-                    "trust": round(state.trust, 3),
-                    "tension": round(state.tension, 3),
-                    "arc": state.arc,
-                    "arc_turns": state.arc_turns,
-                    "session_turn": state.session_turn,
-                    "companion_boost_count": state.companion_boost_count,
-                    "total_withdrawals": state.total_withdrawals,
-                    "peak_reached": state.peak_reached,
-                },
-                "updated_at": datetime.utcnow().isoformat()
-            }, on_conflict="user_id,key").execute()
-        )
+        await supabase_client.table("aura_storage").upsert({
+            "user_id": "system",
+            "key": f"state_vector_{session_id}",
+            "data": {
+                "energy": round(state.energy, 3),
+                "warmth": round(state.warmth, 3),
+                "engagement": round(state.engagement, 3),
+                "trust": round(state.trust, 3),
+                "tension": round(state.tension, 3),
+                "arc": state.arc,
+                "arc_turns": state.arc_turns,
+                "session_turn": state.session_turn,
+                "companion_boost_count": state.companion_boost_count,
+                "total_withdrawals": state.total_withdrawals,
+                "peak_reached": state.peak_reached,
+            },
+            "updated_at": datetime.utcnow().isoformat()
+        }, on_conflict="user_id,key").execute()
     except Exception as e:
         log.warning("state_persist_failed", session_id=session_id, error=str(e))
 
@@ -139,36 +126,64 @@ async def store_and_backup_memory(
     }
 
     try:
-        t_embed = time.perf_counter()
-        if embedding_cache:
-            emb = await embedding_cache.get_embedding(turn_text)
-        else:
-            gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-            embed_result = gemini_client.models.embed_content(
-                model="gemini-embedding-001",
-                contents=[turn_text],
-                config=types.EmbedContentConfig(output_dimensionality=768)
-            )
-            emb = list(embed_result.embeddings[0].values)
-        embedding_ms = round((time.perf_counter() - t_embed) * 1000, 2)
+        # ── Generate embedding via multi-tier provider ──
+        emb = None
+        embedding_ms = 0.0
 
-        # Store in Supabase pgvector
-        t_insert = time.perf_counter()
-        await asyncio.to_thread(
-            lambda: supabase_client.table("aura_chroma_backup").upsert({
-                "user_id": user_id,
-                "session_id": session_id,
-                "turn_text": turn_text,
-                "metadata": metadata,
-                "embedding_id": embedding_id,
-                "embedding": emb,
-                "created_at": datetime.utcnow().isoformat()
-            }).execute()
-        )
-        insert_ms = round((time.perf_counter() - t_insert) * 1000, 2)
-        log.info("memory_stored", user_id=user_id, session_id=session_id, embedding_ms=embedding_ms, insert_ms=insert_ms)
+        if embedding_provider.is_available:
+            t_embed = time.perf_counter()
+            if embedding_cache:
+                emb = await embedding_cache.get_embedding(turn_text)
+            else:
+                emb = await embedding_provider.embed(turn_text)
+            embedding_ms = round((time.perf_counter() - t_embed) * 1000, 2)
+
+        # ── Build record — embedding is optional (FTS fallback) ──
+        record = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "turn_text": turn_text,
+            "metadata": metadata,
+            "embedding_id": embedding_id,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        if emb:
+            record["embedding"] = list(emb)
+
+        # Buffer for bulk upsert (Phase 4 fix)
+        await _buffer_memory_record(record, supabase_client)
+        
+        embedding_ms = round((time.perf_counter() - t_start) * 1000, 2)
+        store_mode = embedding_provider.provider_name if emb else "text_only"
+        log.info("memory_buffered", user_id=user_id, session_id=session_id, mode=store_mode, embedding_ms=embedding_ms)
     except Exception as e:
-        log.warning("memory_store_failed", user_id=user_id, error=str(e))
+        log.warning("memory_buffer_failed", user_id=user_id, error=str(e))
+
+# ── Bulk Upsert Buffer (P4 #16) ──
+_memory_buffer = []
+_BUFFER_SIZE = 10
+
+async def _buffer_memory_record(record: dict, supabase_client):
+    """Buffers memory records and flushes them to Supabase in bulk."""
+    _memory_buffer.append(record)
+    if len(_memory_buffer) >= _BUFFER_SIZE:
+        records_to_flush = _memory_buffer[:]
+        _memory_buffer.clear()
+        
+        import asyncio
+        asyncio.create_task(_flush_memory_buffer(records_to_flush, supabase_client))
+
+async def _flush_memory_buffer(records: list, supabase_client):
+    if not records:
+        return
+    try:
+        t_insert = time.perf_counter()
+        await supabase_client.table("aura_chroma_backup").upsert(records).execute()
+        insert_ms = round((time.perf_counter() - t_insert) * 1000, 2)
+        log.info("memory_bulk_upsert", count=len(records), insert_ms=insert_ms)
+    except Exception as e:
+        log.error("memory_bulk_upsert_failed", error=str(e))
+
 
 
 async def get_chromadb_enrichment(

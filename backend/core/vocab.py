@@ -159,14 +159,7 @@ class VocabLearner:
             # 2. Try Supabase
             if self._supabase:
                 try:
-                    res = await asyncio.to_thread(
-                        lambda: self._supabase.table("aura_storage")
-                            .select("data")
-                            .eq("key", f"vocab_profile_{user_id}")
-                            .eq("user_id", user_id)
-                            .limit(1)
-                            .execute()
-                    )
+                    res = await self._supabase.table("aura_storage").select("data").eq("key", f"vocab_profile_{user_id}").eq("user_id", user_id).limit(1).execute()
                     if res.data:
                         self._profiles[user_id] = _dict_to_profile(res.data[0]["data"])
                         # Warm Redis with this data
@@ -214,14 +207,12 @@ class VocabLearner:
             return
         try:
             profile = self.get_profile(user_id)
-            await asyncio.to_thread(
-                lambda: self._supabase.table("aura_storage").upsert({
-                    "user_id": user_id,
-                    "key": f"vocab_profile_{user_id}",
-                    "data": _profile_to_dict(profile),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }, on_conflict="user_id,key").execute()
-            )
+            await self._supabase.table("aura_storage").upsert({
+                "user_id": user_id,
+                "key": f"vocab_profile_{user_id}",
+                "data": _profile_to_dict(profile),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }, on_conflict="user_id,key").execute()
         except Exception:
             pass
 

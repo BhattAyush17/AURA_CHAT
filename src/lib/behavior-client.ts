@@ -1,5 +1,6 @@
 import { ENDPOINTS } from "@/config/api";
 import { emitLatency } from "@/components/LatencyMeter";
+import { getCredential } from "@/lib/credentials";
 // API_SECRET import removed
 
 export interface LanguageProfile {
@@ -36,6 +37,11 @@ export interface BehaviorAnalysis {
   memory_layer?: string;
   memory_enrichment?: string;
   language_profile?: LanguageProfile;
+  frustration?: number;
+  playfulness?: number;
+  vulnerability?: number;
+  trust?: number;
+  anxiety?: number;
 }
 
 const MODE_TO_IDEOLOGY: Record<string, string> = {
@@ -67,6 +73,11 @@ export async function analyzeBehavior(
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
+      "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
+      "X-Cohere-Key": getCredential("cohere_api_key") || "",
+      "X-Pinecone-Key": getCredential("pinecone_api_key") || "",
+      "X-Redis-Url": getCredential("redis_url") || "",
     };
     if (apiKey) {
       headers["Authorization"] = `Bearer ${apiKey}`;

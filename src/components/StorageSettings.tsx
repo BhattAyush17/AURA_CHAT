@@ -10,10 +10,12 @@
 
 import { useState, useEffect } from "react";
 import { getGeminiKey, getOpenRouterKey } from "@/lib/api";
-import { Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff } from "lucide-react";
-import { setCredential, hasRequiredCredentials } from "@/lib/credentials";
+import { Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff, Trash2, MessageSquare, Clock } from "lucide-react";
+import { setCredential, getCredential, hasRequiredCredentials } from "@/lib/credentials";
 import { loadSyncMeta, SyncMeta } from "@/lib/sync-meta";
 import { SupabaseConnect } from "@/components/SupabaseConnect";
+import { getStorageManager } from "@/lib/storage/manager";
+import { SessionData } from "@/lib/storage/types";
 
 interface UsageStats {
   conversations: number;
@@ -38,6 +40,18 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
   const [sarvamKeySaved, setSarvamKeySaved] = useState(false);
   const [showSarvamKey, setShowSarvamKey] = useState(false);
 
+  const [cohereKey, setCohereKeyLocal] = useState("");
+  const [cohereKeySaved, setCohereKeySaved] = useState(false);
+  const [showCohereKey, setShowCohereKey] = useState(false);
+
+  const [pineconeKey, setPineconeKeyLocal] = useState("");
+  const [pineconeKeySaved, setPineconeKeySaved] = useState(false);
+  const [showPineconeKey, setShowPineconeKey] = useState(false);
+
+  const [redisUrl, setRedisUrlLocal] = useState("");
+  const [redisUrlSaved, setRedisUrlSaved] = useState(false);
+  const [showRedisUrl, setShowRedisUrl] = useState(false);
+
   const [voiceLanguage, setVoiceLanguageLocal] = useState("en-US");
 
   // Cloud sync state
@@ -60,6 +74,10 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
   const [showCloudSyncSection, setShowCloudSyncSection] = useState(false);
   const [syncMeta, setSyncMeta] = useState<SyncMeta | null>(null);
 
+  // Sessions View state
+  const [showSessions, setShowSessions] = useState(false);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+
   // ═══════════════════════════════════════════════════════════════════
   // INITIALIZATION & EFFECTS
   // ═══════════════════════════════════════════════════════════════════
@@ -73,7 +91,7 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
     }
 
     // Load OpenRouter key
-    const savedORKey = getOpenRouterKey();
+    const savedORKey = getCredential("openrouter_api_key");
     if (savedORKey) {
       setOpenRouterKeyLocal(savedORKey);
       setOpenRouterKeySaved(true);
@@ -84,10 +102,31 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
     setVoiceLanguageLocal(savedLang);
 
     // Load Sarvam key
-    const savedSarvamKey = sessionStorage.getItem("aura_sarvam_api_key") || "";
+    const savedSarvamKey = getCredential("sarvam_api_key");
     if (savedSarvamKey) {
       setSarvamKeyLocal(savedSarvamKey);
       setSarvamKeySaved(true);
+    }
+
+    // Load Cohere key
+    const savedCohereKey = getCredential("cohere_api_key");
+    if (savedCohereKey) {
+      setCohereKeyLocal(savedCohereKey);
+      setCohereKeySaved(true);
+    }
+
+    // Load Pinecone key
+    const savedPineconeKey = getCredential("pinecone_api_key");
+    if (savedPineconeKey) {
+      setPineconeKeyLocal(savedPineconeKey);
+      setPineconeKeySaved(true);
+    }
+
+    // Load Redis URL
+    const savedRedisUrl = getCredential("redis_url");
+    if (savedRedisUrl) {
+      setRedisUrlLocal(savedRedisUrl);
+      setRedisUrlSaved(true);
     }
 
     // Load cloud sync state
@@ -149,11 +188,11 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
 
   const handleSaveOpenRouterKey = () => {
     if (!openRouterKey.trim()) {
-      sessionStorage.setItem("aura_openrouter_api_key", "");
+      setCredential("openrouter_api_key", "");
       setOpenRouterKeySaved(false);
       return;
     }
-    sessionStorage.setItem("aura_openrouter_api_key", openRouterKey.trim());
+    setCredential("openrouter_api_key", openRouterKey.trim());
     setOpenRouterKeySaved(true);
   };
 
@@ -164,17 +203,71 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
 
   const handleSaveSarvamKey = () => {
     if (!sarvamKey.trim()) {
-      sessionStorage.setItem("aura_sarvam_api_key", "");
+      setCredential("sarvam_api_key", "");
       setSarvamKeySaved(false);
       return;
     }
-    sessionStorage.setItem("aura_sarvam_api_key", sarvamKey.trim());
+    setCredential("sarvam_api_key", sarvamKey.trim());
     setSarvamKeySaved(true);
+  };
+
+  const handleSaveCohereKey = () => {
+    if (!cohereKey.trim()) {
+      setCredential("cohere_api_key", "");
+      setCohereKeySaved(false);
+      return;
+    }
+    setCredential("cohere_api_key", cohereKey.trim());
+    setCohereKeySaved(true);
+  };
+
+  const handleSavePineconeKey = () => {
+    if (!pineconeKey.trim()) {
+      setCredential("pinecone_api_key", "");
+      setPineconeKeySaved(false);
+      return;
+    }
+    setCredential("pinecone_api_key", pineconeKey.trim());
+    setPineconeKeySaved(true);
+  };
+
+  const handleSaveRedisUrl = () => {
+    if (!redisUrl.trim()) {
+      setCredential("redis_url", "");
+      setRedisUrlSaved(false);
+      return;
+    }
+    setCredential("redis_url", redisUrl.trim());
+    setRedisUrlSaved(true);
   };
 
   const handleSupabaseConnected = () => {
     setCloudSyncEnabled(true);
     setShowCloudPrompt(false);
+  };
+
+  const handleToggleSessions = async () => {
+    if (!showSessions) {
+      const manager = getStorageManager("local-user");
+      // list combines browser and cloud
+      const allSessions = await manager.list();
+      // sort by newest
+      allSessions.sort((a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime());
+      setSessions(allSessions);
+    }
+    setShowSessions(!showSessions);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (confirm("Are you sure you want to delete this conversation?")) {
+      const manager = getStorageManager("local-user");
+      await manager.delete(sessionId);
+      
+      const allSessions = await manager.list();
+      allSessions.sort((a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime());
+      setSessions(allSessions);
+      loadUsageStats(); // Update the conversations count
+    }
   };
 
   // ═══════════════════════════════════════════════════════════════════
@@ -423,6 +516,180 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1D: COHERE API KEY (OPTIONAL) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="p-5 bg-muted/20 rounded-lg border border-border space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-semibold text-foreground">
+            🌀 Cohere API Key
+            <span className="ml-2 text-muted-foreground text-xs font-normal">OPTIONAL</span>
+          </label>
+          {cohereKeySaved && (
+            <span className="text-xs text-foreground flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Enables Cohere's embed-multilingual-v3.0 as part of the multi-tier embedding retrieval chain.
+        </p>
+
+        <div className="relative">
+          <input
+            type={showCohereKey ? "text" : "password"}
+            placeholder="Enter your Cohere API key..."
+            value={cohereKey}
+            onChange={(e) => setCohereKeyLocal(e.target.value)}
+            disabled={cohereKeySaved}
+            className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowCohereKey(!showCohereKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showCohereKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {!cohereKeySaved ? (
+          <button
+            onClick={handleSaveCohereKey}
+            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full"
+          >
+            ✓ Save Cohere Key
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setCohereKeySaved(false);
+              setCohereKeyLocal(cohereKey);
+            }}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full"
+          >
+            Edit Key
+          </button>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1E: PINECONE API KEY (OPTIONAL) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="p-5 bg-muted/20 rounded-lg border border-border space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-semibold text-foreground">
+            🌲 Pinecone API Key
+            <span className="ml-2 text-muted-foreground text-xs font-normal">OPTIONAL</span>
+          </label>
+          {pineconeKeySaved && (
+            <span className="text-xs text-foreground flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Enables Pinecone Vector Database context integration for highly scaled memory profiles.
+        </p>
+
+        <div className="relative">
+          <input
+            type={showPineconeKey ? "text" : "password"}
+            placeholder="Enter your Pinecone API key..."
+            value={pineconeKey}
+            onChange={(e) => setPineconeKeyLocal(e.target.value)}
+            disabled={pineconeKeySaved}
+            className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPineconeKey(!showPineconeKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showPineconeKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {!pineconeKeySaved ? (
+          <button
+            onClick={handleSavePineconeKey}
+            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full"
+          >
+            ✓ Save Pinecone Key
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setPineconeKeySaved(false);
+              setPineconeKeyLocal(pineconeKey);
+            }}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full"
+          >
+            Edit Key
+          </button>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1F: REDIS URL (OPTIONAL) */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="p-5 bg-muted/20 rounded-lg border border-border space-y-3">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm font-semibold text-foreground">
+            ⚡ Redis / Valkey URL
+            <span className="ml-2 text-muted-foreground text-xs font-normal">OPTIONAL</span>
+          </label>
+          {redisUrlSaved && (
+            <span className="text-xs text-foreground flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Saved
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Points your AURA asynchronous worker (Brain 3) to a specific local or cloud Redis/Valkey instance. Default: <code>redis://localhost:6379/0</code>
+        </p>
+
+        <div className="relative">
+          <input
+            type={showRedisUrl ? "text" : "password"}
+            placeholder="redis://localhost:6379/0"
+            value={redisUrl}
+            onChange={(e) => setRedisUrlLocal(e.target.value)}
+            disabled={redisUrlSaved}
+            className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setShowRedisUrl(!showRedisUrl)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showRedisUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {!redisUrlSaved ? (
+          <button
+            onClick={handleSaveRedisUrl}
+            className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full"
+          >
+            ✓ Save Redis URL
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setRedisUrlSaved(false);
+              setRedisUrlLocal(redisUrl);
+            }}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full"
+          >
+            Edit URL
+          </button>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
       {/* SECTION 2: BROWSER STORAGE STATUS */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="p-5 bg-muted/30 rounded-lg border border-border space-y-3">
@@ -440,6 +707,54 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
           <br />
           📊 <strong>Usage:</strong> {usageStats.conversations} conversations stored
         </p>
+
+        <button
+          onClick={handleToggleSessions}
+          className="w-full mt-2 py-2 px-4 bg-muted hover:bg-muted/80 text-foreground border border-border rounded text-xs font-medium transition flex items-center justify-center gap-2"
+        >
+          <MessageSquare className="w-4 h-4" />
+          {showSessions ? "Hide Saved Chats" : "View Saved Chats"}
+        </button>
+
+        {showSessions && (
+          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar border border-border rounded-md p-2 bg-background/50">
+            {sessions.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No saved conversations found.</p>
+            ) : (
+              sessions.map(session => {
+                // Find the first user transcript line for the title
+                const userTurn = session.transcript?.find(t => t.user_initiated && t.text);
+                const title = userTurn?.text || "Empty Conversation";
+                
+                return (
+                  <div key={session.session_id} className="flex flex-col p-3 border border-border/50 rounded bg-background">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="text-xs font-medium text-foreground truncate">
+                          {title}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(session.last_active).toLocaleString()}
+                          </span>
+                          <span>{session.transcript?.length || 0} turns</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteSession(session.session_id)}
+                        className="p-1.5 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors shrink-0"
+                        title="Delete Conversation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}

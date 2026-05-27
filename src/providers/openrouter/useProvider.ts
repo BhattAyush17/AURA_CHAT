@@ -32,6 +32,9 @@ import {
   detectDeactivationPhrase,
 } from "../../modes/JoyfulPassionMode";
 import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
+import { connectionState } from "@/config/connectionState";
+import { ENDPOINTS } from "@/config/api";
+import { memoryGateway } from "@/lib/memory-gateway";
 
 export type { ChatMessage };
 
@@ -205,6 +208,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       return;
     }
     const utterance = new SpeechSynthesisUtterance(text);
+    (utterance as any)._startTime = performance.now();
     utterance.lang = lang;
 
     const voices = window.speechSynthesis.getVoices();
@@ -222,15 +226,20 @@ export function useOpenRouter(mode: string = "adaptive") {
     utterance.onstart = () => {
       isSpeakingRef.current = true;
       setStatus("speaking");
+      connectionState.updateState({ active_voice_out: "webspeech" });
     };
     utterance.onend = () => {
+      const ttsLatency = performance.now() - (utterance as any)._startTime;
+      connectionState.updateLatency({ tts_ms: ttsLatency });
       onDone?.();
     };
     utterance.onerror = () => {
+      console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
+      connectionState.updateState({ active_voice: "textonly" });
       onDone?.();
     };
     window.speechSynthesis.speak(utterance);
-  }, []);
+  }, [setStatus]);
 
   // NOTE: Sentence queue is drained inline inside processTurn's tryStartTTS.
   // The speakQueue helper was removed as dead code during production hardening.
@@ -265,7 +274,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
         recognitionRef.current.stop();
-      } catch {}
+      } catch { }
       recognitionRef.current = null;
     }
   };
@@ -273,6 +282,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+      const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
       setWords("AURA is perceiving...");
@@ -281,6 +291,25 @@ export function useOpenRouter(mode: string = "adaptive") {
       transcript_.addTurn(userText, true);
       transcript_.turnCountRef.current += 1;
 
+      // Extract emotional state from the last analysis (if available) for memory retrieval
+      const lastAnalysis = behavior.lastAnalysisRef.current;
+      const currentEmotionalState: Record<string, number> = {
+        frustration: lastAnalysis?.frustration || 0,
+        playfulness: lastAnalysis?.playfulness || 0,
+        vulnerability: lastAnalysis?.vulnerability || 0,
+        trust: lastAnalysis?.trust || 0,
+        anxiety: lastAnalysis?.anxiety || 0
+      };
+
+      // If local mode is active, pull memories to send to backend
+      const l3_start = performance.now();
+      const memoryPayload = await memoryGateway.buildClientMemoriesPayload(
+        userText,
+        userIdRef.current,
+        currentEmotionalState
+      );
+      connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
+
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
@@ -288,9 +317,71 @@ export function useOpenRouter(mode: string = "adaptive") {
       ];
       addMessages([{ role: "user", content: userText }]);
 
+      // Try Backend /chat first (Phase 2 Full Request Cycle)
+      try {
+        const l4_start = performance.now();
+        const response = await fetch(ENDPOINTS.chat, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
+            "X-Gemini-Key": getCredential("aura_gemini_api_key") || ""
+          },
+          body: JSON.stringify({
+            text: userText,
+            user_id: userIdRef.current,
+            conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
+            client_memories: memoryPayload?.client_memories || [],
+            memory_mode: memoryPayload?.memory_mode || "supabase"
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Backend returned status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const replyText = data.response_text;
+
+        connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+
+        connectionState.updateState({ active_llm: data.active_llm });
+
+        setIsThinking(false);
+        setStatus("speaking");
+        setWords(replyText);
+
+        // Start barge-in monitor
+        startBargeInMonitor(() => {
+          stopSpeech();
+          isSpeakingRef.current = false;
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            startSessionRef.current();
+          } else {
+            setStatus("idle");
+          }
+        });
+
+        speakChunk(replyText, lang, () => {
+          isSpeakingRef.current = false;
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            startSessionRef.current();
+          } else {
+            setStatus("idle");
+          }
+        });
+
+        addMessages([{ role: "assistant", content: replyText }]);
+        transcript_.addTurn(replyText, false);
+        return;
+      } catch (backendError: any) {
+        console.warn("[Voice Pipeline] Backend /chat endpoint failed. Falling back to frontend direct LLM.", backendError);
+      }
+
       // Behavioral analysis
       let behaviorInstructions = "";
       try {
+        const l2_start = performance.now();
         const result = await behavior.analyzeForTurn(
           userText,
           sessionIdRef.current,
@@ -304,7 +395,8 @@ export function useOpenRouter(mode: string = "adaptive") {
           prompts.processAnalysisForL2(result);
           behaviorInstructions = result.behavior_instructions ?? "";
         }
-      } catch {}
+        connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
+      } catch { }
 
       // Adaptive modulation (local, <1ms)
       let modulationDirective = "";
@@ -317,7 +409,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           behavior.lastPresentationRef.current,
         );
         modulationDirective = directive;
-      } catch {}
+      } catch { }
 
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
@@ -404,6 +496,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         const fetchTimeout = setTimeout(() => fetchAbortRef.current?.abort(), 15000);
 
         try {
+          const l4_start = performance.now();
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             signal: fetchAbortRef.current.signal,
@@ -417,7 +510,7 @@ export function useOpenRouter(mode: string = "adaptive") {
               model: modelToTry,
               messages: [systemMsg, ...messagesForApi],
               stream: true, // First word spoken ~600 ms
-              temperature: 0.7, // Natural word choice, not stiff
+              temperature: 0.8,
               max_tokens: 80, // Hard cap — forces 1-2 sentence answers
               top_p: 0.9, // Keeps responses focused
               frequency_penalty: 0.5, // Stops repetitive phrasing
@@ -436,6 +529,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           const sentenceQueue: string[] = [];
           let ttsStarted = false;
           let streamDone = false;
+          let firstTokenReceived = false;
 
           setIsThinking(false);
 
@@ -495,6 +589,10 @@ export function useOpenRouter(mode: string = "adaptive") {
                 const parsed = JSON.parse(data);
                 const token = parsed.choices?.[0]?.delta?.content;
                 if (!token) continue;
+                if (!firstTokenReceived) {
+                  firstTokenReceived = true;
+                  connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+                }
                 currentBuffer += token;
                 completeResponse += token;
                 setWords(completeResponse);
@@ -509,7 +607,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 }
                 if (lastIndex > 0) currentBuffer = currentBuffer.slice(lastIndex);
                 tryStartTTS();
-              } catch {}
+              } catch { }
             }
           }
 
@@ -542,8 +640,26 @@ export function useOpenRouter(mode: string = "adaptive") {
       if (success && completeResponse) {
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
+
+        // Store local memory from this interaction (if local mode is active)
+        if (memoryGateway.mode === "local") {
+          const lastAnalysis = behavior.lastAnalysisRef.current;
+          const currentEmotionalState: Record<string, number> = {
+            frustration: lastAnalysis?.frustration || 0,
+            playfulness: lastAnalysis?.playfulness || 0,
+            vulnerability: lastAnalysis?.vulnerability || 0,
+            trust: lastAnalysis?.trust || 0,
+            anxiety: lastAnalysis?.anxiety || 0
+          };
+
+          // We combine the turn context
+          const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
+          memoryGateway.storeMemory(turnContext, userIdRef.current, currentEmotionalState);
+        }
       }
 
+      const turnTotal = performance.now() - turnStart;
+      connectionState.updateLatency({ total_ms: turnTotal });
       setIsThinking(false);
     },
     [activeModel, behavior, prompts, transcript_, speakChunk, startBargeInMonitor],
@@ -567,6 +683,8 @@ export function useOpenRouter(mode: string = "adaptive") {
     if (userIdRef.current === "local-user") {
       userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
     }
+
+    const storageManager = getStorageManager(userIdRef.current);
 
     // Warm L2 cache, open mic, and fetch Memory Core in parallel
     const [, , seedData] = await Promise.all([
@@ -598,9 +716,11 @@ export function useOpenRouter(mode: string = "adaptive") {
     };
 
     recognition.onresult = async (event: any) => {
+      const l1_start = performance.now();
       const text = event.results[0][0].transcript;
       if (!text.trim()) return;
       const audioContextXML = stopTrackingAndAnalyze(text);
+      connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
       console.log(
         "%c🗣️ USER SAID (OpenRouter WebSpeech): " + text,
         "color: #10b981; font-weight: bold; font-size: 13px;",
@@ -624,7 +744,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       } else if (isSessionActiveRef.current) {
         try {
           recognition.start();
-        } catch {}
+        } catch { }
       } else {
         setStatus("idle");
       }
@@ -634,7 +754,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       if (isSessionActiveRef.current && statusRef.current === "listening") {
         try {
           recognition.start();
-        } catch {}
+        } catch { }
       } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
         setStatus("idle");
       }
@@ -675,7 +795,7 @@ export function useOpenRouter(mode: string = "adaptive") {
             storageManager.initializeRemoteAdapter();
             await storageManager.save(sessionData);
             await storageManager.saveSeed(newSeed);
-          } catch {}
+          } catch { }
         }
 
         saveSyncMeta(userIdRef.current, {

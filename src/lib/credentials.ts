@@ -5,6 +5,11 @@ export const CREDENTIAL_KEYS = [
   "supabase_user_email",
   "supabase_user_password",
   "supabase_access_token",
+  "openrouter_api_key",
+  "sarvam_api_key",
+  "cohere_api_key",
+  "pinecone_api_key",
+  "redis_url",
 ] as const;
 
 export type CredentialKey = (typeof CREDENTIAL_KEYS)[number];

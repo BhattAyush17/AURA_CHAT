@@ -18,6 +18,12 @@ export class BrowserAdapter implements StorageAdapter {
         sessions.push(data);
       }
 
+      // Enforce 50-entry circular buffer limit for local storage
+      if (sessions.length > 50) {
+        sessions.sort((a, b) => new Date(a.last_active).getTime() - new Date(b.last_active).getTime());
+        sessions.splice(0, sessions.length - 50);
+      }
+
       try {
         localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(sessions));
         return true;
@@ -29,14 +35,9 @@ export class BrowserAdapter implements StorageAdapter {
         ) {
           console.warn("[Browser Storage] Quota exceeded. Trimming oldest sessions...");
 
-          const currentSessions = await this.list();
-          // Sort by last_active and drop the 3 oldest
-          const trimmed = currentSessions
-            .sort((a, b) => new Date(a.last_active).getTime() - new Date(b.last_active).getTime())
-            .slice(3);
-
-          // Retry save with the new data included
-          const retryList = [...trimmed.filter((s) => s.session_id !== data.session_id), data];
+          // If we still hit quota after enforcing the 50 limit, trim more aggressively
+          sessions.sort((a, b) => new Date(a.last_active).getTime() - new Date(b.last_active).getTime());
+          const retryList = sessions.slice(Math.max(0, sessions.length - 10)); // keep only last 10
           localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(retryList));
           return true;
         }

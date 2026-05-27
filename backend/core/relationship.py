@@ -264,11 +264,7 @@ class RelationshipTracker:
         if not self._supabase:
             return None
         try:
-            result = await asyncio.to_thread(
-                lambda: self._supabase.table("aura_storage").select("data").eq(
-                    "user_id", user_id
-                ).eq("key", "relationship_profile").execute()
-            )
+            result = await self._supabase.table("aura_storage").select("data").eq("user_id", user_id).eq("key", "relationship_profile").execute()
             if result.data and len(result.data) > 0:
                 return RelationshipProfile.from_dict(result.data[0]["data"])
         except Exception as e:
@@ -293,13 +289,11 @@ class RelationshipTracker:
 
         if self._supabase:
             try:
-                await asyncio.to_thread(
-                    lambda: self._supabase.table("aura_storage").upsert({
-                        "user_id": user_id,
-                        "key": "relationship_profile",
-                        "data": profile.to_dict(),
-                        "updated_at": profile.last_seen,
-                    }, on_conflict="user_id,key").execute()
-                )
+                await self._supabase.table("aura_storage").upsert({
+                    "user_id": user_id,
+                    "key": "relationship_profile",
+                    "data": profile.to_dict(),
+                    "updated_at": profile.last_seen,
+                }, on_conflict="user_id,key").execute()
             except Exception as e:
                 logger.warning("Supabase persist failed: %s", e)

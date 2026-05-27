@@ -65,6 +65,7 @@ AURA strictly partitions its cognitive, sensory, and persistence tasks into **5 
   - Continuous Metrics: `energy` (0-1), `warmth` (0-1), `engagement` (0-1), `trust` (0-1), `tension` (0-1).
   - Derived Metrics: `arc` (string: building, maintaining, withdrawing, escalating, recovering), `arc_turns` (int), `session_turn` (int), `companion_boost_count` (int).
 - **Temporal Decay:** Half-lives are applied to emotions over absolute wall-clock time (e.g., tension halves every 45s, trust halves every 5.6m).
+- **[AUDIT RISK] Global State Bleed:** `RuntimeEngine.turn_history` and `_sensing_engines` are currently implemented as stateful class instance variables and global dictionaries. In a multi-worker production environment, this causes severe memory leaks (OOM) and cross-session emotional contamination.
 
 ### Brain 3: Async Message Bus & Offline Execution (Redis/Worker)
 
@@ -73,8 +74,10 @@ AURA strictly partitions its cognitive, sensory, and persistence tasks into **5 
 
 ### Brain 4: Long-Term Episodic Memory (Supabase pgvector)
 
-- **Role:** Retrieves dense historical context.
+- **Role:** Retrieves dense historical context using a highly resilient multi-tier fallback pipeline.
+- **Embedding Chain:** Uses `embedding_provider.py` to route embedding generation: Gemini API (768d) → Cohere API (Truncated via MRL to 768d) → Local FastEmbed (BGE-base 768d) → Postgres FTS (keyword search).
 - **Execution:** Uses `get_chromadb_enrichment_v2()`. Embeddings are passed against `supabase_client.rpc('match_memories_v2')`, which executes a hybrid ranking algorithm combining vector distance (cosine similarity) with a chronological recency booster.
+- **[AUDIT RISK] Vector Space Collapse:** `embedding_cache.py` keys the Redis cache exclusively by text hash. During a provider failover (e.g. Gemini to Cohere), the cache will incorrectly serve Gemini vectors into the DB alongside Cohere vectors, destroying similarity search capabilities.
 
 ### Brain 5: Vocabulary & Adaptive Toxicity Engine
 
@@ -118,6 +121,7 @@ Every conversational turn flows through a decoupled, speculatively-optimized pip
 2. **VAD Silence & Turn Commitment (`useGeminiLive.ts`)**
    - The user stops speaking. Native browser VAD fires `turnComplete`.
    - The frontend immediately sends `sendClientContent({ turnComplete: true })` over the WS.
+     - **[AUDIT RISK] Destructive VAD Overwrite**: Currently, `useLive.ts` forces this flag inside the transcription callback, prematurely interrupting user speech on partial text.
    - Simultaneously, it calls `analyzeForTurn()`. If the user's final speech matches the speculative cache (`isSpeculativeResultUsable()`), the network call is skipped (Cache Hit). Otherwise, it fires the final `POST /api/analyze`.
 
 3. **Hot-Path Gateway Routing (`server.py`)**
@@ -126,6 +130,7 @@ Every conversational turn flows through a decoupled, speculatively-optimized pip
    - **Circuit Validation:** `degradation.level` checks Redis health. If `redis` is unavailable, the system defaults to synchronous processing.
    - **Async Publish:** `_safe_background()` executes `publish_transcript()` injecting the turn into `aura:transcripts`.
    - **Cache Retrieval:** The server queries Redis for the precompiled `AnalyzeResponse` generated during the _previous_ turn's consumer execution.
+     - **[AUDIT RISK] Permanent 1-Turn Context Lag**: Because the frontend reads the response instantaneously, it reads the *previous* turn's cache before the consumer has finished processing the *current* turn. The LLM is permanently injected with behavioral instructions that are one step behind.
    - **Immediate Return:** The cached `AnalyzeResponse` is returned to the client in `<20ms`.
 
 4. **Background Offline Analytical Execution (`behavior_engine_consumer.py`)**
@@ -158,8 +163,9 @@ AURA operates under strict **fail-open** reliability engineering:
 | :---------------------------- | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
 | **Redis Down**                | Bypass Brain 3 Stream + Cache. Fallback to inline sync processing in `server.py`. | Latency increases (~800ms) but chat works seamlessly.                    |
 | **Supabase pgvector Down**    | `store_memory` fails gracefully via `_safe_background`. DB queries short-circuit. | Loss of long-term episodic memory enrichment. Live chat unaffected.      |
-| **Gemini Embedding API Down** | Embedding cache logic catches failure and returns empty vectors.                  | Semantic search bypasses. Relies exclusively on `session_seed` context.  |
+| **Gemini Embedding API Down** | Embedding chain fails over to Cohere (MRL Truncated) or Local FastEmbed. | Seamless transition, provided cache key collision risk is patched.         |
 | **Complete System Collapse**  | Circuit forces `DegradationLevel.VOICE_ONLY`. Empty directives returned.          | AURA acts as a standard voice-relay bot. No behavioral context injected. |
 
 > [!IMPORTANT]
 > All peripheral failure exceptions are trapped, isolated to their respective subsystems, and piped into structured logging (`structlog`). The audio conversational loop is strictly protected and will never block or crash due to background component timeouts.
+> **[AUDIT RISK] Zombie Threads:** Circuit breaker implementations currently rely on `asyncio.wait_for`. When a timeout is triggered on synchronous external SDKs (like `supabase` wrapped in `asyncio.to_thread`), the python threads continue executing indefinitely, accelerating thread pool starvation under load.

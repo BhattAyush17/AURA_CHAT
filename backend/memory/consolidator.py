@@ -107,7 +107,7 @@ class MemoryConsolidator:
             dict with keys: user_id, episodes_created, turns_consolidated, errors, dry_run
         """
         cutoff = datetime.utcnow() - timedelta(days=self.MIN_AGE_DAYS)
-        memories = await asyncio.to_thread(self._fetch_old_memories, user_id, cutoff)
+        memories = await self._fetch_old_memories(user_id, cutoff)
 
         if not memories:
             log.info("no_eligible_memories", user_id=user_id)
@@ -147,8 +147,7 @@ class MemoryConsolidator:
 
                 embedding = await self.embed(summary)
 
-                await asyncio.to_thread(
-                    self._insert_consolidated,
+                await self._insert_consolidated(
                     user_id,
                     summary,
                     embedding,
@@ -156,7 +155,7 @@ class MemoryConsolidator:
                 )
 
                 turn_ids = [t["id"] for t in episode.turns]
-                await asyncio.to_thread(self._soft_delete_turns, turn_ids)
+                await self._soft_delete_turns(turn_ids)
 
                 stats["episodes_created"] += 1
                 stats["turns_consolidated"] += len(episode.turns)
@@ -176,12 +175,10 @@ class MemoryConsolidator:
         """Permanently delete soft-deleted memories older than N days."""
         cutoff = datetime.utcnow() - timedelta(days=days)
         try:
-            res = await asyncio.to_thread(
-                lambda: self.supabase.table("aura_chroma_backup")
+            res = await (self.supabase.table("aura_chroma_backup")
                 .delete()
                 .lt("consolidated_at", cutoff.isoformat())
-                .execute()
-            )
+                .execute())
             count = len(res.data) if res.data else 0
             log.info("memories_purged", count=count, older_than_days=days)
             return count
@@ -193,13 +190,13 @@ class MemoryConsolidator:
     # Private: data access
     # ------------------------------------------------------------------
 
-    def _fetch_old_memories(self, user_id: str, cutoff: datetime) -> list[dict]:
+    async def _fetch_old_memories(self, user_id: str, cutoff: datetime) -> list[dict]:
         """
         Fetch turn-level (type='turn') memories older than cutoff
         that have NOT yet been soft-deleted (consolidated_at IS NULL).
         """
         try:
-            result = (
+            result = await (
                 self.supabase
                 .table("aura_chroma_backup")
                 .select("id, session_id, user_id, turn_text, metadata, created_at")
@@ -219,7 +216,7 @@ class MemoryConsolidator:
             log.error("fetch_memories_failed", user_id=user_id, error=str(exc))
             return []
 
-    def _insert_consolidated(
+    async def _insert_consolidated(
         self,
         user_id: str,
         summary: str,
@@ -227,7 +224,7 @@ class MemoryConsolidator:
         episode: Episode,
     ) -> None:
         """Insert one consolidated episode row into aura_chroma_backup."""
-        self.supabase.table("aura_chroma_backup").insert({
+        await self.supabase.table("aura_chroma_backup").insert({
             "user_id": user_id,
             "session_id": episode.session_id,
             "turn_text": summary,
@@ -247,12 +244,12 @@ class MemoryConsolidator:
             },
         }).execute()
 
-    def _soft_delete_turns(self, turn_ids: list[str]) -> None:
+    async def _soft_delete_turns(self, turn_ids: list[str]) -> None:
         """Stamp consolidated_at on original turn rows (soft-delete)."""
         if not turn_ids:
             return
         now_iso = datetime.utcnow().isoformat()
-        self.supabase.table("aura_chroma_backup").update({
+        await self.supabase.table("aura_chroma_backup").update({
             "consolidated_at": now_iso,
         }).in_("id", turn_ids).execute()
 

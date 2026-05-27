@@ -32,6 +32,9 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import { transcribeAudio } from "./sarvamSTT";
 import { generateSpeech } from "./sarvamTTS";
+import { connectionState } from "@/config/connectionState";
+import { ENDPOINTS } from "@/config/api";
+import { memoryGateway } from "@/lib/memory-gateway";
 
 // ─── Model queue ────────────────────────────────────────────────────
 // DeepSeek V3 first: bypassing Gemini's safety filters for chaotic personality
@@ -327,6 +330,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         return;
       }
       const utterance = new SpeechSynthesisUtterance(text);
+      (utterance as any)._startTime = performance.now();
       utterance.lang = lang;
 
       const voices = window.speechSynthesis.getVoices();
@@ -344,11 +348,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       utterance.onstart = () => {
         isSpeakingRef.current = true;
         setStatus("speaking");
+        connectionState.updateState({ active_voice_out: "webspeech" });
       };
       utterance.onend = () => {
+        const ttsLatency = performance.now() - (utterance as any)._startTime;
+        connectionState.updateLatency({ tts_ms: ttsLatency });
         onDone?.();
       };
       utterance.onerror = () => {
+        console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
+        connectionState.updateState({ active_voice: "textonly" });
         onDone?.();
       };
       window.speechSynthesis.speak(utterance);
@@ -366,7 +375,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // even when this callback was captured by a stale closure.
       const currentSpeaker = speakerRef.current;
       console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker}`);
+      const tts_start = performance.now();
       const base64 = await generateSpeech(text, currentSpeaker);
+      connectionState.updateLatency({ tts_ms: performance.now() - tts_start });
 
       // CRITICAL FIX: If the user barged in and started a new turn while we were waiting
       // for the 10s Sarvam timeout, DO NOT fall back to native TTS or play this audio!
@@ -402,6 +413,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         // (not before the network fetch), preventing false "speaking" UI
         isSpeakingRef.current = true;
         setStatus("speaking");
+        connectionState.updateState({ active_voice_out: "sarvam" });
         source.start(0);
       } catch (e) {
         console.warn("[Sarvam TTS] Audio decode failed, falling back to native:", e);
@@ -466,6 +478,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+      const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
       setWords("AURA is perceiving...");
@@ -474,6 +487,25 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       transcript_.addTurn(userText, true);
       transcript_.turnCountRef.current += 1;
 
+      // Extract emotional state from the last analysis (if available) for memory retrieval
+      const lastAnalysis = behavior.lastAnalysisRef.current;
+      const currentEmotionalState: Record<string, number> = {
+        frustration: lastAnalysis?.frustration || 0,
+        playfulness: lastAnalysis?.playfulness || 0,
+        vulnerability: lastAnalysis?.vulnerability || 0,
+        trust: lastAnalysis?.trust || 0,
+        anxiety: lastAnalysis?.anxiety || 0
+      };
+
+      // If local mode is active, pull memories to send to backend
+      const l3_start = performance.now();
+      const memoryPayload = await memoryGateway.buildClientMemoriesPayload(
+        userText,
+        userIdRef.current,
+        currentEmotionalState
+      );
+      connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
+
       // Append to OR message buffer with XML metadata
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
@@ -481,9 +513,75 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       ];
       addMessages([{ role: "user", content: userText }]);
 
+      // Try Backend /chat first (Phase 2 Full Request Cycle)
+      try {
+        const l4_start = performance.now();
+        const response = await fetch(ENDPOINTS.chat, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
+            "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
+            "X-Cohere-Key": getCredential("cohere_api_key") || "",
+            "X-Pinecone-Key": getCredential("pinecone_api_key") || "",
+            "X-Redis-Url": getCredential("redis_url") || ""
+          },
+          body: JSON.stringify({
+            text: userText,
+            user_id: userIdRef.current,
+            conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
+            client_memories: memoryPayload?.client_memories || [],
+            memory_mode: memoryPayload?.memory_mode || "supabase"
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Backend returned status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const replyText = data.response_text;
+        
+        connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+
+        connectionState.updateState({ active_llm: data.active_llm });
+
+        setIsThinking(false);
+        setStatus("speaking");
+        setWords(replyText);
+
+        // Start barge-in monitor
+        startBargeInMonitor(() => {
+          stopSpeech();
+          isSpeakingRef.current = false;
+          currentTurnIdRef.current += 1;
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            startSessionRef.current();
+          } else {
+            setStatus("idle");
+          }
+        });
+
+        speakChunk(replyText, lang, currentTurnIdRef.current, () => {
+          isSpeakingRef.current = false;
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            startSessionRef.current();
+          } else {
+            setStatus("idle");
+          }
+        });
+
+        addMessages([{ role: "assistant", content: replyText }]);
+        transcript_.addTurn(replyText, false);
+        return;
+      } catch (backendError: any) {
+        console.warn("[Voice Pipeline] Backend /chat endpoint failed. Falling back to frontend direct LLM.", backendError);
+      }
+
       // Behavioral analysis
       let behaviorInstructions = "";
       try {
+        const l2_start = performance.now();
         const result = await behavior.analyzeForTurn(
           userText,
           sessionIdRef.current,
@@ -497,6 +595,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           prompts.processAnalysisForL2(result);
           behaviorInstructions = result.behavior_instructions ?? "";
         }
+        connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
       } catch {}
 
       // Adaptive modulation (local, <1ms)
@@ -610,6 +709,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         const fetchTimeout = setTimeout(() => fetchAbortRef.current?.abort(), 15000);
 
         try {
+          const l4_start = performance.now();
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             signal: fetchAbortRef.current.signal,
@@ -623,10 +723,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               model: modelToTry,
               messages: [systemMsg, ...messagesForApi],
               stream: true, // First word spoken ~600 ms
-              temperature: 0.7, // Natural word choice, not stiff
-              max_tokens: tokenLimit, // Dynamic: 100 for casual, 400 for depth
-              top_p: 0.9, // Keeps responses focused
-              frequency_penalty: 0.5, // Stops repetitive phrasing
+              temperature: 0.8,
+              max_tokens: tokenLimit,
+              top_p: 0.9,
+              frequency_penalty: 0.5,
             }),
           });
 
@@ -642,6 +742,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           const sentenceQueue: string[] = [];
           let ttsStarted = false;
           let streamDone = false;
+          let firstTokenReceived = false;
 
           setIsThinking(false);
 
@@ -703,6 +804,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 const parsed = JSON.parse(data);
                 const token = parsed.choices?.[0]?.delta?.content;
                 if (!token) continue;
+                if (!firstTokenReceived) {
+                    firstTokenReceived = true;
+                    connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+                }
                 currentBuffer += token;
                 completeResponse += token;
                 setWords(completeResponse);
@@ -750,7 +855,26 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       if (success && completeResponse) {
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
+
+        // Store local memory from this interaction (if local mode is active)
+        if (memoryGateway.mode === "local") {
+            const lastAnalysis = behavior.lastAnalysisRef.current;
+            const currentEmotionalState: Record<string, number> = {
+              frustration: lastAnalysis?.frustration || 0,
+              playfulness: lastAnalysis?.playfulness || 0,
+              vulnerability: lastAnalysis?.vulnerability || 0,
+              trust: lastAnalysis?.trust || 0,
+              anxiety: lastAnalysis?.anxiety || 0
+            };
+            
+            // We combine the turn context
+            const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
+            memoryGateway.storeMemory(turnContext, userIdRef.current, currentEmotionalState);
+        }
       }
+      
+      const turnTotal = performance.now() - turnStart;
+      connectionState.updateLatency({ total_ms: turnTotal });
 
       setIsThinking(false);
     },
@@ -775,6 +899,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     if (userIdRef.current === "local-user") {
       userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
     }
+
+    const storageManager = getStorageManager(userIdRef.current);
 
     // Warm L2 cache, open mic, and fetch Memory Core in parallel
     const [, , seedData] = await Promise.all([
@@ -801,6 +927,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
     // Custom WAV Recording stop/process logic
     const handleStopRecording = async () => {
+      const l1_start = performance.now();
       isRecordingRef.current = false;
       const sp = scriptProcessorRef.current;
       if (sp) {

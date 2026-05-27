@@ -16,6 +16,7 @@ export const ENDPOINTS = {
   analyze: `${BASE_URL}/api/analyze`,
   health: `${BASE_URL}/health`,
   proactive: `${BASE_URL}/api/proactive`,
+  chat: `${BASE_URL}/chat`,
 } as const;
 
 // API_SECRET deliberately removed — VITE_ variables are public.

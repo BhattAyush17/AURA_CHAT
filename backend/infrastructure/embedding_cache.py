@@ -17,11 +17,13 @@ class EmbeddingCache:
         self, 
         redis_client, 
         embed_fn: Callable[[str], Awaitable[List[float]]], 
-        ttl_seconds: int = 86400
+        ttl_seconds: int = 86400,
+        provider_name: str = "unknown"
     ):
         self.redis = redis_client
         self._embed = embed_fn       # async fn(text) -> list[float]
         self.ttl = ttl_seconds
+        self._provider_name = provider_name
         
         # Local fallback counters
         self._local_hits = 0
@@ -31,7 +33,7 @@ class EmbeddingCache:
         # Normalize: strip + lowercase for better hit rate
         normalized = text.strip().lower()
         hash_val = hashlib.md5(normalized.encode('utf-8')).hexdigest()
-        return f"aura:emb:{hash_val}"
+        return f"aura:emb:{self._provider_name}:{hash_val}"
     
     async def get_embedding(self, text: str) -> List[float]:
         """Get embedding from cache or compute + cache it."""
