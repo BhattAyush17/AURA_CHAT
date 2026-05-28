@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { connectionState, ConnectionState } from '../config/connectionState';
 import { getCredential } from '@/lib/credentials';
 import { ENDPOINTS } from '@/config/api';
+import { getGeminiKey, getOpenRouterKey, getSarvamKey } from '@/lib/api';
 
 const ConnectionContext = createContext<ConnectionState>(connectionState.getState());
 
@@ -20,11 +21,11 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // ping Render /health
         fetch(ENDPOINTS.health, { signal: AbortSignal.timeout(3000) }),
         // check env for GEMINI_API_KEY
-        Promise.resolve(!!getCredential('aura_gemini_api_key') || !!import.meta.env.VITE_GEMINI_API_KEY),
+        Promise.resolve(!!getGeminiKey()),
         // check env for OPENROUTER_API_KEY
-        Promise.resolve(!!getCredential('openrouter_api_key') || !!import.meta.env.VITE_OPENROUTER_API_KEY),
+        Promise.resolve(!!getOpenRouterKey()),
         // ping Sarvam
-        Promise.resolve(!!getCredential('sarvam_api_key') || !!import.meta.env.VITE_SARVAM_API_KEY) // Simplified sarvam ping
+        Promise.resolve(!!getSarvamKey()) // Simplified sarvam ping
       ]);
 
       const [healthData, renderRes, geminiKey, openrouterKey, sarvamKey] = results;

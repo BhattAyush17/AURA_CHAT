@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { getGeminiKey, getOpenRouterKey } from "@/lib/api";
+import { getGeminiKey, getOpenRouterKey, getSarvamKey, isValidKey } from "@/lib/api";
 import {
   Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff,
   Trash2, MessageSquare, Clock, Sparkles,
@@ -40,28 +40,71 @@ function KeyInput({
   const [saved, setSaved] = useState(false);
   const [show, setShow] = useState(false);
 
+  const getEnvValue = () => {
+    let envVal: string | null = null;
+    if (credentialKey === "aura_gemini_api_key") envVal = import.meta.env.VITE_GEMINI_API_KEY;
+    else if (credentialKey === "openrouter_api_key") envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
+    else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
+    else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
+    else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
+    return isValidKey(envVal) ? envVal : null;
+  };
+
   useEffect(() => {
     const existing = getCredential(credentialKey as any);
-    if (existing) { setValue(existing); setSaved(true); }
+    if (existing) {
+      setValue(existing);
+      setSaved(true);
+    } else {
+      const envVal = getEnvValue();
+      if (envVal) {
+        setValue("••••••••••••••••");
+        setSaved(true);
+      } else {
+        setValue("");
+        setSaved(false);
+      }
+    }
   }, [credentialKey]);
 
   const handleSave = () => {
-    if (!value.trim()) { setCredential(credentialKey as any, ""); setSaved(false); return; }
-    setCredential(credentialKey as any, value.trim());
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "••••••••••••••••") {
+      setCredential(credentialKey as any, "");
+      const envVal = getEnvValue();
+      if (envVal) {
+        setValue("••••••••••••••••");
+        setSaved(true);
+      } else {
+        setValue("");
+        setSaved(false);
+      }
+      onSaved?.();
+      return;
+    }
+    setCredential(credentialKey as any, trimmed);
     setSaved(true);
     onSaved?.();
   };
 
+  const isSystemProvided = saved && !getCredential(credentialKey as any) && !!getEnvValue();
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-foreground">
-          {icon} {label}
-          <span className="ml-2 text-muted-foreground text-xs font-normal">{badge}</span>
+        <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          <span>{icon}</span>
+          <span>{label}</span>
+          <span className="text-muted-foreground text-xs font-normal">({badge})</span>
         </label>
         {saved && (
-          <span className="text-xs text-foreground flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" /> Saved
+          <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium transition-all duration-200 ${
+            isSystemProvided 
+              ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
+              : "bg-green-500/10 text-green-400 border border-green-500/20"
+          }`}>
+            <CheckCircle className="w-3 h-3" />
+            {isSystemProvided ? "System Active" : "User Saved"}
           </span>
         )}
       </div>
@@ -84,11 +127,18 @@ function KeyInput({
         </button>
       </div>
       {!saved ? (
-        <button onClick={handleSave} className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full">
+        <button onClick={handleSave} className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full cursor-pointer">
           ✓ Save {label.split(" ").slice(-2).join(" ")}
         </button>
       ) : (
-        <button onClick={() => { setSaved(false); setValue(value); }} className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full">
+        <button 
+          onClick={() => { 
+            setSaved(false); 
+            const existing = getCredential(credentialKey as any);
+            setValue(existing || "");
+          }} 
+          className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full cursor-pointer"
+        >
           Edit
         </button>
       )}
@@ -110,8 +160,8 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
 
   // Detect which pipeline is already configured
   const geminiSaved = !!getGeminiKey();
-  const orSaved = !!getCredential("openrouter_api_key");
-  const sarvamSaved = !!getCredential("sarvam_api_key");
+  const orSaved = !!getOpenRouterKey();
+  const sarvamSaved = !!getSarvamKey();
   const hasPrimaryKeys = geminiSaved || (orSaved && sarvamSaved);
 
   useEffect(() => {
