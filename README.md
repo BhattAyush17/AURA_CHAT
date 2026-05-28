@@ -4,7 +4,7 @@ AURA is an advanced, emotionally resonant voice companion engineered to bridge t
 
 ---
 
-## 🎨 AURA vs. Standard Voice Bots: The Human Difference
+## 🦾 AURA vs. Standard Voice Bots: The Human Difference
 
 Contrast how a standard voice assistant and AURA handle the exact same human moment:
 
