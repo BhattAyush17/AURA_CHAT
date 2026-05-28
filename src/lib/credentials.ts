@@ -29,8 +29,21 @@ export function getCredential(key: CredentialKey): string {
   return sessionStorage.getItem(key) ?? "";
 }
 
-export function getSarvamKey(): string {
-  return getCredential("sarvam_api_key") || (import.meta.env.VITE_SARVAM_API_KEY as string) || "";
+/**
+ * Check if the USER has explicitly saved a valid key in sessionStorage.
+ * Does NOT check env vars — this is for UI indicators only.
+ * Runtime code should use getGeminiKey/getOpenRouterKey/getSarvamKey from api.ts instead.
+ */
+export function hasUserKey(key: CredentialKey): boolean {
+  const val = getCredential(key);
+  if (!val) return false;
+  const k = val.trim();
+  if (k === "" || k === "undefined" || k === "null") return false;
+  // Type-specific validation (mirrors api.ts isValidKey)
+  if (key === "aura_gemini_api_key") return k.startsWith("AIzaSy") && k.length === 39;
+  if (key === "openrouter_api_key") return k.startsWith("sk-or-v1-") && k.length > 30;
+  if (key === "sarvam_api_key") return k.startsWith("sk_") && k.length > 20;
+  return k.length >= 8;
 }
 
 /**

@@ -7,7 +7,7 @@ import { useVoiceOrchestrator } from "@/core/useVoiceOrchestrator";
 import { PersonalityMode, PersonalitySelector } from "@/components/PersonalitySelector";
 import { getGeminiKey, getOpenRouterKey, getSarvamKey } from "@/lib/api";
 import { StorageSettings } from "@/components/StorageSettings";
-import { hasRequiredCredentials } from "@/lib/credentials";
+import { hasRequiredCredentials, hasUserKey } from "@/lib/credentials";
 import { MemoryWarningBanner } from "@/components/MemoryWarningBanner";
 import { hasLocalSeedOnly, isMemoryWarningDismissed } from "@/lib/sync-meta";
 import { getCurrentUserId } from "@/lib/user-identity";
@@ -37,19 +37,19 @@ function AuraExperience() {
   const [activeBrain, setActiveBrain] = useState<"gemini" | "openrouter" | "sarvam">("gemini");
   const [hasOpenRouterKey, setHasOpenRouterKey] = useState(false);
 
-  // Compute needsSettings dynamically based on the active brain
+  // Compute needsSettings dynamically based on the active brain (only checking user-provided keys)
   // R07 FIX: Sarvam requires BOTH OpenRouter key (LLM) and Sarvam key (STT/TTS)
   const needsSettings =
     activeBrain === "gemini"
-      ? !getGeminiKey()
+      ? !hasUserKey("aura_gemini_api_key")
       : activeBrain === "sarvam"
-        ? !getOpenRouterKey() || !getSarvamKey()
-        : !getOpenRouterKey();
+        ? !hasUserKey("openrouter_api_key") || !hasUserKey("sarvam_api_key")
+        : !hasUserKey("openrouter_api_key");
 
   const hasActiveBrainCredentials = useCallback(() => {
-    if (activeBrain === "gemini") return !!getGeminiKey();
-    if (activeBrain === "sarvam") return !!getOpenRouterKey() && !!getSarvamKey();
-    return !!getOpenRouterKey();
+    if (activeBrain === "gemini") return hasUserKey("aura_gemini_api_key");
+    if (activeBrain === "sarvam") return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
+    return hasUserKey("openrouter_api_key");
   }, [activeBrain]);
 
   useEffect(() => {

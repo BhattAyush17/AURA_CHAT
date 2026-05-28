@@ -11,7 +11,7 @@ import {
   Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff,
   Trash2, MessageSquare, Clock, Sparkles,
 } from "lucide-react";
-import { setCredential, getCredential, hasRequiredCredentials } from "@/lib/credentials";
+import { setCredential, getCredential, hasRequiredCredentials, hasUserKey } from "@/lib/credentials";
 import { loadSyncMeta, SyncMeta } from "@/lib/sync-meta";
 import { SupabaseConnect } from "@/components/SupabaseConnect";
 import { getStorageManager } from "@/lib/storage/manager";
@@ -41,14 +41,15 @@ function KeyInput({
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getEnvValue = () => {
+  // Check if this key has a valid env-provided value (for runtime use only, NOT for UI display)
+  const hasEnvFallback = () => {
     let envVal: string | null = null;
     if (credentialKey === "aura_gemini_api_key") envVal = import.meta.env.VITE_GEMINI_API_KEY;
     else if (credentialKey === "openrouter_api_key") envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
     else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
     else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
     else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
-    return isValidKey(envVal, credentialKey) ? envVal : null;
+    return isValidKey(envVal, credentialKey);
   };
 
   useEffect(() => {
@@ -65,14 +66,10 @@ function KeyInput({
         setSaved(false);
       }
     } else {
-      const envVal = getEnvValue();
-      if (envVal) {
-        setValue("••••••••••••••••");
-        setSaved(true);
-      } else {
-        setValue("");
-        setSaved(false);
-      }
+      // No sessionStorage value — input stays empty regardless of env vars.
+      // Env vars work silently at the API layer; UI only reflects user-provided keys.
+      setValue("");
+      setSaved(false);
     }
     setError(null);
   }, [credentialKey]);
@@ -80,16 +77,10 @@ function KeyInput({
   const handleSave = () => {
     const trimmed = value.trim();
     setError(null);
-    if (!trimmed || trimmed === "••••••••••••••••") {
+    if (!trimmed) {
       setCredential(credentialKey as any, "");
-      const envVal = getEnvValue();
-      if (envVal) {
-        setValue("••••••••••••••••");
-        setSaved(true);
-      } else {
-        setValue("");
-        setSaved(false);
-      }
+      setValue("");
+      setSaved(false);
       onSaved?.();
       return;
     }
@@ -112,8 +103,6 @@ function KeyInput({
     onSaved?.();
   };
 
-  const isSystemProvided = saved && !getCredential(credentialKey as any) && !!getEnvValue();
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -123,13 +112,15 @@ function KeyInput({
           <span className="text-muted-foreground text-xs font-normal">({badge})</span>
         </label>
         {saved && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium transition-all duration-200 ${
-            isSystemProvided 
-              ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
-              : "bg-green-500/10 text-green-400 border border-green-500/20"
-          }`}>
+          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium transition-all duration-200 bg-green-500/10 text-green-400 border border-green-500/20">
             <CheckCircle className="w-3 h-3" />
-            {isSystemProvided ? "System Active" : "User Saved"}
+            Saved
+          </span>
+        )}
+        {!saved && hasEnvFallback() && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-medium transition-all duration-200 bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <CheckCircle className="w-3 h-3" />
+            Env Configured
           </span>
         )}
       </div>
@@ -144,6 +135,11 @@ function KeyInput({
             setError(null);
           }}
           disabled={saved}
+          autoComplete="new-password"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
+          spellCheck="false"
           className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
         />
         <button
@@ -190,10 +186,10 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
   const [usageStats, setUsageStats] = useState({ conversations: 0, messagesTotal: 0, lastUpdated: Date.now() });
   const [showRedisManager, setShowRedisManager] = useState(false);
 
-  // Detect which pipeline is already configured
-  const geminiSaved = !!getGeminiKey();
-  const orSaved = !!getOpenRouterKey();
-  const sarvamSaved = !!getSarvamKey();
+  // Detect which pipeline is already configured — UI only checks user-provided keys
+  const geminiSaved = hasUserKey("aura_gemini_api_key");
+  const orSaved = hasUserKey("openrouter_api_key");
+  const sarvamSaved = hasUserKey("sarvam_api_key");
   const hasPrimaryKeys = geminiSaved || (orSaved && sarvamSaved);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { getSarvamKey } from "@/lib/credentials";
+import { getSarvamKey } from "@/lib/api";
 
 /**
  * Sarvam TTS — Generates speech audio via Sarvam's text-to-speech API.

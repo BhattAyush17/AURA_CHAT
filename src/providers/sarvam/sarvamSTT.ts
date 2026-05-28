@@ -1,4 +1,4 @@
-import { getSarvamKey } from "@/lib/credentials";
+import { getSarvamKey } from "@/lib/api";
 
 /**
  * Sarvam STT — Transcribes audio via Sarvam's speech-to-text API.
