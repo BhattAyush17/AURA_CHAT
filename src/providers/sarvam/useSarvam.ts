@@ -445,9 +445,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const startBargeInMonitor = useCallback((onInterrupt: () => void) => {
     const analyser = micAnalyserRef.current;
     if (!analyser) return;
+    const activeTurnId = currentTurnIdRef.current;
 
     const buf = new Float32Array(analyser.fftSize);
     const check = () => {
+      if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK: stop if turn advanced
       if (!isSpeakingRef.current) return; // stop polling once TTS ends naturally
       analyser.getFloatTimeDomainData(buf);
       let rms = 0;
@@ -493,6 +495,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+      // ── Bulletproof cleanup for any turn entry (voice or text) ──
+      stopSpeech();
+      stopRecognition();
+
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
@@ -577,7 +583,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           }
         });
 
-        speakChunk(replyText, lang, currentTurnIdRef.current, () => {
+        const activeTurnId = currentTurnIdRef.current;
+        speakChunk(replyText, lang, activeTurnId, () => {
+          // PREEMPTION CHECK: If a new turn has started, do not restart session state
+          if (currentTurnIdRef.current !== activeTurnId) return;
+
           isSpeakingRef.current = false;
           if (isSessionActiveRef.current && startSessionRef.current) {
             startSessionRef.current();
@@ -761,6 +771,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
           setIsThinking(false);
 
+          // Capture the turn ID when this fetch starts so we can detect if a new turn preempts us
+          const activeTurnId = currentTurnIdRef.current;
+
           // Fire first TTS chunk as soon as one sentence is ready
           const tryStartTTS = () => {
             if (ttsStarted || sentenceQueue.length === 0) return;
@@ -782,6 +795,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             });
 
             const drainQueue = () => {
+              if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK: Aborted by new turn
+
               const next = sentenceQueue.shift();
               if (!next) {
                 if (streamDone) {
@@ -798,7 +813,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 }
                 return;
               }
-              speakChunk(next, lang, currentTurnIdRef.current, drainQueue);
+              speakChunk(next, lang, activeTurnId, drainQueue);
             };
             drainQueue();
           };
@@ -976,6 +991,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
         return;
       }
+
+      // Stop any ongoing assistant speech and stop listening immediately to prevent feedback loop / voice clashing
+      stopSpeech();
+      stopRecognition();
 
       // Merge Float32Array samples
       const merged = new Float32Array(totalLength);
