@@ -1,9 +1,11 @@
+import { getSarvamKey } from "@/lib/credentials";
+
 /**
  * Sarvam STT — Transcribes audio via Sarvam's speech-to-text API.
  * Includes a 10s timeout to prevent UI hangs on network issues.
  */
 export async function transcribeAudio(audioBlob: Blob): Promise<string | null> {
-  const key = sessionStorage.getItem("aura_sarvam_api_key");
+  const key = getSarvamKey();
   if (!key) {
     console.warn("[Sarvam STT] API Key is missing! Cannot transcribe audio.");
     return null;

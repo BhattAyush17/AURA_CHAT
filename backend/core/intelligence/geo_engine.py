@@ -71,35 +71,7 @@ class GeoIntelligenceEngine:
             cached_data["cached"] = True
             return cached_data
 
-        # Perform API lookup with short timeout and fail open
-        try:
-            url = "http://ip-api.com/json/"
-            if clean_ip != "self":
-                url = f"http://ip-api.com/json/{clean_ip}"
-
-            async with httpx.AsyncClient(timeout=1.5) as client:
-                response = await client.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("status") == "success":
-                        geo_info = {
-                            "city": data.get("city", "Mumbai"),
-                            "region": data.get("regionName", "Maharashtra"),
-                            "country": data.get("country", "India"),
-                            "country_code": data.get("countryCode", "IN"),
-                            "latitude": data.get("lat", 19.0760),
-                            "longitude": data.get("lon", 72.8777),
-                            "timezone": data.get("timezone", "Asia/Kolkata"),
-                            "source": "ip-api"
-                        }
-                        # Save to cache
-                        self.cache[clean_ip] = geo_info
-                        return geo_info
-
-        except Exception as e:
-            logger.debug(f"Geo lookup failed for IP {clean_ip}: {str(e)}")
-
-        # Fallback to ipapi.co
+        # Perform API lookup with short timeout and fail open using secure HTTPS only
         try:
             url = "https://ipapi.co/json/"
             if clean_ip != "self":
@@ -123,7 +95,7 @@ class GeoIntelligenceEngine:
                         self.cache[clean_ip] = geo_info
                         return geo_info
         except Exception as e:
-            logger.debug(f"Secondary geo lookup failed for IP {clean_ip}: {str(e)}")
+            logger.debug(f"Secure geo lookup failed for IP {clean_ip}: {str(e)}")
 
         return self.default_geo
 

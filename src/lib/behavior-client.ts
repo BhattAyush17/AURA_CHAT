@@ -73,11 +73,11 @@ export async function analyzeBehavior(
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
-      "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
-      "X-Cohere-Key": getCredential("cohere_api_key") || "",
-      "X-Pinecone-Key": getCredential("pinecone_api_key") || "",
-      "X-Redis-Url": getCredential("redis_url") || "",
+      "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.VITE_OPENROUTER_API_KEY as string) || "",
+      "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.VITE_GEMINI_API_KEY as string) || "",
+      "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.VITE_COHERE_API_KEY as string) || "",
+      "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.VITE_PINECONE_API_KEY as string) || "",
+      "X-Redis-Url": getCredential("redis_url") || (import.meta.env.VITE_REDIS_URL as string) || "",
     };
     if (apiKey) {
       headers["Authorization"] = `Bearer ${apiKey}`;

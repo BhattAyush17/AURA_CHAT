@@ -20,7 +20,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // ping Render /health
         fetch(ENDPOINTS.health, { signal: AbortSignal.timeout(3000) }),
         // check env for GEMINI_API_KEY
-        Promise.resolve(!!getCredential('gemini_api_key') || !!import.meta.env.VITE_GEMINI_API_KEY),
+        Promise.resolve(!!getCredential('aura_gemini_api_key') || !!import.meta.env.VITE_GEMINI_API_KEY),
         // check env for OPENROUTER_API_KEY
         Promise.resolve(!!getCredential('openrouter_api_key') || !!import.meta.env.VITE_OPENROUTER_API_KEY),
         // ping Sarvam

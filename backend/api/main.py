@@ -180,7 +180,8 @@ async def preflight_handler(rest_of_path: str):
 
 async def apply_rate_limit(identifier: str, max_requests: int, response: Response):
     """Fail-open rate limiting using Redis."""
-    if not _rate_limiter or degradation.circuit_open('redis'):
+    is_open = degradation.circuits['redis'].state.value == 'open' if 'redis' in degradation.circuits else False
+    if not _rate_limiter or is_open:
         log.warning("rate_limit_bypassed", reason="limiter_missing" if not _rate_limiter else "redis_circuit_open")
         return
     try:
@@ -387,33 +388,33 @@ async def update_byok_credentials(request: Request):
     global _loaded_gemini_key, _loaded_or_key, _loaded_cohere_key, _loaded_pinecone_key, _loaded_redis_url
     import os
     
-    gemini_key = request.headers.get("x-gemini-key")
-    or_key = request.headers.get("x-openrouter-key")
-    cohere_key = request.headers.get("x-cohere-key")
-    pinecone_key = request.headers.get("x-pinecone-key")
-    redis_url = request.headers.get("x-redis-url")
+    gemini_key = request.headers.get("x-gemini-key", "").strip(' \t\n\r"')
+    or_key = request.headers.get("x-openrouter-key", "").strip(' \t\n\r"')
+    cohere_key = request.headers.get("x-cohere-key", "").strip(' \t\n\r"')
+    pinecone_key = request.headers.get("x-pinecone-key", "").strip(' \t\n\r"')
+    redis_url = request.headers.get("x-redis-url", "").strip(' \t\n\r"')
     
     changed_embed = False
     
-    if gemini_key is not None and gemini_key != _loaded_gemini_key:
+    if gemini_key and gemini_key != _loaded_gemini_key:
         os.environ["GEMINI_API_KEY"] = gemini_key
         _loaded_gemini_key = gemini_key
         changed_embed = True
         
-    if or_key is not None and or_key != _loaded_or_key:
+    if or_key and or_key != _loaded_or_key:
         os.environ["OPENROUTER_API_KEY"] = or_key
         _loaded_or_key = or_key
         
-    if cohere_key is not None and cohere_key != _loaded_cohere_key:
+    if cohere_key and cohere_key != _loaded_cohere_key:
         os.environ["COHERE_API_KEY"] = cohere_key
         _loaded_cohere_key = cohere_key
         changed_embed = True
         
-    if pinecone_key is not None and pinecone_key != _loaded_pinecone_key:
+    if pinecone_key and pinecone_key != _loaded_pinecone_key:
         os.environ["PINECONE_API_KEY"] = pinecone_key
         _loaded_pinecone_key = pinecone_key
         
-    if redis_url is not None and redis_url != _loaded_redis_url:
+    if redis_url and redis_url != _loaded_redis_url:
         os.environ["REDIS_URL"] = redis_url
         _loaded_redis_url = redis_url
         from backend.bus.redis import redis_bus
@@ -1144,6 +1145,77 @@ async def health(request: Request, response: Response):
         "checks": checks,
         "embedding_cache": (await _embedding_cache.get_stats()) if _embedding_cache else {"status": "not_initialized"}
     }
+
+# ═══════════════════════════════════════════════════════════════════
+# REDIS UI ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/redis/stats")
+async def get_redis_stats(request: Request):
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    await update_byok_credentials(request)
+    
+    from backend.bus.redis import redis_bus
+    if not redis_bus.available or not redis_bus.client:
+        return {"available": False, "message": "Redis is not connected"}
+        
+    client = redis_bus.client
+    
+    try:
+        info = await client.info("memory")
+        used_memory_human = info.get("used_memory_human", "0B")
+        
+        stats = await client.info("stats")
+        total_commands_processed = stats.get("total_commands_processed", 0)
+        
+        keys = await client.keys("aura:analysis:*")
+        sessions = []
+        for key in keys:
+            ttl = await client.ttl(key)
+            session_id = key.replace("aura:analysis:", "")
+            sessions.append({
+                "id": session_id,
+                "ttl": ttl
+            })
+            
+        try:
+            stream_len = await client.xlen("aura:transcripts")
+        except Exception:
+            stream_len = 0
+            
+        return {
+            "available": True,
+            "memory_used": used_memory_human,
+            "total_commands": total_commands_processed,
+            "active_sessions": sessions,
+            "stream_length": stream_len
+        }
+    except Exception as e:
+        return {"available": False, "message": str(e)}
+
+@app.delete("/api/redis/session/{session_id}")
+async def delete_redis_session(session_id: str, request: Request):
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    await update_byok_credentials(request)
+    from backend.bus.redis import redis_bus
+    if not redis_bus.available or not redis_bus.client:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
+    await redis_bus.client.delete(f"aura:analysis:{session_id}")
+    return {"status": "success", "message": f"Deleted session {session_id}"}
+    
+@app.delete("/api/redis/stream")
+async def clear_redis_stream(request: Request):
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    await update_byok_credentials(request)
+    from backend.bus.redis import redis_bus
+    if not redis_bus.available or not redis_bus.client:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
+    await redis_bus.client.delete("aura:transcripts")
+    return {"status": "success", "message": "Cleared transcript stream"}
 
 
 import httpx

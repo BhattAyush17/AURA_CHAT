@@ -299,6 +299,17 @@ async def run_behavior_consumer(engine: RuntimeEngine) -> None:
             if not client:
                 log.error("consumer_abort", reason="reconnect_failed")
                 break
+        except aioredis.ResponseError as e:
+            if "NOGROUP" in str(e):
+                log.warning("consumer_nogroup", reason="group_missing_recreating")
+                try:
+                    await client.xgroup_create(STREAM_KEY, CONSUMER_GROUP, id="0", mkstream=True)
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
+            else:
+                log.error("consumer_error", error=str(e), traceback=traceback.format_exc())
+                await asyncio.sleep(1)
         except Exception as e:
             # Never let an unexpected error kill the consumer permanently.
             # Log the full traceback, sleep briefly, and continue.

@@ -371,12 +371,27 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         onDone?.();
         return;
       }
+
+      // Calculate dynamic pace based on emotional state for Sarvam Bulbul:v3
+      let targetPace = 1.1; // Default
+      const lastAnalysis = behavior.lastAnalysisRef.current;
+      if (lastAnalysis) {
+        const emotion = lastAnalysis.emotional_state;
+        if (emotion === "playfulness" || emotion === "joy") {
+          targetPace = 1.3; // Excited / Laughing
+        } else if (emotion === "vulnerability" || emotion === "sadness") {
+          targetPace = 0.85; // Sad / Crying / Slow
+        } else if (emotion === "frustration") {
+          targetPace = 1.15; // Frustrated / Tense
+        }
+      }
+
       // R08 FIX: Read from ref so we always use the LATEST selected speaker,
       // even when this callback was captured by a stale closure.
       const currentSpeaker = speakerRef.current;
-      console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker}`);
+      console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker} at pace: ${targetPace}`);
       const tts_start = performance.now();
-      const base64 = await generateSpeech(text, currentSpeaker);
+      const base64 = await generateSpeech(text, currentSpeaker, targetPace);
       connectionState.updateLatency({ tts_ms: performance.now() - tts_start });
 
       // CRITICAL FIX: If the user barged in and started a new turn while we were waiting

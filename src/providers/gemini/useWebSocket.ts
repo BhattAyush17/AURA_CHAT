@@ -50,6 +50,7 @@ export interface GeminiWebSocketAPI {
     voice: string;
     voiceLanguage: string;
     personality?: string;
+    seedBlock?: string;
     setupAudio: (stream: MediaStream) => Promise<AudioContext>;
     onOpen: (session: LiveSession, audioContext: AudioContext, stream: MediaStream) => void;
     messageCallbacks: GeminiMessageCallbacks;

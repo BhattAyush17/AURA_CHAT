@@ -240,7 +240,7 @@ async def get_chromadb_enrichment_v2(
     Falls back to frame_from_current_input on failure.
     """
     import asyncio
-    from chroma_service import chroma_service
+    from backend.memory.chroma import chroma_service
 
     try:
         t_query = time.perf_counter()

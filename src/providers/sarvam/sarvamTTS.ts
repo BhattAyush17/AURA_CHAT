@@ -1,3 +1,5 @@
+import { getSarvamKey } from "@/lib/credentials";
+
 /**
  * Sarvam TTS — Generates speech audio via Sarvam's text-to-speech API.
  * Includes a 10s timeout to prevent UI hangs on network issues.
@@ -6,8 +8,9 @@
 export async function generateSpeech(
   text: string,
   speaker: string = "priya",
+  pace: number = 1.1,
 ): Promise<string | null> {
-  const key = sessionStorage.getItem("aura_sarvam_api_key");
+  const key = getSarvamKey();
   if (!key) {
     console.warn("[Sarvam TTS] API Key is missing! Falling back to browser native TTS.");
     return null;
@@ -25,7 +28,7 @@ export async function generateSpeech(
       target_language_code: langCode,
       speaker,
       model: "bulbul:v3",
-      pace: 1.1,
+      pace: pace,
     };
 
     const response = await fetch("https://api.sarvam.ai/text-to-speech", {

@@ -5,7 +5,7 @@ import { Mic, Square, Settings, X, Check, Eye, EyeOff, ChevronDown, RotateCcw } 
 import { Waveform } from "@/components/Waveform";
 import { useVoiceOrchestrator } from "@/core/useVoiceOrchestrator";
 import { PersonalityMode, PersonalitySelector } from "@/components/PersonalitySelector";
-import { getGeminiKey, getOpenRouterKey } from "@/lib/api";
+import { getGeminiKey, getOpenRouterKey, getSarvamKey } from "@/lib/api";
 import { StorageSettings } from "@/components/StorageSettings";
 import { hasRequiredCredentials } from "@/lib/credentials";
 import { MemoryWarningBanner } from "@/components/MemoryWarningBanner";
@@ -39,7 +39,6 @@ function AuraExperience() {
 
   // Compute needsSettings dynamically based on the active brain
   // R07 FIX: Sarvam requires BOTH OpenRouter key (LLM) and Sarvam key (STT/TTS)
-  const getSarvamKey = () => sessionStorage.getItem("aura_sarvam_api_key") || "";
   const needsSettings =
     activeBrain === "gemini"
       ? !getGeminiKey()

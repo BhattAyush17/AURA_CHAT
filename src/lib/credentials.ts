@@ -29,6 +29,10 @@ export function getCredential(key: CredentialKey): string {
   return sessionStorage.getItem(key) ?? "";
 }
 
+export function getSarvamKey(): string {
+  return getCredential("sarvam_api_key") || (import.meta.env.VITE_SARVAM_API_KEY as string) || "";
+}
+
 /**
  * Wipe all credentials at once.
  * Called after a confirmed successful data save.
