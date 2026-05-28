@@ -39,6 +39,7 @@ function KeyInput({
   const [value, setValue] = useState("");
   const [saved, setSaved] = useState(false);
   const [show, setShow] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const getEnvValue = () => {
     let envVal: string | null = null;
@@ -47,7 +48,7 @@ function KeyInput({
     else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
     else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
     else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
-    return isValidKey(envVal) ? envVal : null;
+    return isValidKey(envVal, credentialKey) ? envVal : null;
   };
 
   useEffect(() => {
@@ -65,10 +66,12 @@ function KeyInput({
         setSaved(false);
       }
     }
+    setError(null);
   }, [credentialKey]);
 
   const handleSave = () => {
     const trimmed = value.trim();
+    setError(null);
     if (!trimmed || trimmed === "••••••••••••••••") {
       setCredential(credentialKey as any, "");
       const envVal = getEnvValue();
@@ -82,6 +85,20 @@ function KeyInput({
       onSaved?.();
       return;
     }
+
+    if (!isValidKey(trimmed, credentialKey)) {
+      if (credentialKey === "aura_gemini_api_key") {
+        setError("Invalid Gemini API key. Must start with 'AIzaSy' and be 39 characters long.");
+      } else if (credentialKey === "openrouter_api_key") {
+        setError("Invalid OpenRouter API key. Must start with 'sk-or-v1-'.");
+      } else if (credentialKey === "sarvam_api_key") {
+        setError("Invalid Sarvam API key. Must start with 'sk_'.");
+      } else {
+        setError(`Invalid ${label} key format.`);
+      }
+      return;
+    }
+
     setCredential(credentialKey as any, trimmed);
     setSaved(true);
     onSaved?.();
@@ -114,7 +131,10 @@ function KeyInput({
           type={show ? "text" : "password"}
           placeholder={placeholder}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
           disabled={saved}
           className="w-full pl-4 pr-10 py-2 bg-transparent border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground disabled:opacity-50 disabled:cursor-not-allowed [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
         />
@@ -126,6 +146,9 @@ function KeyInput({
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>
+      {error && (
+        <p className="text-xs text-red-500 font-semibold mt-1">{error}</p>
+      )}
       {!saved ? (
         <button onClick={handleSave} className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full cursor-pointer">
           ✓ Save {label.split(" ").slice(-2).join(" ")}
@@ -136,6 +159,7 @@ function KeyInput({
             setSaved(false); 
             const existing = getCredential(credentialKey as any);
             setValue(existing || "");
+            setError(null);
           }} 
           className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full cursor-pointer"
         >
