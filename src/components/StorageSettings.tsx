@@ -54,8 +54,16 @@ function KeyInput({
   useEffect(() => {
     const existing = getCredential(credentialKey as any);
     if (existing) {
-      setValue(existing);
-      setSaved(true);
+      // Re-validate: purge stale/garbage values that were saved before strict validation
+      if (isValidKey(existing, credentialKey)) {
+        setValue(existing);
+        setSaved(true);
+      } else {
+        // Garbage value in sessionStorage — nuke it
+        setCredential(credentialKey as any, "");
+        setValue("");
+        setSaved(false);
+      }
     } else {
       const envVal = getEnvValue();
       if (envVal) {

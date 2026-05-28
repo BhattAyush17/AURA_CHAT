@@ -52,10 +52,12 @@ export function clearAllCredentials(): void {
 
 /**
  * Check if minimum required credentials exist for a session.
- * AURA cannot start without a Gemini API key.
+ * Uses the validated getGeminiKey() from api.ts to prevent garbage values.
+ * NOTE: Inline check avoids circular import with api.ts.
  */
 export function hasRequiredCredentials(): boolean {
-  return getCredential("aura_gemini_api_key").length > 0;
+  const k = getCredential("aura_gemini_api_key");
+  return k.startsWith("AIzaSy") && k.length === 39;
 }
 
 /**
