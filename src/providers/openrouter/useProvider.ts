@@ -40,7 +40,7 @@ import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 
 export type { ChatMessage };
 
-export type SegmentStyle = "normal" | "aside" | "thinking" | "whisper" | "laugh" | "sigh" | "breath" | "cry" | "serious" | "excited";
+export type SegmentStyle = "normal" | "aside" | "thinking" | "whisper" | "laugh" | "sigh" | "breath" | "cry" | "grunt" | "scoff" | "moan" | "serious" | "excited";
 
 export interface SpeechSegment {
   text: string;
@@ -49,6 +49,11 @@ export interface SpeechSegment {
 
 const ACTION_COOLDOWN = 10000;
 let lastActionTime = 0;
+
+// ─── Audio Asset Styles (physical sounds that play MP3s) ────────────
+const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
+  "laugh", "sigh", "breath", "cry", "grunt", "scoff", "moan"
+]);
 
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
@@ -73,14 +78,17 @@ export function parseSegments(text: string): SpeechSegment[] {
     let style: SegmentStyle = "aside";
     if (actionLower.includes("laugh") || actionLower.includes("chuckle") || actionLower.includes("giggle")) style = "laugh";
     else if (actionLower.includes("sigh")) style = "sigh";
-    else if (actionLower.includes("breath") || actionLower.includes("inhale")) style = "breath";
-    else if (actionLower.includes("cry") || actionLower.includes("sob") || actionLower.includes("tear")) style = "cry";
-    else if (match[2] || actionLower.includes("thinking")) style = "thinking";
-    else if (match[3] || actionLower.includes("whisper")) style = "whisper";
-    else if (actionLower.includes("serious") || actionLower.includes("heavy")) style = "serious";
-    else if (actionLower.includes("excited") || actionLower.includes("light")) style = "excited";
+    else if (actionLower.includes("breath") || actionLower.includes("inhale") || actionLower.includes("exhale")) style = "breath";
+    else if (actionLower.includes("cry") || actionLower.includes("sob") || actionLower.includes("tear") || actionLower.includes("sniffle")) style = "cry";
+    else if (actionLower.includes("grunt") || actionLower.includes("groan") || actionLower.includes("ugh")) style = "grunt";
+    else if (actionLower.includes("scoff") || actionLower.includes("rolls eyes") || actionLower.includes("dismissive")) style = "scoff";
+    else if (actionLower.includes("moan") || actionLower.includes("pant") || actionLower.includes("breathe heavily")) style = "moan";
+    else if (match[2] || actionLower.includes("thinking") || actionLower.includes("ponders") || actionLower.includes("considers")) style = "thinking";
+    else if (match[3] || actionLower.includes("whisper") || actionLower.includes("murmur") || actionLower.includes("softly")) style = "whisper";
+    else if (actionLower.includes("serious") || actionLower.includes("stern") || actionLower.includes("firm")) style = "serious";
+    else if (actionLower.includes("excited") || actionLower.includes("beaming") || actionLower.includes("grinning")) style = "excited";
     
-    if (style === "laugh" || style === "sigh" || style === "breath" || style === "cry") {
+    if (AUDIO_ASSET_STYLES.has(style)) {
       if (canAct) {
         segments.push({ text: "", style });
         lastActionTime = now;
@@ -100,51 +108,228 @@ export function parseSegments(text: string): SpeechSegment[] {
   return segments;
 }
 
+// ─── Smart Audio Loader with Gender Fallback Chain ──────────────────
+// Priority: gender-specific file → shared gender-neutral file → null (skip)
 const getAudioClip = (filename: string) => {
     if (typeof window === 'undefined') return null;
     return new Audio(`/sfx/${filename}`);
 };
 
-const audioClips: Record<string, HTMLAudioElement | null> = {
-    laughs: null,
-    sighs: null,
-    breaths: null,
-    cries: null,
+/**
+ * Audio Asset Table — maps each emotion key to:
+ *   [0] female-specific filename
+ *   [1] male-specific filename
+ *   [2] shared gender-neutral fallback (works for both)
+ */
+const ASSET_TABLE: Record<string, [string, string, string | null]> = {
+  laughs:  ['female_laugh.mp3',       'male_laugh.mp3',       'soft_laugh.mp3'],
+  sighs:   ['female-sigh.mp3',        'male_sigh.mp3',        'deep_sigh.mp3'],
+  breaths: ['female_deepbreath.mp3',  'male_deepbreath.mp3',  'inhale.mp3'],
+  cries:   ['female_cry.mp3',         'male_cry.mp3',         null],
+  grunts:  ['female_grunt.mp3',       'male_grunt.mp3',       null],
+  scoffs:  ['female_scoff.mp3',       'male_scoff.mp3',       'scoff.mp3'],
+  moans:   ['female_m_sound.mp3',     'male_moan.mp3',        null],
 };
 
+const audioClips: Record<string, HTMLAudioElement | null> = {
+    laughs: null, sighs: null, breaths: null, cries: null,
+    grunts: null, scoffs: null, moans: null,
+};
+
+let activeGender = "";
+
 const initAudioClips = () => {
-    if (typeof window !== 'undefined' && !audioClips.laughs) {
-        audioClips.laughs = getAudioClip('female_laugh.mp3');
-        audioClips.sighs = getAudioClip('female-sigh.mp3');
-        audioClips.breaths = getAudioClip('female_deepbreath.mp3');
-        audioClips.cries = getAudioClip('female_cry.mp3');
+    if (typeof window === 'undefined') return;
+    
+    const gender = localStorage.getItem("aura_voice_gender") || "female";
+    
+    // Only re-initialize if not loaded or if gender changed mid-session
+    if (!audioClips.laughs || activeGender !== gender) {
+        activeGender = gender;
+        const idx = gender === "female" ? 0 : 1;
+        
+        for (const [key, files] of Object.entries(ASSET_TABLE)) {
+            // Try gender-specific file first; use shared fallback if available
+            audioClips[key] = getAudioClip(files[idx]);
+            
+            // Preload the audio so the browser caches it and can report duration
+            if (audioClips[key]) {
+                audioClips[key]!.preload = "auto";
+                // If the gender-specific file 404s at play time, the onerror handler
+                // in playAudioAsset will gracefully skip. But if a shared fallback exists,
+                // we also keep it ready to swap in at play time.
+            }
+        }
     }
 };
 
-export function playAudioAsset(style: "laugh" | "sigh" | "breath" | "cry", onDone: () => void) {
+/**
+ * Thinking Intent Audio Table — maps each intent to:
+ *   [0] female-specific filename
+ *   [1] male-specific filename  
+ *   [2] shared gender-neutral fallback
+ */
+const THINKING_AUDIO_TABLE: Record<string, [string, string, string | null]> = {
+  analytical: ['female_hmm.mp3',           'male_hmm.mp3',           null],
+  searching:  ['female_inhale.mp3',        'male_inhale.mp3',        'inhale.mp3'],
+  uncertain:  ['female_soft_uh.mp3',       'male_soft_uh.mp3',       null],
+  emotional:  ['female_soft_sigh.mp3',     'male_soft_sigh.mp3',     'deep_sigh.mp3'],
+  amused:     ['female_soft_laugh.mp3',    'male_soft_laugh.mp3',    'soft_laugh.mp3'],
+  excited:    ['female_excited_inhale.mp3','male_excited_inhale.mp3','inhale.mp3'],
+};
+
+/** Resolve a thinking intent to the best available audio file for the current gender */
+function resolveThinkingCue(intent: string): string | null {
+  const entry = THINKING_AUDIO_TABLE[intent];
+  if (!entry) return null;
+  const gender = localStorage.getItem("aura_voice_gender") || "female";
+  const primary = entry[gender === "female" ? 0 : 1];
+  const fallback = entry[2];
+  // Return primary; playback will attempt it first, and if it 404s the
+  // onerror cleanup fires instantly (0ms skip). But if a shared fallback
+  // exists, we prefer it for male voices that lack specific files.
+  if (gender !== "female" && fallback) {
+    // For male: use shared asset unless male-specific exists in sfx/
+    return primary; // attempt gender-specific; engine degrades gracefully
+  }
+  return primary;
+}
+
+// ─── Audio Style → Clip Key mapping ─────────────────────────────────
+const STYLE_TO_CLIP: Record<string, string> = {
+  laugh: "laughs", sigh: "sighs", breath: "breaths",
+  cry: "cries", grunt: "grunts", scoff: "scoffs", moan: "moans",
+};
+
+export function playAudioAsset(
+  style: "laugh" | "sigh" | "breath" | "cry" | "grunt" | "scoff" | "moan",
+  onDone: () => void
+) {
   initAudioClips();
-  let clip: HTMLAudioElement | null = null;
-  if (style === "laugh") clip = audioClips.laughs;
-  else if (style === "sigh") clip = audioClips.sighs;
-  else if (style === "breath") clip = audioClips.breaths;
-  else if (style === "cry") clip = audioClips.cries;
+  const clipKey = STYLE_TO_CLIP[style];
+  let clip = clipKey ? audioClips[clipKey] : null;
   
-  if (!clip) {
+  const cleanup = () => {
+    if (clip) {
+      clip.onended = null;
+      clip.onerror = null;
+    }
     onDone();
+  };
+
+  const ttsFallback = () => {
+    // Generate verbal equivalent for missing audio files
+    let verbal = "";
+    switch (style) {
+      case "laugh": verbal = "Haha"; break;
+      case "sigh": verbal = "Haaah"; break;
+      case "breath": verbal = "Huuuh"; break;
+      case "cry": verbal = "Sob"; break;
+      case "grunt": verbal = "Ugh"; break;
+      case "scoff": verbal = "Pfft"; break;
+      case "moan": verbal = "Ahhh"; break;
+    }
+    
+    if (!verbal || typeof window === 'undefined' || !window.speechSynthesis) {
+      cleanup();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(verbal);
+    utterance.volume = 0.6; // Softer so it sounds like a filler/breath
+    utterance.rate = 1.1;
+    utterance.pitch = style === "scoff" ? 1.2 : 0.95;
+    
+    const lang = localStorage.getItem("aura_lang") || "en-US";
+    utterance.lang = lang;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const matching = voices.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]));
+    const premium = matching.find((v) => v.name.toLowerCase().includes("google") || v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("premium"));
+    if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
+    
+    utterance.onend = cleanup;
+    utterance.onerror = cleanup;
+    window.speechSynthesis.speak(utterance);
+  };
+  
+  // If the gender-specific file 404s, try the shared fallback before giving up
+  const tryFallback = () => {
+    const entry = ASSET_TABLE[clipKey];
+    if (entry && entry[2]) {
+      const fallbackClip = getAudioClip(entry[2]);
+      if (fallbackClip) {
+        fallbackClip.onended = cleanup;
+        fallbackClip.onerror = ttsFallback;
+        fallbackClip.play().catch(ttsFallback);
+        return;
+      }
+    }
+    ttsFallback();
+  };
+
+  if (!clip) {
+    tryFallback();
     return;
   }
   
-  const cleanup = () => {
-    clip!.onended = null;
-    clip!.onerror = null;
-    onDone();
-  };
+  // Intelligent Clip Trimming for Moans (Plays random 0.8s - 1.5s segment)
+  if (style === "moan") {
+    const clipDuration = isNaN(clip.duration) ? 3.0 : clip.duration;
+    const snippetLength = 0.8 + Math.random() * 0.7; 
+    const maxStart = Math.max(0, clipDuration - snippetLength);
+    clip.currentTime = Math.random() * maxStart;
+    
+    clip.onended = null;
+    clip.onerror = tryFallback;
+    
+    clip.play().then(() => {
+      setTimeout(() => {
+        clip!.pause();
+        cleanup();
+      }, snippetLength * 1000);
+    }).catch(tryFallback);
+    return;
+  }
   
   clip.onended = cleanup;
-  clip.onerror = cleanup;
-  clip.play().catch(cleanup);
+  clip.onerror = tryFallback;
+  clip.play().catch(tryFallback);
 }
 // ───────────────────────────────────────────────────────────────────
+
+export type ThinkingIntent = "analytical" | "searching" | "uncertain" | "emotional" | "amused" | "excited";
+
+export function inferThinkingIntent(text: string): ThinkingIntent {
+  const lower = text.toLowerCase();
+  if (/\b(how|why|what is|code|math|error|bug|architecture|system|solve|fix|technical|explain|compare)\b/i.test(lower)) return "analytical";
+  if (/\b(sad|hurt|cry|frustrating|disappointing|sorry|feel|pain|empathy|miss|lonely|scared)\b/i.test(lower)) return "emotional";
+  if (/\b(haha|joke|funny|lol|lmao|hilarious|sarcasm|playful|rofl)\b/i.test(lower)) return "amused";
+  if (/\b(wow|amazing|awesome|finally|did it|yes|omg|breakthrough|celebrate|incredible|nailed)\b/i.test(lower)) return "excited";
+  if (/\b(remember|recall|think about|ideas|brainstorm|explore|search|imagine|wonder)\b/i.test(lower)) return "searching";
+  if (/\b(maybe|what if|depends|ambiguous|unclear|possibly|not sure|confused)\b/i.test(lower) || text.trim().endsWith("?")) return "uncertain";
+  return "searching"; // default
+}
+
+const fillerPhrases = {
+  analytical: ["Hmm...", "Let's see...", "Interesting..."],
+  searching: ["Let's think...", "Okay...", "So..."],
+  uncertain: ["Hmm...", "It depends...", "Possibly..."],
+  emotional: ["Mm...", "I see...", "Yeah..."],
+  amused: ["Heh...", "Haha...", "Oh that's good."],
+  excited: ["Oh!", "Nice!", "That's awesome!"]
+};
+
+let lastFiller = "";
+export function getRandomFiller(intent: ThinkingIntent): string {
+  const options = fillerPhrases[intent];
+  let choice = options[Math.floor(Math.random() * options.length)];
+  if (choice === lastFiller && options.length > 1) {
+    choice = options.find(o => o !== lastFiller) || choice;
+  }
+  lastFiller = choice;
+  return choice;
+}
 
 // ─── Model queue ────────────────────────────────────────────────────
 // DeepSeek V3 first: bypassing Gemini's safety filters for chaotic personality
@@ -223,6 +408,8 @@ export function useOpenRouter(mode: string = "adaptive") {
   }, []);
 
   const sentenceQueueRef = useRef<string[]>([]);
+  const thinkingTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const activeThinkingAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // ── Real waveform: microphone AudioAnalyser ──────────────────────
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -310,6 +497,16 @@ export function useOpenRouter(mode: string = "adaptive") {
     }
     isSpeakingRef.current = false;
   };
+  
+  const stopThinkingAudio = useCallback(() => {
+    if (activeThinkingAudioRef.current) {
+      activeThinkingAudioRef.current.pause();
+      activeThinkingAudioRef.current.currentTime = 0;
+      activeThinkingAudioRef.current = null;
+    }
+    thinkingTimeoutsRef.current.forEach(clearTimeout);
+    thinkingTimeoutsRef.current = [];
+  }, []);
 
   const speakChunk = useCallback((text: string, lang: string, style: SegmentStyle, onDone?: () => void) => {
     if (isInactiveRef.current) {
@@ -340,9 +537,18 @@ export function useOpenRouter(mode: string = "adaptive") {
       utterance.pitch = 1.1;
       utterance.rate = 1.05;
       utterance.volume = 1.0;
+    } else if (style === "scoff") {
+      utterance.pitch = 1.05;
+      utterance.rate = 1.1;
+      utterance.volume = 0.9;
     } else {
-      utterance.pitch = 1.0;
-      utterance.rate = 1.0;
+      // Micro-jitter for "normal" style — prevents robotic monotone
+      // Each sentence gets a slightly different pitch/rate so the ear
+      // never detects a repetitive AI pattern.
+      const jitterPitch = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
+      const jitterRate  = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
+      utterance.pitch = jitterPitch;
+      utterance.rate = jitterRate;
       utterance.volume = 1.0;
     }
 
@@ -410,10 +616,41 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+      stopSpeech();
+      stopThinkingAudio();
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
       setWords("AURA is perceiving...");
+
+      // -- THINKING INTENT ENGINE --
+      // Instantly start thinking audio before L3/L4 API fetches
+      const intent = inferThinkingIntent(userText);
+      const cueFile = resolveThinkingCue(intent);
+      
+      if (typeof window !== 'undefined' && cueFile) {
+        const audio = new Audio(`/sfx/${cueFile}`);
+        activeThinkingAudioRef.current = audio;
+        audio.play().catch(() => {
+          // Gender-specific file missing — try shared fallback
+          const entry = THINKING_AUDIO_TABLE[intent];
+          if (entry && entry[2]) {
+            const fallback = new Audio(`/sfx/${entry[2]}`);
+            activeThinkingAudioRef.current = fallback;
+            fallback.play().catch(() => {});
+          }
+        });
+      }
+      
+      // Dead air rule: 500ms verbal filler (uses local TTS — voice-matched)
+      thinkingTimeoutsRef.current.push(setTimeout(() => {
+        speakChunk(getRandomFiller(intent), lang, "aside");
+      }, 500));
+      
+      // Dead air rule: 1000ms secondary filler
+      thinkingTimeoutsRef.current.push(setTimeout(() => {
+        speakChunk("Still thinking...", lang, "aside");
+      }, 1000));
 
       // Record in canonical transcript
       transcript_.addTurn(userText, true);
@@ -481,43 +718,51 @@ export function useOpenRouter(mode: string = "adaptive") {
         let ttsStarted = false;
         let streamDone = false;
 
-        const tryStartTTS = () => {
-          if (ttsStarted || sentenceQueueRef.current.length === 0) return;
-          ttsStarted = true;
-          setStatus("speaking");
+          let segmentSubQueue: SpeechSegment[] = [];
 
-          const drainQueue = () => {
-            const rawNext = sentenceQueueRef.current.shift();
-            if (!rawNext) {
-              if (streamDone) {
-                isSpeakingRef.current = false;
-                if (isSessionActiveRef.current && startSessionRef.current) {
-                  startSessionRef.current();
+          const tryStartTTS = () => {
+            if (ttsStarted || sentenceQueueRef.current.length === 0) return;
+            ttsStarted = true;
+            setStatus("speaking");
+
+            const drainQueue = () => {
+              if (segmentSubQueue.length > 0) {
+                const seg = segmentSubQueue.shift()!;
+                if (AUDIO_ASSET_STYLES.has(seg.style)) {
+                  // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
+                  if (seg.style === "moan" && !boundlessModeActiveRef.current) {
+                    console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
+                    seg.style = "sigh";
+                  }
+                  playAudioAsset(seg.style as any, drainQueue);
+                } else if (!seg.text) {
+                  drainQueue();
                 } else {
-                  setStatus("idle");
+                  speakChunk(seg.text, lang, seg.style, drainQueue);
                 }
-              } else {
-                setTimeout(drainQueue, 50);
+                return;
               }
-              return;
-            }
-            
-            const noEmojis = stripEmojis(rawNext);
-            const { cleanText, directions } = extractStageDirections(noEmojis);
-            
-            if (directions.length > 0) {
-              playParalinguisticCue(directions);
-            }
-            
-            if (!cleanText) {
+
+              const rawNext = sentenceQueueRef.current.shift();
+              if (!rawNext) {
+                if (streamDone) {
+                  isSpeakingRef.current = false;
+                  if (isSessionActiveRef.current && startSessionRef.current) {
+                    startSessionRef.current();
+                  } else {
+                    setStatus("idle");
+                  }
+                } else {
+                  setTimeout(drainQueue, 50);
+                }
+                return;
+              }
+              
+              segmentSubQueue = parseSegments(rawNext);
               drainQueue();
-              return;
-            }
-            
-            speakChunk(cleanText, lang, directions, drainQueue);
+            };
+            drainQueue();
           };
-          drainQueue();
-        };
 
         setIsThinking(false);
 
@@ -549,6 +794,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 else if (data.event === "text_chunk") {
                   if (!firstTokenReceived) {
                     firstTokenReceived = true;
+                    stopThinkingAudio();
                     connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                   }
                   
@@ -753,8 +999,13 @@ export function useOpenRouter(mode: string = "adaptive") {
             const drainQueue = () => {
               if (segmentSubQueue.length > 0) {
                 const seg = segmentSubQueue.shift()!;
-                if (seg.style === "laugh" || seg.style === "sigh" || seg.style === "breath" || seg.style === "cry") {
-                  playAudioAsset(seg.style, drainQueue);
+                if (AUDIO_ASSET_STYLES.has(seg.style)) {
+                  // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
+                  if (seg.style === "moan" && !boundlessModeActiveRef.current) {
+                    console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
+                    seg.style = "sigh";
+                  }
+                  playAudioAsset(seg.style as any, drainQueue);
                 } else if (!seg.text) {
                   drainQueue();
                 } else {
@@ -804,6 +1055,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 if (!token) continue;
                 if (!firstTokenReceived) {
                   firstTokenReceived = true;
+                  stopThinkingAudio();
                   connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
                 currentBuffer += token;
