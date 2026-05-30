@@ -35,7 +35,7 @@ import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 import { connectionState } from "@/config/connectionState";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
-import { useBargeIn } from "./useInterruption";
+import { useBargeIn } from "./useInterruption.ts";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 
 export type { ChatMessage };
