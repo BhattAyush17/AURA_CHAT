@@ -168,7 +168,7 @@ async def run_turn_pipeline(
         "language_profile": lang_profile,
     }
     sensing_injection, state_vector, directive = build_sensing_injection(
-        session_id, turn_data, seed, user_id=user_id
+        session_id, turn_data, seed, user_id=user_id, emotion=raw.get("emotion_vector")
     )
     result.directive = directive
     result.sensing_state = {

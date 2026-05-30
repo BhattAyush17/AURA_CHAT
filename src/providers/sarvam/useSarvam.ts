@@ -35,6 +35,64 @@ import { generateSpeech } from "./sarvamTTS";
 import { connectionState } from "@/config/connectionState";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
+import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
+
+// ─── Paralinguistic Interceptor & Audio Controller ──────────────────
+const stripEmojis = (text: string) => text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+
+const extractStageDirections = (text: string) => {
+    const directions: string[] = [];
+    const cleanText = text.replace(/\[(.*?)\]/g, (match, p1) => {
+        directions.push(p1.toLowerCase());
+        return ''; 
+    });
+    return { cleanText: cleanText.trim(), directions };
+};
+
+const getAudioClip = (filename: string) => {
+    if (typeof window === 'undefined') return null;
+    return new Audio(`/sfx/${filename}`);
+};
+
+const audioClips: Record<string, HTMLAudioElement | null> = {
+    chuckles: null,
+    laughs: null,
+    bigLaughs: null,
+    sighs: null,
+    scoffs: null,
+    breathes: null
+};
+
+const initAudioClips = () => {
+    if (typeof window !== 'undefined' && !audioClips.laughs) {
+        audioClips.chuckles = getAudioClip('female_laugh.mp3');
+        audioClips.laughs = getAudioClip('female_laugh.mp3');
+        audioClips.bigLaughs = getAudioClip('female_laugh.mp3');
+        audioClips.sighs = getAudioClip('deep_sigh.mp3');
+        audioClips.scoffs = getAudioClip('scoff.mp3');
+        audioClips.breathes = getAudioClip('inhale.mp3');
+    }
+};
+
+function playParalinguisticCue(directions: string[]) {
+    initAudioClips();
+    directions.forEach(dir => {
+        if (dir.includes("laugh_big")) {
+            audioClips.bigLaughs?.play().catch(() => {});
+        } else if (dir.includes("laugh")) {
+            audioClips.laughs?.play().catch(() => {});
+        } else if (dir.includes("chuckle")) {
+            audioClips.chuckles?.play().catch(() => {});
+        } else if (dir.includes("sigh")) {
+            audioClips.sighs?.play().catch(() => {});
+        } else if (dir.includes("scoff")) {
+            audioClips.scoffs?.play().catch(() => {});
+        } else if (dir.includes("breath") || dir.includes("deep breath")) {
+            audioClips.breathes?.play().catch(() => {});
+        }
+    });
+}
+// ───────────────────────────────────────────────────────────────────
 
 // ─── Model queue ────────────────────────────────────────────────────
 // DeepSeek V3 first: bypassing Gemini's safety filters for chaotic personality
@@ -293,6 +351,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // Brain sub-hooks (independently initialised)
   const behavior = useBehaviorInjection();
   const prompts = usePromptOrchestrator();
+  const adaptiveTurn = useAdaptiveTurnDetection();
   const transcript_ = useTranscriptManager();
 
   // Cleanup on unmount
@@ -373,16 +432,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       }
 
       // Calculate dynamic pace based on emotional state for Sarvam Bulbul:v3
-      let targetPace = 1.1; // Default
+      let targetPace = 1.0; // Default
       const lastAnalysis = behavior.lastAnalysisRef.current;
       if (lastAnalysis) {
         const emotion = lastAnalysis.emotional_state;
         if (emotion === "playfulness" || emotion === "joy") {
-          targetPace = 1.3; // Excited / Laughing
+          targetPace = 1.10; // Excited / Laughing
         } else if (emotion === "vulnerability" || emotion === "sadness") {
-          targetPace = 0.85; // Sad / Crying / Slow
+          targetPace = 0.95; // Sad / Crying / Slow
         } else if (emotion === "frustration") {
-          targetPace = 1.15; // Frustrated / Tense
+          targetPace = 1.05; // Frustrated / Tense
         }
       }
 
@@ -573,6 +632,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
         // Start barge-in monitor
         startBargeInMonitor(() => {
+          adaptiveTurn.registerFalseDetection();
           stopSpeech();
           isSpeakingRef.current = false;
           currentTurnIdRef.current += 1;
@@ -582,19 +642,38 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             setStatus("idle");
           }
         });
+        adaptiveTurn.markAuraSpeaking();
 
         const activeTurnId = currentTurnIdRef.current;
-        speakChunk(replyText, lang, activeTurnId, () => {
-          // PREEMPTION CHECK: If a new turn has started, do not restart session state
-          if (currentTurnIdRef.current !== activeTurnId) return;
-
+        
+        const noEmojis = stripEmojis(replyText);
+        const { cleanText, directions } = extractStageDirections(noEmojis);
+        
+        if (directions.length > 0) {
+          playParalinguisticCue(directions);
+        }
+        
+        if (!cleanText) {
           isSpeakingRef.current = false;
+          currentTurnIdRef.current += 1;
           if (isSessionActiveRef.current && startSessionRef.current) {
             startSessionRef.current();
           } else {
             setStatus("idle");
           }
-        });
+        } else {
+          speakChunk(cleanText, lang, activeTurnId, () => {
+            // PREEMPTION CHECK: If a new turn has started, do not restart session state
+            if (currentTurnIdRef.current !== activeTurnId) return;
+
+            isSpeakingRef.current = false;
+            if (isSessionActiveRef.current && startSessionRef.current) {
+              startSessionRef.current();
+            } else {
+              setStatus("idle");
+            }
+          });
+        }
 
         addMessages([{ role: "assistant", content: replyText }]);
         transcript_.addTurn(replyText, false);
@@ -813,7 +892,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 }
                 return;
               }
-              speakChunk(next, lang, activeTurnId, drainQueue);
+              const noEmojis = stripEmojis(next);
+              const { cleanText, directions } = extractStageDirections(noEmojis);
+              
+              if (directions.length > 0) {
+                playParalinguisticCue(directions);
+              }
+              
+              if (!cleanText) {
+                drainQueue();
+                return;
+              }
+              
+              speakChunk(cleanText, lang, activeTurnId, drainQueue);
             };
             drainQueue();
           };
@@ -1055,8 +1146,24 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       setStatus("thinking");
       setWords(finalText);
       behavior.fireSpeculative(finalText, sessionIdRef.current, userIdRef.current);
-      // Artificial hold: let the user finish their thought before generating
-      await new Promise((r) => setTimeout(r, 400));
+
+      // Adaptive turn detection: compute personalized response delay
+      const lastAnalysis = behavior.lastAnalysisRef.current;
+      const emotionalIntensity = lastAnalysis?.intensity || 0;
+      const turnResult = adaptiveTurn.calculateTurnConfidence(
+        400,
+        finalText,
+        emotionalIntensity,
+        { tension: lastAnalysis?.tension || 0, trust: lastAnalysis?.trust || 0.3 },
+      );
+      const adaptiveDelay = turnResult.responseDelay;
+      console.log(
+        `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence})`,
+        "color: #8b5cf6; font-weight: bold;",
+      );
+      adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
+      await new Promise((r) => setTimeout(r, adaptiveDelay));
+      adaptiveTurn.markAuraSpeaking();
       await processTurn(finalText, key, lang, audioContextXML);
     };
 
@@ -1141,12 +1248,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [behavior, prompts, processTurn, setupMicAnalyser]);
+  }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
+    adaptiveTurn.endSession(); // Persist speech profile
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();

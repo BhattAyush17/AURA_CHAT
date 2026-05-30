@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv(".env.local")
 
-from backend.core.emotion import EmotionalStateRouter
+from backend.core.emotion import EmotionalStateRouter, EmotionVector
 from backend.core.withdrawal import SilenceStateMachine, enforce_word_cap
 from backend.core.sensing import SensingEngine
 from backend.core.response import direct_response
@@ -340,36 +340,26 @@ def get_sensing_engine(session_id: str, seed: str = "", user_id: str = "") -> Se
             pass
     return engine
 
-def build_sensing_injection(session_id: str, turn: dict, seed: str = "", user_id: str = "") -> tuple:
+def build_sensing_injection(session_id: str, turn: dict, seed: str = "", user_id: str = "", emotion: Optional[EmotionVector] = None) -> tuple:
     engine = get_sensing_engine(session_id, seed, user_id)
     state = engine.ingest(turn)
-    directive = direct_response(state)
+    directive = direct_response(state, emotion)
 
-    if directive["mode"] == "normal":
-        # Still append language directive even in normal mode
-        lang_profile = turn.get("language_profile", {})
-        if lang_profile:
-            lang_injection = build_language_directive(lang_profile)
-            return lang_injection, state, directive
-        return "", state, directive
-
-    injection = f"""
-[AURA SENSING — TURN {state.session_turn}]
-Arc: {state.arc} (turn {state.arc_turns} in arc)
-Energy: {round(state.energy, 2)} Δ{round(state.energy_delta, 2)} | Warmth: {round(state.warmth, 2)}
-Engagement: {round(state.engagement, 2)} | Trust: {round(state.trust, 2)} | Tension: {round(state.tension, 2)}
-Mode: {directive["mode"]} | Length: {directive["length"]} | Vocal: {directive["vocal_energy"]}
-
-{directive["instruction"].strip()}
-[END SENSING]
-    """.strip()
-
-    # Append language directive
+    # 1. Handle Language Directive Compactly
     lang_profile = turn.get("language_profile", {})
-    if lang_profile:
-        injection += build_language_directive(lang_profile)
+    lang_mode = lang_profile.get("mode", "english")
+    
+    # 2. Build Dense XML State Vector (Token Optimized)
+    # This replaces ~80 tokens of prose with ~15 tokens of dense attributes
+    xml_injection = (
+        f'<aura_state turn="{state.session_turn}" arc="{state.arc}" '
+        f'energy="{round(state.energy, 2)}" warmth="{round(state.warmth, 2)}" '
+        f'tension="{round(state.tension, 2)}" trust="{round(state.trust, 2)}" '
+        f'mode="{directive.get("mode", "normal")}" lang="{lang_mode}" />\n'
+        f'<instruction>{directive.get("instruction", "").strip()}</instruction>'
+    )
 
-    return injection, state, directive
+    return xml_injection, state, directive
 
 class RuntimeEngine:
     def __init__(self, data_dir: str = "./extracted_data", db_dir: str = None):
@@ -389,9 +379,10 @@ class RuntimeEngine:
         # ROUTE emotional state
         routing = self.emotion_router.resolve(turn_history, current_turn)
         
-        # Track history
-        turn_history.append(current_turn)
-        if len(turn_history) > 10: turn_history.pop(0)
+        # Track history ONLY if not already appended by the caller
+        if not turn_history or turn_history[-1].get("text") != transcript:
+            turn_history.append(current_turn)
+            if len(turn_history) > 10: turn_history.pop(0)
 
         # Standard Analysis
         act = detect_speech_act(transcript)
@@ -408,6 +399,7 @@ class RuntimeEngine:
             "intensity": routing["intensity"],
             "withdrawal_prompt_override": routing["prompt_override"],
             "all_scores": routing["all_scores"],
+            "emotion_vector": routing.get("emotion_vector"),
             "sensing_injection": ""  # Set by server.py after analyze() returns
         }
     

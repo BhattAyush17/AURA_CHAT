@@ -121,6 +121,19 @@ app = FastAPI(
     openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
 )
 
+try:
+    from backend.api import webhooks
+    app.include_router(webhooks.router)
+except ImportError:
+    pass
+
+try:
+    from backend.api.cron import router as cron_router
+    app.include_router(cron_router)
+except ImportError as e:
+    log.error("Failed to import cron router", error=str(e))
+    pass
+
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -137,12 +150,10 @@ async def startup_event():
             rebuild_user_id=None
         )
     )
-    # ── Brain 3: Redis bus + async consumer ──
+    # ── Brain 3: Redis bus ──
     redis_ok = await redis_bus.initialize()
     if redis_ok:
-        from backend.bus.consumer import run_behavior_consumer
-        asyncio.create_task(run_behavior_consumer(engine))
-        print("[AURA] Brain 3 consumer started (async via Redis)")
+        print("[AURA] Brain 3 Redis bus initialized (BackgroundTasks pipeline active)")
         # Initialize proactive engine and rate limiter with Redis client
         global _proactive_engine, _rate_limiter, _embedding_cache
         _proactive_engine = ProactiveEngine(redis_bus.client)
@@ -427,8 +438,59 @@ async def update_byok_credentials(request: Request):
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════
 
+try:
+    from upstash_qstash import Client
+    qstash_token = os.environ.get("QSTASH_TOKEN")
+    qstash_client = Client(qstash_token) if qstash_token else None
+except ImportError:
+    qstash_client = None
+
+async def prefetch_memory(text: str, session_id: str, user_id: str):
+    try:
+        from backend.memory.sync import get_chromadb_enrichment_v2
+        from backend.core.behavior import _sensing_engines
+        state_dict = {}
+        if session_id in _sensing_engines:
+            state_dict = _sensing_engines[session_id].state.__dict__
+        memory_enrichment = await get_chromadb_enrichment_v2(
+            current_text=text,
+            state_vector=state_dict,
+            user_id=user_id,
+            timeout=2.0,
+            embedding_cache=_embedding_cache
+        )
+        if redis_bus.client:
+            await redis_bus.client.set(f"speculative_mem:{session_id}", memory_enrichment, ex=10)
+        else:
+            active_sessions.local_cache[f"speculative_mem:{session_id}"] = memory_enrichment
+    except Exception as e:
+        log.warning("prefetch_failed", error=str(e))
+
+async def retrieve_prefetched_memory(session_id: str) -> str:
+    if redis_bus.client:
+        mem = await redis_bus.client.get(f"speculative_mem:{session_id}")
+        if mem:
+            return mem
+    else:
+        return active_sessions.local_cache.pop(f"speculative_mem:{session_id}", "")
+    return ""
+
+@app.post("/api/speculate")
+async def speculate_memory(payload: dict, background_tasks: BackgroundTasks):
+    session_id = payload.get("session_id")
+    partial_text = payload.get("text", "")
+    user_id = payload.get("user_id", "anonymous")
+    
+    background_tasks.add_task(
+        prefetch_memory,
+        text=partial_text,
+        session_id=session_id,
+        user_id=user_id
+    )
+    return {"status": "speculating"}
+
 @app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze(request: Request, body: AnalyzeRequest, response: Response):
+async def analyze(request: Request, body: AnalyzeRequest, response: Response, background_tasks: BackgroundTasks):
     await apply_rate_limit(f"analyze:{body.session_id}", 60, response)
     """Runtime cascade: keyword → ChromaDB → fallback. Target <200ms.
     
@@ -478,154 +540,91 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response):
             session_data = await active_sessions.get(body.session_id)
         seed = session_data.get("seed", "") if session_data else ""
 
-        # ── Brain 3 async path: publish + cache read ──────────────────
-        if redis_bus.available:
-            turn_history = session_data.get("turn_history", []) if session_data else []
-            history_to_send = list(turn_history)
-            
-            turn_history.append({"text": body.user_text, "user_initiated": body.user_initiated})
-            if len(turn_history) > 10: turn_history.pop(0)
-            if session_data:
-                session_data["turn_history"] = turn_history
-                # Safe background task for setting session
-                _safe_background(active_sessions.set(body.session_id, session_data), name="set_session_data")
-                
-            # Fire-and-forget publish to Redis Stream
-            _safe_background(degradation.execute_with_circuit(
-                'redis',
-                publish_transcript(
-                    session_id=body.session_id,
-                    turn_data={
-                        "user_text": body.user_text,
-                        "session_id": body.session_id,
-                        "user_id": body.user_id or "anonymous",
-                        "audio_rms": body.audio_rms,
-                        "pause_ms": body.pause_ms,
-                        "ideology_hint": body.ideology_hint,
-                        "user_initiated": body.user_initiated,
-                        "seed": seed,
-                        "turn_history": history_to_send,
-                    },
-                ),
-                fallback=None,
-                timeout=1.0,
-            ), name="publish_transcript")
-
-            # Record activity for proactive engine (fire-and-forget)
-            if _proactive_engine:
-                _safe_background(_proactive_engine.record_activity(body.session_id), name="record_activity")
-
-            # Try to read cached analysis from previous turn
-            cached = await degradation.execute_with_circuit(
-                'redis',
-                read_cached_analysis(body.session_id),
-                fallback=None,
-                timeout=0.5,
-            )
-            if cached:
-                # Memory enrichment is now included in the cached result
-                # (populated by the Brain 3 worker). No inline pgvector call needed.
-                enrichment = cached.get("memory_enrichment", "")
-
-                # Inject chroma_ready into sensing_state
-                if cached.get("sensing_state"):
-                    cached["sensing_state"]["chroma_ready"] = chroma_service.is_ready
-                # Strip internal metadata before returning
-                cached.pop("_turn_number", None)
-                cached.pop("_processed_by", None)
-                cached.pop("_memory_retrieved_at", None)
-                
-                cached["degradation_level"] = level.value
-                log.info("analyze_request", session_id=body.session_id, cache_hit=True, degradation_level=level.value, duration_ms=round((time.perf_counter() - t0) * 1000, 2), instruction_length=len(cached.get("behavior_instructions", "")), has_memories=bool(enrichment))
-                return AnalyzeResponse(**cached)
-
-        # ── Sync fallback: Redis down or cache cold (first turn) ─────
-        # Delegate all analysis to the shared pipeline (eliminates DRY violation with consumer.py)
-        from backend.core.pipeline import run_turn_pipeline
-
         turn_history = session_data.get("turn_history", []) if session_data else []
-        client_ip = request.client.host if request.client else None
-
-        turn_result = await run_turn_pipeline(
-            engine=engine,
-            user_text=body.user_text,
-            session_id=body.session_id,
-            user_id=body.user_id or "anonymous",
-            ideology_hint=body.ideology_hint,
-            user_initiated=body.user_initiated,
-            audio_rms=body.audio_rms,
-            pause_ms=body.pause_ms,
-            seed=seed,
-            turn_history=turn_history,
-            vocab_learner=vocab_learner,
-            embedding_cache=_embedding_cache,
-            ip_address=client_ip,
-            memory_timeout=0.4,  # Tighter on sync path — must stay fast
-        )
-
-        # Update session turn history after analysis (pipeline mutates passed list)
+        
+        # Update session immediately
+        turn_history.append({"text": body.user_text, "user_initiated": body.user_initiated})
+        if len(turn_history) > 10: turn_history.pop(0)
         if session_data:
             session_data["turn_history"] = turn_history
-            _safe_background(active_sessions.set(body.session_id, session_data), name="set_session_data_sync")
+            background_tasks.add_task(active_sessions.set, body.session_id, session_data)
 
-        # Persist StateVector to Supabase async — never blocks response
-        # (state_vector is inside sensing_state dict from pipeline result)
-        _safe_background(degradation.execute_with_circuit(
-            'supabase',
-            persist_state_vector(supabase, body.session_id, type('_sv', (), turn_result.sensing_state)()),
-            fallback=None,
-            timeout=2.0,
-        ), name="persist_state_vector")
-
-        # Store significant emotional moments async
-        _safe_background(degradation.execute_with_circuit(
-            'supabase',
-            store_and_backup_memory(
-                supabase_client=supabase,
-                chroma_service=chroma_service,
-                user_id=body.user_id,
-                session_id=body.session_id,
-                turn_text=body.user_text,
-                state=type('_sv', (), turn_result.sensing_state)(),
-                turn_number=turn_result.sensing_state.get("session_turn", 0),
-                embedding_cache=_embedding_cache
-            ),
-            fallback=None,
-            timeout=3.0,
-        ), name="store_memory")
-
-        ss = turn_result.sensing_state
-        resp = AnalyzeResponse(
-            act=turn_result.act,
-            tags=turn_result.tags,
-            template=turn_result.template,
-            source=turn_result.source,
-            energy=turn_result.energy,
-            behavior_instructions=turn_result.behavior_instructions,
-            emotional_state=turn_result.emotional_state,
-            intensity=turn_result.intensity,
-            sensing_state=SensingStateResponse(
-                energy=ss.get("energy", 0.5),
-                warmth=ss.get("warmth", 0.5),
-                engagement=ss.get("engagement", 0.5),
-                trust=ss.get("trust", 0.3),
-                tension=ss.get("tension", 0.0),
-                arc=ss.get("arc", "opening"),
-                arc_turns=ss.get("arc_turns", 0),
-                mode=ss.get("mode", "normal"),
-                injection_type=ss.get("injection_type", "passive"),
-                session_turn=ss.get("session_turn", 0),
-                chroma_ready=chroma_service.is_ready,
-                response_delay_hint=ss.get("response_delay_hint", 300)
-            ),
-            status="success",
-            memory_enrichment=turn_result.memory_enrichment,
-            language_profile=turn_result.language_profile,
-            degradation_level=level.value,
-            intelligence_context=turn_result.intelligence_context,
+        # 1. HOT PATH: Instant Emotional Routing (< 5ms)
+        # Calculate the 15-dimensional state dynamically inline. No DB calls.
+        raw_analysis = engine.analyze(
+            transcript=body.user_text, 
+            ideology=body.ideology_hint,
+            user_initiated=body.user_initiated,
+            turn_history=turn_history
         )
-        log.info("analyze_request", session_id=body.session_id, cache_hit=False, degradation_level=level.value, duration_ms=round((time.perf_counter() - t0) * 1000, 2), instruction_length=len(turn_result.behavior_instructions), has_memories=bool(turn_result.memory_enrichment))
-        return resp
+        
+        # 2. INSTANT RAG: Retrieve the memory that was speculatively fetched moments ago
+        cached_memory = await retrieve_prefetched_memory(body.session_id)
+        
+        # Build the exact behavioral instructions to steer the LLM
+        behavior_instructions = engine.build_instructions(raw_analysis)
+        if cached_memory:
+            behavior_instructions += f"\n\n{cached_memory}"
+
+        # 3. BACKGROUND PATH: Supabase Memory, Vocab, & Deep Context
+        # Instead of BackgroundTasks, publish to QStash if configured
+        if qstash_client:
+            qstash_client.publish_json(
+                url=f"{os.environ.get('VERCEL_URL', 'http://localhost:8000')}/api/webhooks/process_memory",
+                body={
+                    "session_id": body.session_id,
+                    "user_id": body.user_id,
+                    "user_text": body.user_text,
+                    "audio_rms": body.audio_rms,
+                    "ideology_hint": body.ideology_hint,
+                    "user_initiated": body.user_initiated,
+                    "pause_ms": body.pause_ms,
+                    "turn_history": turn_history,
+                    "seed": seed,
+                }
+            )
+        else:
+            from backend.core.pipeline import run_turn_pipeline
+            client_ip = request.client.host if request.client else None
+            background_tasks.add_task(
+                run_turn_pipeline,
+                engine=engine,
+                user_text=body.user_text,
+                session_id=body.session_id,
+                user_id=body.user_id or "anonymous",
+                ideology_hint=body.ideology_hint,
+                user_initiated=body.user_initiated,
+                audio_rms=body.audio_rms,
+                pause_ms=body.pause_ms,
+                seed=seed,
+                turn_history=list(turn_history),
+                vocab_learner=vocab_learner,
+                embedding_cache=_embedding_cache,
+                ip_address=client_ip,
+                memory_timeout=2.0
+            )
+
+        # Record activity for proactive engine
+        if _proactive_engine:
+            background_tasks.add_task(_proactive_engine.record_activity, body.session_id)
+
+        # 3. INSTANT RETURN: Deliver instructions to the voice loop immediately
+        log.info("analyze_request_eager", session_id=body.session_id, duration_ms=round((time.perf_counter() - t0) * 1000, 2))
+        return AnalyzeResponse(
+            act=raw_analysis.get("act"),
+            tags=raw_analysis.get("tags", []),
+            template=raw_analysis.get("template"),
+            source="eager_dual_path",
+            energy=raw_analysis.get("energy", "neutral"),
+            behavior_instructions=behavior_instructions,
+            emotional_state=raw_analysis.get("emotional_state", "neutral"),
+            intensity=raw_analysis.get("intensity", 0.5),
+            sensing_state=None,
+            status="success",
+            memory_layer="background",
+            memory_enrichment="",
+            degradation_level=level.value
+        )
     except Exception as e:
 
         # FIX 4: Never expose internal exception details in production
@@ -681,6 +680,103 @@ class ChatRequest(BaseModel):
     # Phase 3: client-side memory injection for local browser mode
     client_memories: Optional[List[Dict[str, Any]]] = Field(None, max_length=5)
     memory_mode: Optional[str] = Field("supabase", max_length=20)
+
+@app.post("/api/analyze/stream")
+async def analyze_turn_stream(request: Request, body: ChatRequest, response: Response, background_tasks: BackgroundTasks):
+    from fastapi.responses import StreamingResponse
+    import json
+    await apply_rate_limit(f"analyze_stream:{body.session_id}", 60, response)
+    
+    # ── BYOK: Extract API keys ──
+    await update_byok_credentials(request)
+    
+    session_id = body.session_id or "default"
+    
+    base_id = get_base_session_id(session_id)
+    session_data = await active_sessions.get(base_id)
+    if not session_data:
+        session_data = await active_sessions.get(session_id)
+    seed = session_data.get("seed", "") if session_data else ""
+    turn_history = session_data.get("turn_history", []) if session_data else []
+    
+    turn_history.append({"text": body.text, "user_initiated": True})
+    if len(turn_history) > 10: turn_history.pop(0)
+
+    # Fast path routing logic
+    raw_analysis = engine.analyze(
+        transcript=body.text, 
+        user_initiated=True,
+        turn_history=turn_history
+    )
+    behavior_instructions = engine.build_instructions(raw_analysis)
+    
+    cached_memory = await retrieve_prefetched_memory(session_id)
+    if cached_memory:
+        behavior_instructions += f"\n\n{cached_memory}"
+        
+    system_prompt = f"{behavior_instructions}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
+    
+    async def event_generator():
+        # 1. Yield metadata immediately
+        initial_metadata = {
+            "event": "metadata",
+            "emotional_state": raw_analysis.get("emotional_state", "neutral"),
+            "behavior_instructions": behavior_instructions
+        }
+        yield f"data: {json.dumps(initial_metadata)}\n\n"
+        
+        # 2. Yield LLM tokens
+        from backend.core.intelligence.llm_pipeline import stream_openrouter_response
+        full_response = ""
+        async for chunk in stream_openrouter_response(body.conversation_history, system_prompt):
+            if "error" in chunk:
+                yield f"data: {json.dumps({'event': 'error', 'error': chunk['error']})}\n\n"
+                break
+            if "text" in chunk:
+                full_response += chunk["text"]
+                yield f"data: {json.dumps({'event': 'text_chunk', 'text': chunk['text']})}\n\n"
+            
+        # 3. Trigger background tasks
+        if qstash_client:
+            qstash_client.publish_json(
+                url=f"{os.environ.get('VERCEL_URL', 'http://localhost:8000')}/api/webhooks/process_memory",
+                body={
+                    "session_id": session_id,
+                    "user_id": body.user_id,
+                    "user_text": body.text,
+                    "audio_rms": 0.04,
+                    "ideology_hint": None,
+                    "user_initiated": True,
+                    "pause_ms": 500,
+                    "turn_history": turn_history,
+                    "seed": seed,
+                }
+            )
+        else:
+            from backend.core.pipeline import run_turn_pipeline
+            client_ip = request.client.host if request.client else None
+            background_tasks.add_task(
+                run_turn_pipeline,
+                engine=engine,
+                user_text=body.text,
+                session_id=session_id,
+                user_id=body.user_id,
+                ideology_hint=None,
+                user_initiated=True,
+                audio_rms=0.04,
+                pause_ms=500,
+                seed=seed,
+                turn_history=list(turn_history),
+                vocab_learner=vocab_learner,
+                embedding_cache=_embedding_cache,
+                ip_address=client_ip,
+                memory_timeout=2.0
+            )
+        
+        yield f"data: {json.dumps({'event': 'done'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 @app.post("/chat")
 async def chat_endpoint(body: ChatRequest, request: Request):
@@ -1250,6 +1346,108 @@ async def supabase_setup_sql(request: Request, body: SqlSetupRequest):
         if res.status_code != 200 and res.status_code != 201:
             return {"status": "error", "detail": res.text}
         return {"status": "ok"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ADAPTIVE TURN DETECTION — Profile & Telemetry Endpoints
+# ═══════════════════════════════════════════════════════════════════
+
+from backend.adaptive_turn_detection import AdaptiveTurnDetector
+
+# Per-user detector instances (server-side, for profile persistence)
+_turn_detectors: Dict[str, AdaptiveTurnDetector] = {}
+
+def _get_detector(user_id: str) -> AdaptiveTurnDetector:
+    if user_id not in _turn_detectors:
+        _turn_detectors[user_id] = AdaptiveTurnDetector(user_id=user_id)
+    return _turn_detectors[user_id]
+
+
+class TurnProfilePayload(BaseModel):
+    user_id: str = Field(..., max_length=200)
+    profile: Dict[str, Any]
+
+
+class TurnDetectPayload(BaseModel):
+    user_id: str = Field(..., max_length=200)
+    silence_ms: float = 0.0
+    text: str = Field("", max_length=2000)
+    emotional_intensity: float = 0.0
+    context_signals: Optional[Dict[str, float]] = None
+
+
+@app.post("/api/turn-profile/save")
+async def save_turn_profile(request: Request, body: TurnProfilePayload):
+    """Persist a user's adaptive speech profile server-side."""
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    detector = _get_detector(body.user_id)
+    detector.load_profile_dict(body.profile)
+
+    # Persist to Supabase if available
+    if supabase:
+        try:
+            await supabase.table("aura_storage").upsert({
+                "user_id": body.user_id,
+                "key": "speech_profile",
+                "data": body.profile,
+                "updated_at": datetime.utcnow().isoformat()
+            }, on_conflict="user_id,key").execute()
+        except Exception as e:
+            log.warning("turn_profile_save_failed", error=str(e))
+
+    return {"status": "ok"}
+
+
+@app.get("/api/turn-profile/load")
+async def load_turn_profile(request: Request, user_id: str):
+    """Load a user's adaptive speech profile from server storage."""
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # Try Supabase first
+    if supabase:
+        try:
+            res = await supabase.table("aura_storage").select("data").eq(
+                "user_id", user_id
+            ).eq("key", "speech_profile").execute()
+            if res.data and res.data[0].get("data"):
+                return {"status": "ok", "profile": res.data[0]["data"]}
+        except Exception as e:
+            log.debug("turn_profile_load_failed", error=str(e))
+
+    # Fallback: return in-memory profile or defaults
+    detector = _get_detector(user_id)
+    return {"status": "ok", "profile": detector.profile.to_dict()}
+
+
+@app.post("/api/turn-detect")
+async def turn_detect(request: Request, body: TurnDetectPayload):
+    """
+    Server-side turn confidence calculation.
+
+    Used for observability and debugging — the primary detection
+    runs client-side for zero-latency.
+    """
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    detector = _get_detector(body.user_id)
+    result = detector.calculate_turn_confidence(
+        silence_ms=body.silence_ms,
+        text=body.text,
+        emotional_intensity=body.emotional_intensity,
+        context_signals=body.context_signals,
+    )
+
+    return {
+        "confidence": result.confidence,
+        "should_respond": result.should_respond,
+        "effective_threshold": result.effective_threshold,
+        "reason": result.reason,
+        "telemetry": detector.get_telemetry(),
+    }
 
 
 if __name__ == "__main__":

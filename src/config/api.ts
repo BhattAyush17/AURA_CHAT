@@ -14,9 +14,13 @@ export const ENDPOINTS = {
   sessionEnd: `${BASE_URL}/session/end`,
   sessionEndSync: `${BASE_URL}/session/end/sync`,
   analyze: `${BASE_URL}/api/analyze`,
+  analyzeStream: `${BASE_URL}/api/analyze/stream`,
   health: `${BASE_URL}/health`,
   proactive: `${BASE_URL}/api/proactive`,
   chat: `${BASE_URL}/chat`,
+  turnProfileSave: `${BASE_URL}/api/turn-profile/save`,
+  turnProfileLoad: `${BASE_URL}/api/turn-profile/load`,
+  turnDetect: `${BASE_URL}/api/turn-detect`,
 } as const;
 
 // API_SECRET deliberately removed — VITE_ variables are public.

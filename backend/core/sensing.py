@@ -140,6 +140,7 @@ class SensingEngine:
             "warmth": self.state.warmth,
             "trust": self.state.trust,
             "tension": self.state.tension,
+            "engagement": self.state.engagement,
         }
 
         # First turn ever — no decay, just record timestamp
@@ -234,19 +235,26 @@ class SensingEngine:
 
         # ── Step 3: Engagement — blend of energy and warmth ────────
         raw_engagement = self.state.energy * 0.5 + self.state.warmth * 0.5
-        self.state.engagement_delta = raw_engagement - self.state.engagement
+        self.state.engagement_delta = raw_engagement - pre_decay["engagement"]
         self.state.engagement = self.state.engagement * 0.65 + raw_engagement * 0.35
         self._prev_engagement = self.state.engagement
 
         # ── Step 4: Trust — builds slowly, drops on frustration ────
+        apology_hit = any(tok in turn.get("text", "").lower() for tok in ["sorry", "apologize", "my bad", "maaf", "maafi"])
+        
         if frustration > 0.6:
             self.state.trust = max(0.0, self.state.trust - 0.05)
+        elif apology_hit:
+            self.state.trust = min(1.0, self.state.trust + 0.10)
         elif self.state.engagement > 0.6:
             self.state.trust = min(1.0, self.state.trust + 0.02)
 
         # ── Step 5: Tension — spikes on frustration, fades naturally
         if frustration > 0.5:
-            self.state.tension = min(1.0, self.state.tension + 0.15)
+            spike_amount = 0.15 + (frustration - 0.5) * 1.5
+            self.state.tension = min(1.0, self.state.tension + spike_amount)
+        elif apology_hit:
+            self.state.tension = max(0.0, self.state.tension * 0.50)  # Halve tension instantly on apology!
         else:
             self.state.tension = max(0.0, self.state.tension * 0.85)
 

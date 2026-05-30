@@ -144,7 +144,15 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
   const [csLatencies, setCsLatencies] = useState<ConnectionState["latencies"]>({});
   const [csState, setCsState] = useState<Partial<ConnectionState>>({});
   const [orStats, setOrStats] = useState<any>(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+  const [isClosed, setIsClosed] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Listen to Gemini's custom events
   useEffect(() => {
@@ -221,39 +229,104 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
       {/* Pulse animation */}
       <style>{`@keyframes latency-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
 
+      {/* Tab to open when closed */}
+      <div
+        onClick={() => setIsClosed(false)}
+        style={{
+          position: "fixed",
+          bottom: 24,
+          right: isClosed ? 0 : -100,
+          opacity: isClosed ? 1 : 0,
+          pointerEvents: isClosed ? "auto" : "none",
+          background: "rgba(0,0,0,0.85)",
+          backdropFilter: "blur(12px)",
+          padding: "8px 12px",
+          border: `1px solid ${meta.color}44`,
+          borderRight: "none",
+          borderRadius: "8px 0 0 8px",
+          cursor: "pointer",
+          zIndex: 9998,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+        }}
+      >
+        <StatusDot active={true} color={meta.color} />
+        <span style={{ color: meta.color, fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const }}>
+          Stats
+        </span>
+      </div>
+
       <div
         style={{
           position: "fixed",
-          bottom: 16,
-          right: 16,
-          background: "rgba(0,0,0,0.82)",
-          backdropFilter: "blur(12px)",
-          borderRadius: 12,
-          padding: expanded ? "12px 16px" : "8px 12px",
+          bottom: isMobile ? (isClosed ? "-100%" : 0) : 16,
+          right: isMobile ? 0 : (isClosed ? -350 : 16),
+          width: isMobile ? "100%" : "auto",
+          background: "rgba(0,0,0,0.85)",
+          backdropFilter: "blur(16px)",
+          borderRadius: isMobile ? "16px 16px 0 0" : 12,
+          padding: expanded ? (isMobile ? "16px 16px 32px" : "12px 16px") : "8px 12px",
           fontFamily: "'SF Mono', 'Fira Code', monospace",
           fontSize: 10,
           zIndex: 9999,
           minWidth: expanded ? 220 : 120,
-          maxWidth: 260,
-          border: `1px solid ${meta.color}22`,
-          transition: "all 0.3s ease",
+          maxWidth: isMobile ? "100%" : 260,
+          maxHeight: isMobile ? "85vh" : "90vh",
+          overflowY: "auto",
+          border: `1px solid ${meta.color}33`,
+          borderBottom: isMobile ? "none" : `1px solid ${meta.color}33`,
+          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
           cursor: "default",
+          opacity: isMobile ? 1 : (isClosed ? 0 : 1),
+          pointerEvents: isClosed ? "none" : "auto",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
         }}
       >
         {/* ── Header ── */}
         <div
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: expanded ? 8 : 0, cursor: "pointer" }}
-          onClick={() => setExpanded(!expanded)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: expanded ? 8 : 0 }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div 
+            style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", flex: 1 }}
+            onClick={() => setExpanded(!expanded)}
+          >
             <StatusDot active={true} color={meta.color} />
             <span style={{ color: meta.color, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase" as const, fontWeight: 700 }}>
               {meta.label} {meta.icon}
             </span>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", display: "inline-block" }}>
+              ▼
+            </span>
           </div>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-            ▼
-          </span>
+
+          <div
+            onClick={(e) => {
+               e.stopPropagation();
+               setIsClosed(true);
+            }}
+            style={{
+               cursor: "pointer",
+               padding: "4px",
+               marginLeft: "8px",
+               color: "rgba(255,255,255,0.5)",
+               display: "flex",
+               alignItems: "center",
+               justifyContent: "center",
+               borderRadius: "50%",
+               background: "rgba(255,255,255,0.1)",
+               transition: "background 0.2s"
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+            onMouseOut={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+          >
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+             </svg>
+          </div>
         </div>
 
         {expanded && (

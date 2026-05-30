@@ -397,6 +397,11 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                 if (msg.serverContent?.interrupted) {
                   activeOpts.messageCallbacks.onInterrupted();
                   isAuraSpeakingRef.current = false;
+                  
+                  // Gracefully transition back to listening and clear turn state
+                  // rather than waiting for a turnComplete that will never come.
+                  activeOpts.messageCallbacks.onTurnComplete();
+                  activeOpts.onStatusChange("listening");
                 }
               }),
 

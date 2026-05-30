@@ -71,13 +71,13 @@ export function useResponseTiming() {
     } else if (turnIndex === 0) {
       delay = 200 + jitter(100);
     } else if (emotionalState.tension > 0.6) {
-      delay = 250 + jitter(150);
+      delay = 250 + jitter(100); // 250-350ms
     } else if (emotionalState.mode === "calm" && emotionalState.energy < 0.4) {
-      delay = 180 + jitter(80);
+      delay = 180 + jitter(70);  // 180-250ms
     } else if (emotionalState.energy > 0.7) {
       delay = 40 + jitter(30);
     } else {
-      delay = 100 + jitter(60);
+      delay = 120 + jitter(60);  // 120-180ms
     }
 
     // Rapid-fire reduction: if user is in a fast exchange, halve delay

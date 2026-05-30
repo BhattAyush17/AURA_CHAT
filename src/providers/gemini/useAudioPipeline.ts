@@ -156,13 +156,10 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
     else if (rms < noiseFloorRef.current * 2)
       noiseFloorRef.current = noiseFloorRef.current * 0.995 + rms * 0.005;
 
-    // Onset detection → interrupt AURA if user starts talking
-    if (rms > ONSET_THRESHOLD) {
-      onsetCountRef.current++;
-      if (onsetCountRef.current >= ONSET_FRAMES && isSpeakingRef.current) interruptPlayback(20);
-    } else {
-      onsetCountRef.current = 0;
-    }
+    // NOTE: Onset-based barge-in detection has been moved to the centralized
+    // useBargeIn hook in useLive.ts, which adds grace periods, dynamic thresholds,
+    // AND fires the WebSocket truncation signal to abort Gemini's generation loop.
+    // The old code here only called interruptPlayback() locally without notifying the server.
 
     // VAD state machine
     const triggerThreshold = Math.max(noiseFloorRef.current * 2.5, 0.02);

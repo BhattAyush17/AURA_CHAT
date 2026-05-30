@@ -14,6 +14,50 @@ FALLBACK_MODELS = [
     "openrouter/free",
 ]
 
+import json
+
+async def stream_openrouter_response(messages: List[Dict[str, str]], system_prompt: str):
+    or_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not or_key:
+        yield {"error": "No OpenRouter key"}
+        return
+        
+    headers = {
+        "Authorization": f"Bearer {or_key}",
+        "Content-Type": "application/json",
+        "X-Title": "AURA Voice Companion",
+    }
+    payload_messages = [{"role": "system", "content": system_prompt}] + messages
+    
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # Try the primary model
+        model = FALLBACK_MODELS[0]
+        payload = {
+            "model": model,
+            "messages": payload_messages,
+            "temperature": 0.8,
+            "max_tokens": 150,
+            "stream": True,
+        }
+        
+        async with client.stream("POST", "https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload) as response:
+            if response.status_code != 200:
+                yield {"error": f"OpenRouter Error: {response.status_code}"}
+                return
+            
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        parsed = json.loads(data)
+                        token = parsed["choices"][0]["delta"].get("content", "")
+                        if token:
+                            yield {"text": token}
+                    except:
+                        pass
+
 async def generate_response(messages: List[Dict[str, str]], system_prompt: str) -> Tuple[str, bool, str]:
     """
     Backend LLM Pipeline (L4)

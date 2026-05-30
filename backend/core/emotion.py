@@ -204,9 +204,15 @@ class EmotionalStateRouter:
         'all_scores' etc. New code can use 'emotion_vector'.
         """
 
+        # Deduplicate: if current_turn is already the last element of turn_history,
+        # we don't duplicate it.
+        history_for_scoring = turn_history
+        if not turn_history or turn_history[-1].get("text") != current_turn.get("text"):
+            history_for_scoring = turn_history + [current_turn]
+
         # Run existing detectors
-        withdrawal_result = compute_withdrawal_score(turn_history + [current_turn])
-        frustration_result = compute_frustration_score(turn_history + [current_turn])
+        withdrawal_result = compute_withdrawal_score(history_for_scoring)
+        frustration_result = compute_frustration_score(history_for_scoring)
 
         self.scores["withdrawal"] = withdrawal_result["score"]
         self.scores["frustration"] = frustration_result["score"]

@@ -6,6 +6,8 @@ FRUSTRATION_TOKENS = {
     "never", "always", "pointless", "forget it", "whatever",
     "you never", "you always", "this is stupid", "useless",
     "doesn't work", "won't work", "can't believe", "seriously",
+    "shut up", "shut the fuck up", "bullshit", "stfu", "fuck off",
+    "stop talking", "not helping", "missing the point",
     
     # Hindi
     "kabhi nahi", "hamesha", "bekaar", "chod do", "chhod do",
@@ -18,7 +20,9 @@ FRUSTRATION_TOKENS = {
 
 AGGRESSIVE_PATTERNS = [
     r"\byou never\b", r"\byou always\b", r"\bseriously\?+",
-    r"\bkabhi nahi\b", r"\bhamesha\b", r"\bkya bakwas\b"
+    r"\bkabhi nahi\b", r"\bhamesha\b", r"\bkya bakwas\b",
+    r"\bshut\s*(the\s*fuck\s*)?up\b", r"\bstfu\b", r"\bbullshit\b",
+    r"\bfuck\s*off\b", r"\bstop\s*talking\b"
 ]
 
 def detect_repetition(turn_history: List[Dict]) -> float:
@@ -57,12 +61,18 @@ def detect_contradiction(current_turn: Dict) -> bool:
     
     return any(contradiction_signals)
 
+PROFANITY_TOKENS = {
+    "fuck", "bullshit", "shit", "bkl", "mc", "chutiya", "asshole", "bastard", "stfu",
+    "saale", "bakwaas", "chutiye", "cunt", "dick"
+}
+
 def compute_frustration_score(turn_history: List[Dict]) -> Dict:
     """
     Returns frustration score based on:
     - Token hits (always, never, pointless)
     - Repetition across turns
-    - Aggressive phrasing
+    - Aggressive phrasing / multiple pattern hits
+    - Profanity usage
     - Contradictions
     """
     if not turn_history:
@@ -79,24 +89,29 @@ def compute_frustration_score(turn_history: List[Dict]) -> Dict:
         score += 0.30
     
     # 2. Aggressive patterns
-    aggressive_hit = any(re.search(pat, text) for pat in AGGRESSIVE_PATTERNS)
-    if aggressive_hit:
-        score += 0.25
+    aggressive_matches = sum(1 for pat in AGGRESSIVE_PATTERNS if re.search(pat, text))
+    if aggressive_matches > 0:
+        score += 0.25 + min(0.15, (aggressive_matches - 1) * 0.15)
+        
+    # 3. Profanity usage
+    profanity_hit = any(prof in text for prof in PROFANITY_TOKENS)
+    if profanity_hit:
+        score += 0.15
     
-    # 3. Repetition
+    # 4. Repetition
     repetition_score = detect_repetition(turn_history)
     score += repetition_score * 0.30
     
-    # 4. Contradiction
+    # 5. Contradiction
     if detect_contradiction(current):
         score += 0.15
     
-    # 5. Short sharp sentences (under 5 words but not withdrawal)
+    # 6. Short sharp sentences (under 5 words but not withdrawal)
     word_count = len(text.split())
     if 2 <= word_count <= 5 and token_hit:
         score += 0.10
     
-    # 6. ALL CAPS boost (for peak frustration)
+    # 7. ALL CAPS boost (for peak frustration)
     if current.get("text", "").isupper() and len(text) > 5:
         score += 0.20
     
@@ -150,71 +165,36 @@ def build_frustration_prompt(mode: str, language: str) -> str:
     acks = "\n".join(f'"{a}"' for a in acknowledgments.get(language, acknowledgments["english"]))
     
     if mode == "latent":
-        return f"""
-{lang_rule}
-
-The person is showing subtle, early signals of frustration. 
-Maintain your normal persona but adopt a slightly more grounded, observant tone.
-
-RULES:
-- Do not explicitly acknowledge frustration yet.
-- Keep responses concise (max 25 words).
-- Avoid overly cheerful or "bubbly" energy.
-- Simply be present and slightly more direct.
-"""
-
+        return (
+            f"<frustration_override level='latent'>\n"
+            f"RULES: Max 25 words. Keep response grounded. Be present and direct.\n"
+            f"TASK: Maintain persona but avoid cheerful energy.\n"
+            f"LANG: {lang_rule}\n"
+            f"</frustration_override>"
+        )
     elif mode == "soft":
-        return f"""
-{lang_rule}
-
-The person is showing clear signs of frustration. 
-
-CRITICAL RULES:
-- Acknowledge the specific frustration they mentioned — not generic "I hear you"
-- Maximum 20 words
-- Do NOT offer solutions or advice yet
-- Do NOT ask questions
-- Match their energy — direct but calm
-- No bright tone, no "let's fix this" energy
-
-Acceptable responses:
-{acks}
-
-Then stop. No follow-up. No problem-solving.
-"""
-    
+        return (
+            f"<frustration_override level='soft'>\n"
+            f"RULES: Max 20 words. NO solutions. NO questions. Match direct/calm energy.\n"
+            f"TASK: Acknowledge the specific frustration they mentioned.\n"
+            f"LANG: {lang_rule}\n"
+            f"</frustration_override>"
+        )
     elif mode == "active":
-        return f"""
-{lang_rule}
-
-This person is actively frustrated. They may be repeating themselves or contradicting.
-
-CRITICAL RULES:
-- Acknowledge the SPECIFIC thing they're frustrated about
-- Maximum 15 words
-- Absolutely NO solutions, advice, or problem-solving
-- NO questions — questions add pressure
-- Slow down your response — frustrated people need space, not speed
-- Direct acknowledgment with teeth, not soft comfort
-
-The key: they need to feel HEARD on the specific frustration, not soothed.
-"""
-
+        return (
+            f"<frustration_override level='active'>\n"
+            f"RULES: Max 15 words. NO solutions. NO questions. Slow pace.\n"
+            f"TASK: Acknowledge the specific frustration directly.\n"
+            f"LANG: {lang_rule}\n"
+            f"</frustration_override>"
+        )
     elif mode == "peak":
-        return f"""
-{lang_rule}
-
-CRITICAL: EXTREME FRUSTRATION DETECTED.
-The person is at their limit. Any attempt to "help" or "guide" will backfire.
-
-HARD RULES:
-- Maximum 10 words.
-- ONLY acknowledge the intensity of what they feel.
-- No questions. No solutions. No advice.
-- If you can't be brief, be silent.
-- Tone: Flat, heavy, fully present.
-
-Example: "I hear how much this is getting to you."
-"""
+        return (
+            f"<frustration_override level='peak'>\n"
+            f"RULES: Max 10 words. NO questions/solutions/advice. Flat tone.\n"
+            f"TASK: Acknowledge intensity only (e.g., 'I hear how much this is getting to you.').\n"
+            f"LANG: {lang_rule}\n"
+            f"</frustration_override>"
+        )
     
     return ""

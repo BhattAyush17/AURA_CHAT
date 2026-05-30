@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 // import { useLive } from '../useLive'; 
 // Note: Mocking WebSocket and React hooks requires a testing library setup.

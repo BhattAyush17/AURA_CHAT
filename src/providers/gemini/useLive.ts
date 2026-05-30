@@ -17,7 +17,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { useInterruptionHandler } from "@/shared/useInterruption";
+import { useBargeIn } from "../openrouter/useInterruption";
 import { useResponseTiming } from "@/shared/useResponseTiming";
 import { emitLatency } from "@/components/LatencyMeter";
 import { isLateNightHour } from "@/lib/gemini-prompt";
@@ -148,15 +148,47 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
   const { getResponseDelay, recordTurn: recordTimingTurn } = useResponseTiming();
   const budgetManager = useMemo(() => new ContextBudgetManager(), []);
 
+  // Track interruption state so behavior analysis knows when user interrupted
+  const wasInterruptedRef = useRef(false);
+  
   // Barge-in detection
-  const bargeIn = useInterruptionHandler({
-    audioContextRef: audio.audioContextRef,
-    micStreamRef: audio.streamRef,
-    isSpeaking: audio.isSpeaking,
-    currentResponseTextRef: currentResponseTextRef,
-    onDuck: audio.interruptPlayback,
-    onFlush: audio.flushAudioQueue,
-  });
+  const handleNativeInterruption = useCallback(() => {
+    console.log("🛑 NATIVE BARGE-IN DETECTED: Truncating Gemini output.");
+    
+    // 1. Flush local PCM Audio Buffer (Stop the speaker)
+    audio.interruptPlayback(0);
+    audio.flushAudioQueue();
+    
+    // 2. Fire the Interrupt Signal to Gemini
+    // Sending a clientContent message with NO parts but turnComplete: true acts as a hard abort signal.
+    if (ws.sessionRef.current && ws.sessionState.current === "connected") {
+        try {
+            ws.sendClientContent({
+                turns: [],
+                turnComplete: true
+            });
+        } catch (e) {
+            console.warn("[AURA] Failed to send truncation signal:", e);
+        }
+    }
+    
+    // 3. Reset UI State
+    audio.setIsSpeakingState(false);
+    wasInterruptedRef.current = true;
+  }, [audio, ws]);
+
+  useBargeIn(audio.inputAnalyserRef, audio.isSpeaking, handleNativeInterruption);
+
+  // Provide bargeIn interface for behavior analysis compatibility
+  const bargeIn = useMemo(() => ({
+    stateRef: wasInterruptedRef as any,
+    consumeInterrupted: () => {
+      const was = wasInterruptedRef.current;
+      wasInterruptedRef.current = false;
+      return was;
+    },
+    reset: () => { wasInterruptedRef.current = false; }
+  }), []);
 
   // ── Daily usage tracking ────────────────────────────────────────
   const getDailyUsageMinutes = useCallback((userId: string): number => {
