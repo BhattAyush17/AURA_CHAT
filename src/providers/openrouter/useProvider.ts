@@ -35,8 +35,116 @@ import { useVoiceAcoustics } from "../../hooks/useVoiceAcoustics";
 import { connectionState } from "@/config/connectionState";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
+import { useBargeIn } from "./useInterruption";
+import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 
 export type { ChatMessage };
+
+export type SegmentStyle = "normal" | "aside" | "thinking" | "whisper" | "laugh" | "sigh" | "breath" | "cry" | "serious" | "excited";
+
+export interface SpeechSegment {
+  text: string;
+  style: SegmentStyle;
+}
+
+const ACTION_COOLDOWN = 10000;
+let lastActionTime = 0;
+
+export function parseSegments(text: string): SpeechSegment[] {
+  const segments: SpeechSegment[] = [];
+  const noEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+  const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]/g;
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = regex.exec(noEmojis)) !== null) {
+    if (match.index > lastIndex) {
+      const normalText = noEmojis.substring(lastIndex, match.index).trim();
+      if (normalText) {
+        segments.push({ text: normalText, style: "normal" });
+      }
+    }
+    
+    const actionText = (match[1] || match[2] || match[3] || "").trim();
+    const actionLower = actionText.toLowerCase();
+    const now = performance.now();
+    const canAct = (now - lastActionTime) > ACTION_COOLDOWN;
+    
+    let style: SegmentStyle = "aside";
+    if (actionLower.includes("laugh") || actionLower.includes("chuckle") || actionLower.includes("giggle")) style = "laugh";
+    else if (actionLower.includes("sigh")) style = "sigh";
+    else if (actionLower.includes("breath") || actionLower.includes("inhale")) style = "breath";
+    else if (actionLower.includes("cry") || actionLower.includes("sob") || actionLower.includes("tear")) style = "cry";
+    else if (match[2] || actionLower.includes("thinking")) style = "thinking";
+    else if (match[3] || actionLower.includes("whisper")) style = "whisper";
+    else if (actionLower.includes("serious") || actionLower.includes("heavy")) style = "serious";
+    else if (actionLower.includes("excited") || actionLower.includes("light")) style = "excited";
+    
+    if (style === "laugh" || style === "sigh" || style === "breath" || style === "cry") {
+      if (canAct) {
+        segments.push({ text: "", style });
+        lastActionTime = now;
+      }
+    } else {
+      segments.push({ text: actionText, style });
+    }
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  const trailingText = noEmojis.substring(lastIndex).trim();
+  if (trailingText) {
+    segments.push({ text: trailingText, style: "normal" });
+  }
+  
+  return segments;
+}
+
+const getAudioClip = (filename: string) => {
+    if (typeof window === 'undefined') return null;
+    return new Audio(`/sfx/${filename}`);
+};
+
+const audioClips: Record<string, HTMLAudioElement | null> = {
+    laughs: null,
+    sighs: null,
+    breaths: null,
+    cries: null,
+};
+
+const initAudioClips = () => {
+    if (typeof window !== 'undefined' && !audioClips.laughs) {
+        audioClips.laughs = getAudioClip('female_laugh.mp3');
+        audioClips.sighs = getAudioClip('female-sigh.mp3');
+        audioClips.breaths = getAudioClip('female_deepbreath.mp3');
+        audioClips.cries = getAudioClip('female_cry.mp3');
+    }
+};
+
+export function playAudioAsset(style: "laugh" | "sigh" | "breath" | "cry", onDone: () => void) {
+  initAudioClips();
+  let clip: HTMLAudioElement | null = null;
+  if (style === "laugh") clip = audioClips.laughs;
+  else if (style === "sigh") clip = audioClips.sighs;
+  else if (style === "breath") clip = audioClips.breaths;
+  else if (style === "cry") clip = audioClips.cries;
+  
+  if (!clip) {
+    onDone();
+    return;
+  }
+  
+  const cleanup = () => {
+    clip!.onended = null;
+    clip!.onerror = null;
+    onDone();
+  };
+  
+  clip.onended = cleanup;
+  clip.onerror = cleanup;
+  clip.play().catch(cleanup);
+}
+// ───────────────────────────────────────────────────────────────────
 
 // ─── Model queue ────────────────────────────────────────────────────
 // DeepSeek V3 first: bypassing Gemini's safety filters for chaotic personality
@@ -114,11 +222,12 @@ export function useOpenRouter(mode: string = "adaptive") {
     });
   }, []);
 
+  const sentenceQueueRef = useRef<string[]>([]);
+
   // ── Real waveform: microphone AudioAnalyser ──────────────────────
   const audioCtxRef = useRef<AudioContext | null>(null);
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const bargeInFrameRef = useRef<number>(0);
 
   const setupMicAnalyser = useCallback(async () => {
     if (micAnalyserRef.current) return; // already open
@@ -160,7 +269,6 @@ export function useOpenRouter(mode: string = "adaptive") {
   }, []);
 
   const teardownMicAnalyser = useCallback(() => {
-    cancelAnimationFrame(bargeInFrameRef.current);
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     audioCtxRef.current?.close();
@@ -180,6 +288,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // Brain sub-hooks (independently initialised — skip when inactive)
   const behavior = useBehaviorInjection();
   const prompts = usePromptOrchestrator();
+  const adaptiveTurn = useAdaptiveTurnDetection();
   const transcript_ = useTranscriptManager();
 
   // Cleanup on unmount
@@ -202,7 +311,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     isSpeakingRef.current = false;
   };
 
-  const speakChunk = useCallback((text: string, lang: string, onDone?: () => void) => {
+  const speakChunk = useCallback((text: string, lang: string, style: SegmentStyle, onDone?: () => void) => {
     if (isInactiveRef.current) {
       onDone?.();
       return;
@@ -210,6 +319,32 @@ export function useOpenRouter(mode: string = "adaptive") {
     const utterance = new SpeechSynthesisUtterance(text);
     (utterance as any)._startTime = performance.now();
     utterance.lang = lang;
+
+    if (style === "aside") {
+      utterance.pitch = 0.9;
+      utterance.rate = 0.95;
+      utterance.volume = 0.85;
+    } else if (style === "thinking") {
+      utterance.pitch = 0.95;
+      utterance.rate = 0.9;
+      utterance.volume = 0.9;
+    } else if (style === "whisper") {
+      utterance.pitch = 0.9;
+      utterance.rate = 0.92;
+      utterance.volume = 0.4;
+    } else if (style === "serious") {
+      utterance.pitch = 0.8;
+      utterance.rate = 0.95;
+      utterance.volume = 1.0;
+    } else if (style === "excited") {
+      utterance.pitch = 1.1;
+      utterance.rate = 1.05;
+      utterance.volume = 1.0;
+    } else {
+      utterance.pitch = 1.0;
+      utterance.rate = 1.0;
+      utterance.volume = 1.0;
+    }
 
     const voices = window.speechSynthesis.getVoices();
     const matching = voices.filter((v) =>
@@ -245,26 +380,19 @@ export function useOpenRouter(mode: string = "adaptive") {
   // The speakQueue helper was removed as dead code during production hardening.
 
   // ── Barge-in monitor ─────────────────────────────────────────────
-  const startBargeInMonitor = useCallback((onInterrupt: () => void) => {
-    const analyser = micAnalyserRef.current;
-    if (!analyser) return;
+  const handleInterruption = useCallback(() => {
+    console.log("🛑 BARGE-IN DETECTED: Killing audio and flushing queues.");
+    adaptiveTurn.registerFalseDetection();
+    stopSpeech();
+    fetchAbortRef.current?.abort();
+    if (isSessionActiveRef.current && startSessionRef.current) {
+      startSessionRef.current();
+    } else {
+      setStatus("idle");
+    }
+  }, [setStatus, adaptiveTurn]);
 
-    const buf = new Float32Array(analyser.fftSize);
-    const check = () => {
-      if (!isSpeakingRef.current) return; // stop polling once TTS ends naturally
-      analyser.getFloatTimeDomainData(buf);
-      let rms = 0;
-      for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
-      rms = Math.sqrt(rms / buf.length);
-      if (rms > BARGE_IN_THRESHOLD) {
-        console.log(`[OpenRouter Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
-        onInterrupt();
-        return;
-      }
-      bargeInFrameRef.current = requestAnimationFrame(check);
-    };
-    bargeInFrameRef.current = requestAnimationFrame(check);
-  }, []);
+  useBargeIn(micAnalyserRef, status === "speaking", handleInterruption, sentenceQueueRef);
 
   // ── STT helpers ──────────────────────────────────────────────────
   const stopRecognition = () => {
@@ -317,11 +445,13 @@ export function useOpenRouter(mode: string = "adaptive") {
       ];
       addMessages([{ role: "user", content: userText }]);
 
-      // Try Backend /chat first (Phase 2 Full Request Cycle)
+      // Try Backend SSE Stream first (Phase 2 Full Request Cycle)
       try {
         const l4_start = performance.now();
-        const response = await fetch(ENDPOINTS.chat, {
+        fetchAbortRef.current = new AbortController();
+        const response = await fetch(ENDPOINTS.analyzeStream, {
           method: "POST",
+          signal: fetchAbortRef.current.signal,
           headers: {
             "Content-Type": "application/json",
             "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
@@ -330,52 +460,131 @@ export function useOpenRouter(mode: string = "adaptive") {
           body: JSON.stringify({
             text: userText,
             user_id: userIdRef.current,
+            session_id: sessionIdRef.current,
             conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
             client_memories: memoryPayload?.client_memories || [],
             memory_mode: memoryPayload?.memory_mode || "supabase"
           })
         });
 
-        if (!response.ok) {
+        if (!response.ok || !response.body) {
           throw new Error(`Backend returned status ${response.status}`);
         }
 
-        const data = await response.json();
-        const replyText = data.response_text;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let textBuffer = "";
+        let fullResponse = "";
+        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
+        let firstTokenReceived = false;
+        sentenceQueueRef.current = [];
+        let ttsStarted = false;
+        let streamDone = false;
 
-        connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+        const tryStartTTS = () => {
+          if (ttsStarted || sentenceQueueRef.current.length === 0) return;
+          ttsStarted = true;
+          setStatus("speaking");
 
-        connectionState.updateState({ active_llm: data.active_llm });
+          const drainQueue = () => {
+            const rawNext = sentenceQueueRef.current.shift();
+            if (!rawNext) {
+              if (streamDone) {
+                isSpeakingRef.current = false;
+                if (isSessionActiveRef.current && startSessionRef.current) {
+                  startSessionRef.current();
+                } else {
+                  setStatus("idle");
+                }
+              } else {
+                setTimeout(drainQueue, 50);
+              }
+              return;
+            }
+            
+            const noEmojis = stripEmojis(rawNext);
+            const { cleanText, directions } = extractStageDirections(noEmojis);
+            
+            if (directions.length > 0) {
+              playParalinguisticCue(directions);
+            }
+            
+            if (!cleanText) {
+              drainQueue();
+              return;
+            }
+            
+            speakChunk(cleanText, lang, directions, drainQueue);
+          };
+          drainQueue();
+        };
 
         setIsThinking(false);
-        setStatus("speaking");
-        setWords(replyText);
 
-        // Start barge-in monitor
-        startBargeInMonitor(() => {
-          stopSpeech();
-          isSpeakingRef.current = false;
-          if (isSessionActiveRef.current && startSessionRef.current) {
-            startSessionRef.current();
-          } else {
-            setStatus("idle");
+        let sseBuffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            if (textBuffer.trim().length > 0) {
+              sentenceQueueRef.current.push(textBuffer.trim());
+              textBuffer = "";
+            }
+            streamDone = true;
+            tryStartTTS();
+            break;
           }
-        });
 
-        speakChunk(replyText, lang, () => {
-          isSpeakingRef.current = false;
-          if (isSessionActiveRef.current && startSessionRef.current) {
-            startSessionRef.current();
-          } else {
-            setStatus("idle");
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n\n');
+          sseBuffer = lines.pop() ?? ""; // Keep the last incomplete chunk
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.event === "metadata") {
+                  // Metadata received instantly - can update UI state here if needed
+                } 
+                else if (data.event === "text_chunk") {
+                  if (!firstTokenReceived) {
+                    firstTokenReceived = true;
+                    connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+                  }
+                  
+                  const chunkText = data.text;
+                  textBuffer += chunkText;
+                  fullResponse += chunkText;
+                  setWords(fullResponse);
+                  
+                  const match = TERMINAL_PUNCTUATION.exec(textBuffer);
+                  if (match) {
+                    const splitIndex = match.index + match[0].length;
+                    const sentence = textBuffer.substring(0, splitIndex);
+                    textBuffer = textBuffer.substring(splitIndex);
+                    sentenceQueueRef.current.push(sentence.trim());
+                    tryStartTTS();
+                  }
+                }
+                else if (data.event === "error") {
+                  throw new Error(data.error);
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete lines
+              }
+            }
           }
-        });
+        }
 
-        addMessages([{ role: "assistant", content: replyText }]);
-        transcript_.addTurn(replyText, false);
-        return;
+        if (fullResponse) {
+          addMessages([{ role: "assistant", content: fullResponse }]);
+          transcript_.addTurn(fullResponse, false);
+          return;
+        } else {
+           throw new Error("Empty response from stream");
+        }
       } catch (backendError: any) {
-        console.warn("[Voice Pipeline] Backend /chat endpoint failed. Falling back to frontend direct LLM.", backendError);
+        console.warn("[Voice Pipeline] Backend /analyze/stream endpoint failed. Falling back to frontend direct LLM.", backendError);
       }
 
       // Behavioral analysis
@@ -526,34 +735,36 @@ export function useOpenRouter(mode: string = "adaptive") {
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
-          const sentenceQueue: string[] = [];
+          sentenceQueueRef.current = [];
           let ttsStarted = false;
           let streamDone = false;
           let firstTokenReceived = false;
 
           setIsThinking(false);
 
+          let segmentSubQueue: SpeechSegment[] = [];
+
           // Fire first TTS chunk as soon as one sentence is ready
           const tryStartTTS = () => {
-            if (ttsStarted || sentenceQueue.length === 0) return;
+            if (ttsStarted || sentenceQueueRef.current.length === 0) return;
             ttsStarted = true;
             setStatus("speaking");
 
-            // Start barge-in monitor
-            startBargeInMonitor(() => {
-              stopSpeech();
-              isSpeakingRef.current = false;
-              fetchAbortRef.current?.abort();
-              if (isSessionActiveRef.current && startSessionRef.current) {
-                startSessionRef.current();
-              } else {
-                setStatus("idle");
-              }
-            });
-
             const drainQueue = () => {
-              const next = sentenceQueue.shift();
-              if (!next) {
+              if (segmentSubQueue.length > 0) {
+                const seg = segmentSubQueue.shift()!;
+                if (seg.style === "laugh" || seg.style === "sigh" || seg.style === "breath" || seg.style === "cry") {
+                  playAudioAsset(seg.style, drainQueue);
+                } else if (!seg.text) {
+                  drainQueue();
+                } else {
+                  speakChunk(seg.text, lang, seg.style, drainQueue);
+                }
+                return;
+              }
+
+              const rawNext = sentenceQueueRef.current.shift();
+              if (!rawNext) {
                 if (streamDone) {
                   // All spoken
                   isSpeakingRef.current = false;
@@ -568,7 +779,9 @@ export function useOpenRouter(mode: string = "adaptive") {
                 }
                 return;
               }
-              speakChunk(next, lang, drainQueue);
+
+              segmentSubQueue = parseSegments(rawNext);
+              drainQueue();
             };
             drainQueue();
           };
@@ -602,7 +815,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 SENTENCE_END.lastIndex = 0;
                 let lastIndex = 0;
                 while ((match = SENTENCE_END.exec(currentBuffer)) !== null) {
-                  sentenceQueue.push(match[0].trim());
+                  sentenceQueueRef.current.push(match[0].trim());
                   lastIndex = match.index + match[0].length;
                 }
                 if (lastIndex > 0) currentBuffer = currentBuffer.slice(lastIndex);
@@ -613,7 +826,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
           // Flush any remaining text as a final chunk
           if (currentBuffer.trim()) {
-            sentenceQueue.push(currentBuffer.trim());
+            sentenceQueueRef.current.push(currentBuffer.trim());
             currentBuffer = "";
           }
           streamDone = true;
@@ -662,7 +875,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       connectionState.updateLatency({ total_ms: turnTotal });
       setIsThinking(false);
     },
-    [activeModel, behavior, prompts, transcript_, speakChunk, startBargeInMonitor],
+    [activeModel, behavior, prompts, transcript_, speakChunk],
   );
 
   // ── Start session ─────────────────────────────────────────────────
@@ -732,8 +945,24 @@ export function useOpenRouter(mode: string = "adaptive") {
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
-      // Artificial hold: let the user finish their thought before generating
-      await new Promise((r) => setTimeout(r, 400));
+
+      // Adaptive turn detection: compute personalized response delay
+      const lastAnalysis = behavior.lastAnalysisRef.current;
+      const emotionalIntensity = lastAnalysis?.intensity || 0;
+      const turnResult = adaptiveTurn.calculateTurnConfidence(
+        400, // Initial silence from STT onresult
+        text,
+        emotionalIntensity,
+        { tension: lastAnalysis?.tension || 0, trust: lastAnalysis?.trust || 0.3 },
+      );
+      const adaptiveDelay = turnResult.responseDelay;
+      console.log(
+        `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence})`,
+        "color: #8b5cf6; font-weight: bold;",
+      );
+      adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
+      await new Promise((r) => setTimeout(r, adaptiveDelay));
+      adaptiveTurn.markAuraSpeaking();
       await processTurn(text, key, lang, audioContextXML);
     };
 
@@ -762,12 +991,13 @@ export function useOpenRouter(mode: string = "adaptive") {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [behavior, prompts, processTurn, setupMicAnalyser]);
+  }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
+    adaptiveTurn.endSession(); // Persist speech profile
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
