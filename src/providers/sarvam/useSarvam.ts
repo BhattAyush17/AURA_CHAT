@@ -51,7 +51,7 @@ const extractStageDirections = (text: string) => {
 
 const getAudioClip = (filename: string) => {
     if (typeof window === 'undefined') return null;
-    return new Audio(`/sfx/${filename}`);
+    return new Audio(`/emotion_sounds/${filename}`);
 };
 
 const audioClips: Record<string, HTMLAudioElement | null> = {

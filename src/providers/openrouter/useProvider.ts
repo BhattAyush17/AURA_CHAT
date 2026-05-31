@@ -189,7 +189,7 @@ function resolveThinkingCue(intent: string): string | null {
   // onerror cleanup fires instantly (0ms skip). But if a shared fallback
   // exists, we prefer it for male voices that lack specific files.
   if (gender !== "female" && fallback) {
-    // For male: use shared asset unless male-specific exists in sfx/
+    // For male: use shared asset unless male-specific exists in emotion_sounds/
     return primary; // attempt gender-specific; engine degrades gracefully
   }
   return primary;
