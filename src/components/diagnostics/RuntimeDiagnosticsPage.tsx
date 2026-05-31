@@ -103,14 +103,7 @@ function TestField({ label, value }: { label: string; value: string | number | b
 
 // ─── Speech Probe Card ────────────────────────────────────────────────
 
-function SpeechProbeCard() {
-  const [probe] = useState(() => new SpeechRecognitionProbe());
-  const [result, setResult] = useState<ProbeResult>(probe.getResult());
-
-  useEffect(() => {
-    const unsub = probe.subscribe(setResult);
-    return unsub;
-  }, [probe]);
+function SpeechProbeCard({ probe, result }: { probe: SpeechRecognitionProbe; result: ProbeResult }) {
 
   return (
     <div className="rtd-test-card" id="rtd-speech-probe">
@@ -201,6 +194,10 @@ export function RuntimeDiagnosticsPage() {
   const [fingerprints, setFingerprints] = useState<FailureFingerprint[]>(runtimeTrace.getFingerprints());
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
 
+  // Global Speech Probe
+  const [speechProbe] = useState(() => new SpeechRecognitionProbe());
+  const [speechProbeResult, setSpeechProbeResult] = useState<ProbeResult>(speechProbe.getResult());
+
   // Test states
   const [sttTestRunning, setSttTestRunning] = useState(false);
   const [sttTestResult, setSttTestResult] = useState<StressTestResult | null>(null);
@@ -241,11 +238,14 @@ export function RuntimeDiagnosticsPage() {
       }
     });
 
+    const unsubProbe = speechProbe.subscribe(setSpeechProbeResult);
+
     return () => {
       unsub();
+      unsubProbe();
       runtimeTrace.stopPassiveMonitors();
     };
-  }, []);
+  }, [speechProbe]);
 
   // ─── STT Stress Test ───────────────────────────────────────────
 
@@ -411,7 +411,7 @@ export function RuntimeDiagnosticsPage() {
 
         <div className="rtd-tests-grid">
           {/* Speech Probe */}
-          <SpeechProbeCard />
+          <SpeechProbeCard probe={speechProbe} result={speechProbeResult} />
 
           {/* STT Stress Test */}
           <div className="rtd-test-card" id="rtd-stt-stress-test">
@@ -522,6 +522,22 @@ export function RuntimeDiagnosticsPage() {
 
       {/* ── Actions ───────────────────────────────────────────── */}
       <div className="rtd-actions">
+        <button 
+          className="rtd-btn rtd-btn--primary" 
+          onClick={() => {
+            document.getElementById("rtd-speech-probe")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            speechProbe.start();
+          }} 
+          disabled={speechProbeResult.running}
+          id="rtd-btn-global-probe"
+          style={{ background: "oklch(0.7 0.18 145)", color: "oklch(0.05 0 0)", border: "none", fontSize: "0.9rem" }}
+        >
+          {speechProbeResult.running ? (
+            <><span className="rtd-btn-spinner" style={{ borderColor: "oklch(0.05 0 0)", borderTopColor: "transparent" }} /> Listening…</>
+          ) : (
+            "🎙 Start Speech Probe"
+          )}
+        </button>
         <button className="rtd-btn rtd-btn--secondary" onClick={handleInjectTest} id="rtd-btn-inject">
           ⚡ Inject Test Events
         </button>
