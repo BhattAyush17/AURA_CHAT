@@ -112,7 +112,7 @@ export function parseSegments(text: string): SpeechSegment[] {
 // Priority: gender-specific file → shared gender-neutral file → null (skip)
 const getAudioClip = (filename: string) => {
     if (typeof window === 'undefined') return null;
-    return new Audio(`/sfx/${filename}`);
+    return new Audio(`/emotion_sounds/${filename}`);
 };
 
 /**
@@ -629,13 +629,13 @@ export function useOpenRouter(mode: string = "adaptive") {
       const cueFile = resolveThinkingCue(intent);
       
       if (typeof window !== 'undefined' && cueFile) {
-        const audio = new Audio(`/sfx/${cueFile}`);
+        const audio = new Audio(`/emotion_sounds/${cueFile}`);
         activeThinkingAudioRef.current = audio;
         audio.play().catch(() => {
           // Gender-specific file missing — try shared fallback
           const entry = THINKING_AUDIO_TABLE[intent];
           if (entry && entry[2]) {
-            const fallback = new Audio(`/sfx/${entry[2]}`);
+            const fallback = new Audio(`/emotion_sounds/${entry[2]}`);
             activeThinkingAudioRef.current = fallback;
             fallback.play().catch(() => {});
           }
