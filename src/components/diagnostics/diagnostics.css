@@ -1,0 +1,468 @@
+/* ═══════════════════════════════════════════════════════════════════
+   AURA Diagnostics — Isolated Styling
+   
+   All styles are scoped under .diag-* prefix to prevent any
+   interference with the main chat experience.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Root Layout ────────────────────────────────────────────────── */
+
+.diag-root {
+  min-height: 100vh;
+  background: oklch(0.04 0 0);
+  color: oklch(0.9 0 0);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  padding: 24px 20px 60px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────── */
+
+.diag-header {
+  margin-bottom: 36px;
+}
+
+.diag-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.diag-back-link {
+  font-size: 0.8rem;
+  color: oklch(0.5 0 0);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid oklch(0.18 0 0);
+  transition: all 0.2s ease;
+}
+.diag-back-link:hover {
+  color: oklch(0.85 0 0);
+  border-color: oklch(0.3 0 0);
+  background: oklch(0.1 0 0);
+}
+
+.diag-overlay-toggle {
+  font-size: 0.7rem;
+  color: oklch(0.4 0 0);
+  background: none;
+  border: 1px solid oklch(0.15 0 0);
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.diag-overlay-toggle:hover {
+  color: oklch(0.7 0 0);
+  border-color: oklch(0.25 0 0);
+}
+
+.diag-header__brand {
+  text-align: center;
+}
+
+.diag-header__orb {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, oklch(0.35 0 0), oklch(0.1 0 0));
+  border: 1px solid oklch(0.25 0 0);
+  margin: 0 auto 16px;
+  box-shadow: 0 0 40px oklch(0.2 0 0 / 0.4);
+  animation: diag-orb-pulse 3s ease-in-out infinite;
+}
+
+@keyframes diag-orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+.diag-header__title {
+  font-family: "Cormorant Garamond", ui-serif, Georgia, serif;
+  font-size: 1.8rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: oklch(0.95 0 0);
+  margin: 0 0 6px;
+}
+
+.diag-header__subtitle {
+  font-size: 0.8rem;
+  color: oklch(0.45 0 0);
+  margin: 0;
+}
+
+/* ─── Compatibility Section ──────────────────────────────────────── */
+
+.diag-compat-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 36px;
+  gap: 20px;
+}
+
+.diag-compat-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ─── Status Dot ─────────────────────────────────────────────────── */
+
+.diag-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.diag-dot--pass {
+  background: oklch(0.65 0.2 145);
+  box-shadow: 0 0 8px oklch(0.5 0.2 145 / 0.5);
+}
+.diag-dot--fail {
+  background: oklch(0.6 0.2 25);
+  box-shadow: 0 0 8px oklch(0.5 0.2 25 / 0.5);
+}
+.diag-dot--pending {
+  background: oklch(0.4 0 0);
+  animation: diag-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes diag-blink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* ─── Status Badge ───────────────────────────────────────────────── */
+
+.diag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid oklch(0.2 0 0);
+  white-space: nowrap;
+}
+.diag-badge--pass {
+  color: oklch(0.75 0.15 145);
+  border-color: oklch(0.3 0.1 145);
+  background: oklch(0.1 0.03 145);
+}
+.diag-badge--fail {
+  color: oklch(0.75 0.15 25);
+  border-color: oklch(0.3 0.1 25);
+  background: oklch(0.1 0.03 25);
+}
+.diag-badge--pending {
+  color: oklch(0.5 0 0);
+  border-color: oklch(0.2 0 0);
+  background: oklch(0.08 0 0);
+}
+
+/* ─── Compatibility Gauge ────────────────────────────────────────── */
+
+.diag-gauge {
+  display: flex;
+  justify-content: center;
+}
+
+.diag-gauge__ring {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+.diag-gauge__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.diag-gauge__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.diag-gauge__number {
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.diag-gauge__text {
+  font-size: 0.7rem;
+  color: oklch(0.5 0 0);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+
+/* ─── Cards Grid ─────────────────────────────────────────────────── */
+
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.diag-card {
+  background: oklch(0.07 0 0);
+  border: 1px solid oklch(0.15 0 0);
+  border-radius: 14px;
+  padding: 20px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.diag-card:hover {
+  border-color: oklch(0.25 0 0);
+  box-shadow: 0 4px 24px oklch(0 0 0 / 0.3);
+}
+
+.diag-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid oklch(0.12 0 0);
+}
+
+.diag-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diag-card__icon {
+  font-size: 1.1rem;
+}
+
+.diag-card__title {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: oklch(0.9 0 0);
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.diag-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── Field Row ──────────────────────────────────────────────────── */
+
+.diag-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.diag-field__label {
+  font-size: 0.75rem;
+  color: oklch(0.45 0 0);
+  white-space: nowrap;
+}
+
+.diag-field__value {
+  font-size: 0.75rem;
+  color: oklch(0.8 0 0);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  text-align: right;
+  word-break: break-word;
+}
+
+/* ─── Action Buttons ─────────────────────────────────────────────── */
+
+.diag-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.diag-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid oklch(0.3 0 0);
+  background: oklch(0.95 0 0);
+  color: oklch(0.05 0 0);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.diag-btn-primary:hover:not(:disabled) {
+  background: oklch(1 0 0);
+  box-shadow: 0 0 20px oklch(1 0 0 / 0.1);
+  transform: translateY(-1px);
+}
+.diag-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.diag-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid oklch(0.25 0 0);
+  background: oklch(0.1 0 0);
+  color: oklch(0.8 0 0);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.diag-btn-secondary:hover:not(:disabled) {
+  background: oklch(0.15 0 0);
+  border-color: oklch(0.35 0 0);
+  transform: translateY(-1px);
+}
+.diag-btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.diag-btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid oklch(0.3 0 0);
+  border-top-color: oklch(0.05 0 0);
+  border-radius: 50%;
+  animation: diag-spin 0.8s linear infinite;
+}
+
+@keyframes diag-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Scanning Placeholder ───────────────────────────────────────── */
+
+.diag-scanning {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: oklch(0.5 0 0);
+  font-size: 0.85rem;
+}
+
+.diag-scanning__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid oklch(0.2 0 0);
+  border-top-color: oklch(0.6 0 0);
+  border-radius: 50%;
+  animation: diag-spin 0.8s linear infinite;
+}
+
+/* ─── Timestamp ──────────────────────────────────────────────────── */
+
+.diag-timestamp {
+  text-align: center;
+  font-size: 0.7rem;
+  color: oklch(0.35 0 0);
+  margin: 0;
+}
+
+/* ─── Debug Overlay ──────────────────────────────────────────────── */
+
+.diag-overlay {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: oklch(0.08 0 0 / 0.95);
+  border: 1px solid oklch(0.2 0 0);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  box-shadow: 0 4px 20px oklch(0 0 0 / 0.5);
+}
+
+.diag-overlay__item {
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.diag-overlay__item--ok {
+  color: oklch(0.7 0.18 145);
+  background: oklch(0.12 0.04 145);
+}
+
+.diag-overlay__item--fail {
+  color: oklch(0.7 0.18 25);
+  background: oklch(0.12 0.04 25);
+}
+
+/* ─── Mobile Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .diag-root {
+    padding: 16px 14px 48px;
+  }
+
+  .diag-header__title {
+    font-size: 1.4rem;
+  }
+
+  .diag-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diag-gauge__ring {
+    width: 120px;
+    height: 120px;
+  }
+
+  .diag-gauge__number {
+    font-size: 1.6rem;
+  }
+
+  .diag-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .diag-btn-primary,
+  .diag-btn-secondary {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .diag-overlay {
+    bottom: 8px;
+    right: 8px;
+    left: 8px;
+    justify-content: center;
+  }
+}
