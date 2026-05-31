@@ -309,6 +309,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       micStreamRef.current = stream;
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
+
+      // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
+      if (ctx.state === "suspended") {
+        try { await ctx.resume(); } catch {}
+      }
+
       const src = ctx.createMediaStreamSource(stream);
 
       // High-pass filter (removes low rumble/hum/AC fan)
@@ -544,6 +550,22 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         recognitionRef.current.stop();
       } catch {}
       recognitionRef.current = null;
+    }
+  };
+
+  /**
+   * MOBILE FIX: Guarded recognition.start() wrapper.
+   * On mobile browsers, calling recognition.start() while the recognition
+   * is already running throws an InvalidStateError that silently kills
+   * the voice pipeline. This wrapper absorbs the error.
+   */
+  const safeRecognitionStart = (rec: any) => {
+    try {
+      rec.start();
+    } catch (err: any) {
+      // "InvalidStateError" = recognition is already started.
+      // "not-allowed" = permission was revoked between cycles.
+      console.warn("[Sarvam STT] safeRecognitionStart caught:", err?.name || err?.message);
     }
   };
 
@@ -1084,9 +1106,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           setWords("Listening...");
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
-              try {
-                recognitionRef.current.start();
-              } catch {}
+              safeRecognitionStart(recognitionRef.current);
             }
           }, 300);
         }
@@ -1145,9 +1165,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         // Auto-restart recognition after a brief delay
         setTimeout(() => {
           if (isSessionActiveRef.current && recognitionRef.current) {
-            try {
-              recognitionRef.current.start();
-            } catch {}
+            safeRecognitionStart(recognitionRef.current);
           }
         }, 500);
         return;
@@ -1232,13 +1250,23 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error !== "no-speech") {
-        setLastError(`Listening failed: ${event.error}`);
+      const errorType = event.error;
+      if (errorType !== "no-speech") {
+        // MOBILE FIX: Retry on transient mobile errors (network, aborted)
+        if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
+          console.warn(`[Sarvam STT] Transient error "${errorType}", retrying in 500ms...`);
+          pcmSamplesRef.current = [];
+          setTimeout(() => {
+            if (isSessionActiveRef.current && recognitionRef.current) {
+              safeRecognitionStart(recognitionRef.current);
+            }
+          }, 500);
+          return;
+        }
+        setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
-        try {
-          recognition.start();
-        } catch {}
+        safeRecognitionStart(recognition);
       } else {
         setStatus("idle");
       }
@@ -1247,17 +1275,37 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onend = () => {
+      // MOBILE FIX: Resume AudioContext if it got suspended during recognition
+      if (audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
-        try {
-          recognition.start();
-        } catch {}
+        safeRecognitionStart(recognition);
       } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
         setStatus("idle");
       }
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    safeRecognitionStart(recognition);
+
+    // MOBILE FIX: Recover from tab suspension / screen lock
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && isSessionActiveRef.current) {
+        // Resume AudioContext if suspended by OS
+        if (audioCtxRef.current?.state === "suspended") {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+        // Re-kick recognition if it silently died
+        if (statusRef.current === "listening" && recognitionRef.current) {
+          safeRecognitionStart(recognitionRef.current);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    // Store cleanup ref for endSession
+    (recognitionRef as any).__visCleanup = () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
@@ -1265,6 +1313,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     adaptiveTurn.endSession(); // Persist speech profile
+    // MOBILE FIX: Clean up visibility listener
+    if ((recognitionRef as any).__visCleanup) {
+      (recognitionRef as any).__visCleanup();
+      (recognitionRef as any).__visCleanup = null;
+    }
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();

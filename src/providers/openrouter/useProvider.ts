@@ -431,6 +431,12 @@ export function useOpenRouter(mode: string = "adaptive") {
       micStreamRef.current = stream;
       const ctx = new AudioContext();
       audioCtxRef.current = ctx;
+
+      // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
+      if (ctx.state === "suspended") {
+        try { await ctx.resume(); } catch {}
+      }
+
       const src = ctx.createMediaStreamSource(stream);
 
       // High-pass filter (removes low rumble/hum/AC fan)
@@ -617,6 +623,18 @@ export function useOpenRouter(mode: string = "adaptive") {
         recognitionRef.current.stop();
       } catch { }
       recognitionRef.current = null;
+    }
+  };
+
+  /**
+   * MOBILE FIX: Guarded recognition.start() wrapper.
+   * Prevents InvalidStateError from killing the voice pipeline on mobile.
+   */
+  const safeRecognitionStart = (rec: any) => {
+    try {
+      rec.start();
+    } catch (err: any) {
+      console.warn("[OpenRouter STT] safeRecognitionStart caught:", err?.name || err?.message);
     }
   };
 
@@ -1226,30 +1244,56 @@ export function useOpenRouter(mode: string = "adaptive") {
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error !== "no-speech") {
-        setLastError(`Listening failed: ${event.error}`);
+      const errorType = event.error;
+      if (errorType !== "no-speech") {
+        // MOBILE FIX: Retry on transient mobile errors (network, aborted)
+        if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
+          console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in 500ms...`);
+          setTimeout(() => {
+            if (isSessionActiveRef.current && recognitionRef.current) {
+              safeRecognitionStart(recognitionRef.current);
+            }
+          }, 500);
+          return;
+        }
+        setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
-        try {
-          recognition.start();
-        } catch { }
+        safeRecognitionStart(recognition);
       } else {
         setStatus("idle");
       }
     };
 
     recognition.onend = () => {
+      // MOBILE FIX: Resume AudioContext if it got suspended during recognition
+      if (audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
-        try {
-          recognition.start();
-        } catch { }
+        safeRecognitionStart(recognition);
       } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
         setStatus("idle");
       }
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    safeRecognitionStart(recognition);
+
+    // MOBILE FIX: Recover from tab suspension / screen lock
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && isSessionActiveRef.current) {
+        if (audioCtxRef.current?.state === "suspended") {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+        if (statusRef.current === "listening" && recognitionRef.current) {
+          safeRecognitionStart(recognitionRef.current);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    (recognitionRef as any).__visCleanup = () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
@@ -1257,6 +1301,11 @@ export function useOpenRouter(mode: string = "adaptive") {
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     adaptiveTurn.endSession(); // Persist speech profile
+    // MOBILE FIX: Clean up visibility listener
+    if ((recognitionRef as any).__visCleanup) {
+      (recognitionRef as any).__visCleanup();
+      (recognitionRef as any).__visCleanup = null;
+    }
     stopSpeech();
     stopRecognition();
     teardownMicAnalyser();
