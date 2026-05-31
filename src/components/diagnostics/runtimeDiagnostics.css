@@ -512,6 +512,124 @@
   to { transform: rotate(360deg); }
 }
 
+/* ─── Speech Probe ─────────────────────────────────────────────────── */
+
+.rtd-probe-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: oklch(0.05 0 0);
+  border: 1px solid oklch(0.12 0 0);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.rtd-probe-stage-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rtd-probe-stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: oklch(0.08 0 0);
+  border-radius: 6px;
+  border: 1px solid oklch(0.15 0 0);
+}
+
+.rtd-probe-stage__label {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.75rem;
+  color: oklch(0.8 0 0);
+}
+
+.rtd-probe-stage__status {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.rtd-probe-stage__status--pass {
+  background: oklch(0.1 0.03 145);
+  color: oklch(0.7 0.15 145);
+}
+.rtd-probe-stage__status--fail {
+  background: oklch(0.1 0.03 25);
+  color: oklch(0.7 0.15 25);
+}
+.rtd-probe-stage__status--pending {
+  background: transparent;
+  color: oklch(0.4 0 0);
+  border: 1px dashed oklch(0.2 0 0);
+}
+.rtd-probe-stage__status--skipped {
+  background: transparent;
+  color: oklch(0.3 0 0);
+}
+
+.rtd-probe-arrow {
+  color: oklch(0.3 0 0);
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
+.rtd-probe-transcript {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: oklch(0.05 0 0);
+  border-left: 3px solid oklch(0.7 0.18 145);
+  border-radius: 4px;
+}
+.rtd-probe-transcript__label {
+  font-size: 0.65rem;
+  color: oklch(0.45 0 0);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.rtd-probe-transcript__text {
+  font-size: 0.85rem;
+  color: oklch(0.9 0 0);
+  font-style: italic;
+  margin-bottom: 6px;
+}
+.rtd-probe-transcript__conf {
+  font-size: 0.65rem;
+  color: oklch(0.5 0 0);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+.rtd-probe-diagnosis {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: oklch(0.1 0.02 25);
+  border-radius: 6px;
+  border: 1px solid oklch(0.2 0.05 25);
+}
+.rtd-probe-diagnosis__label {
+  font-size: 0.65rem;
+  color: oklch(0.6 0.1 25);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.rtd-probe-diagnosis__text {
+  font-size: 0.75rem;
+  color: oklch(0.85 0 0);
+  line-height: 1.4;
+}
+
+.rtd-probe-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 /* ─── Timestamp ──────────────────────────────────────────────────── */
 
 .rtd-timestamp {

@@ -21,6 +21,7 @@ import {
   runFullMobileLifecycleTests,
   type MobileLifecycleReport,
 } from "./mobileLifecycleTests";
+import { SpeechRecognitionProbe, type ProbeResult } from "./speechRecognitionProbe";
 import "./runtimeDiagnostics.css";
 
 // ─── Health Item ────────────────────────────────────────────────────
@@ -96,6 +97,97 @@ function TestField({ label, value }: { label: string; value: string | number | b
     <div className="rtd-test-card__field">
       <span className="rtd-test-card__field-label">{label}</span>
       <span className="rtd-test-card__field-value">{display}</span>
+    </div>
+  );
+}
+
+// ─── Speech Probe Card ────────────────────────────────────────────────
+
+function SpeechProbeCard() {
+  const [probe] = useState(() => new SpeechRecognitionProbe());
+  const [result, setResult] = useState<ProbeResult>(probe.getResult());
+
+  useEffect(() => {
+    const unsub = probe.subscribe(setResult);
+    return unsub;
+  }, [probe]);
+
+  return (
+    <div className="rtd-test-card" id="rtd-speech-probe">
+      <div className="rtd-test-card__header">
+        <span className="rtd-test-card__title">Speech Recognition Probe</span>
+        {result.diagnosis && (
+          <span
+            className={`rtd-test-card__status ${
+              result.success ? "rtd-test-card__status--pass" : "rtd-test-card__status--fail"
+            }`}
+          >
+            {result.success ? "PASS" : "FAIL"}
+          </span>
+        )}
+      </div>
+      <div className="rtd-test-card__body">
+        <div className="rtd-probe-pipeline">
+          {(() => {
+            const stages: string[] = ["START", "AUDIO_START", "SOUND_START", "SPEECH_DETECTED", "RESULT"];
+            if (result.stages.ERROR !== "pending" && result.stages.ERROR !== "skipped") {
+              stages.push("ERROR");
+            } else {
+              stages.push("END");
+            }
+            return stages.map((stage, i, arr) => {
+              const status = result.stages[stage as keyof typeof result.stages];
+              return (
+                <div key={stage} className="rtd-probe-stage-wrapper">
+                  <div className="rtd-probe-stage">
+                    <span className="rtd-probe-stage__label">{stage}</span>
+                    <span className={`rtd-probe-stage__status rtd-probe-stage__status--${status}`}>
+                      {status === "pass" ? "✓" : status === "fail" ? "✗" : "PENDING"}
+                    </span>
+                  </div>
+                  {i < arr.length - 1 && <div className="rtd-probe-arrow">↓</div>}
+                </div>
+              );
+            });
+          })()}
+        </div>
+
+        {result.transcript && (
+          <div className="rtd-probe-transcript">
+            <div className="rtd-probe-transcript__label">Detected Transcript</div>
+            <div className="rtd-probe-transcript__text">{result.transcript}</div>
+            <div className="rtd-probe-transcript__conf">Confidence: {result.confidence}</div>
+          </div>
+        )}
+
+        {result.diagnosis && (
+          <div className="rtd-probe-diagnosis">
+            <div className="rtd-probe-diagnosis__label">Diagnosis</div>
+            <div className="rtd-probe-diagnosis__text">{result.diagnosis}</div>
+          </div>
+        )}
+
+        <div className="rtd-probe-actions">
+          <button
+            className="rtd-btn rtd-btn--secondary"
+            onClick={() => probe.start()}
+            disabled={result.running}
+          >
+            {result.running ? (
+              <><span className="rtd-btn-spinner" /> Listening…</>
+            ) : (
+              "Start Probe"
+            )}
+          </button>
+          <button
+            className="rtd-btn rtd-btn--secondary"
+            onClick={() => probe.downloadReport()}
+            disabled={result.events.length === 0}
+          >
+            Export Probe Report
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -318,6 +410,9 @@ export function RuntimeDiagnosticsPage() {
         </h2>
 
         <div className="rtd-tests-grid">
+          {/* Speech Probe */}
+          <SpeechProbeCard />
+
           {/* STT Stress Test */}
           <div className="rtd-test-card" id="rtd-stt-stress-test">
             <div className="rtd-test-card__header">
