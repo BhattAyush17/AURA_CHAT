@@ -513,7 +513,14 @@ export function useOpenRouter(mode: string = "adaptive") {
       onDone?.();
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
+    // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
+    const cleanText = text
+      .replace(/,\s*/g, " ")
+      .replace(/[.!?।]$/, "")
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText || text);
     (utterance as any)._startTime = performance.now();
     utterance.lang = lang;
 
