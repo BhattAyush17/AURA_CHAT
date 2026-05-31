@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as DiagnosticsRuntimeRouteImport } from './routes/diagnostics.runtime'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,30 +25,40 @@ const DiagnosticsRoute = DiagnosticsRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 
+const DiagnosticsRuntimeRoute = DiagnosticsRuntimeRouteImport.update({
+  id: '/diagnostics/runtime',
+  path: '/diagnostics/runtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/diagnostics'
+  fullPaths: '/' | '/diagnostics' | '/diagnostics/runtime'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/diagnostics'
-  id: '__root__' | '/' | '/diagnostics'
+  to: '/' | '/diagnostics' | '/diagnostics/runtime'
+  id: '__root__' | '/' | '/diagnostics' | '/diagnostics/runtime'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
+  DiagnosticsRuntimeRoute: typeof DiagnosticsRuntimeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -66,12 +77,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DiagnosticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/diagnostics/runtime': {
+      id: '/diagnostics/runtime'
+      path: '/diagnostics/runtime'
+      fullPath: '/diagnostics/runtime'
+      preLoaderRoute: typeof DiagnosticsRuntimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DiagnosticsRoute: DiagnosticsRoute,
+  DiagnosticsRuntimeRoute: DiagnosticsRuntimeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

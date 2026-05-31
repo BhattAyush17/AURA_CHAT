@@ -186,14 +186,19 @@ export function DiagnosticsPage() {
           <Link to="/" className="diag-back-link" id="diag-back-home">
             ← Back to Aura
           </Link>
-          <button
-            className="diag-overlay-toggle"
-            onClick={() => setShowOverlay(!showOverlay)}
-            id="diag-toggle-overlay"
-            title="Toggle debug overlay"
-          >
-            {showOverlay ? "Hide" : "Show"} Overlay
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Link to="/diagnostics/runtime" className="diag-overlay-toggle" id="diag-link-runtime">
+              Runtime Inspector →
+            </Link>
+            <button
+              className="diag-overlay-toggle"
+              onClick={() => setShowOverlay(!showOverlay)}
+              id="diag-toggle-overlay"
+              title="Toggle debug overlay"
+            >
+              {showOverlay ? "Hide" : "Show"} Overlay
+            </button>
+          </div>
         </div>
         <div className="diag-header__brand">
           <div className="diag-header__orb" />
