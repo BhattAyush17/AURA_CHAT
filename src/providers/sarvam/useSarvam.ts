@@ -191,6 +191,8 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────
+import { pushConversationTrace } from "../../core/telemetry";
+
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
@@ -421,20 +423,24 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
 
       utterance.onstart = () => {
+        pushConversationTrace("PLAYBACK_START");
         isSpeakingRef.current = true;
         setStatus("speaking");
         connectionState.updateState({ active_voice_out: "webspeech" });
       };
       utterance.onend = () => {
+        pushConversationTrace("PLAYBACK_END");
         const ttsLatency = performance.now() - (utterance as any)._startTime;
         connectionState.updateLatency({ tts_ms: ttsLatency });
         onDone?.();
       };
       utterance.onerror = () => {
+        pushConversationTrace("PLAYBACK_ERROR");
         console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
         connectionState.updateState({ active_voice: "textonly" });
         onDone?.();
       };
+      pushConversationTrace("TTS_READY", { provider: "webspeech_fallback" });
       window.speechSynthesis.speak(utterance);
     },
     [setStatus],
@@ -466,6 +472,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const currentSpeaker = speakerRef.current;
       console.log(`[Sarvam TTS] Speaking with voice: ${currentSpeaker} at pace: ${targetPace}`);
       const tts_start = performance.now();
+      
+      pushConversationTrace("TTS_REQUEST", { provider: "sarvam" });
       const base64 = await generateSpeech(text, currentSpeaker, targetPace);
       connectionState.updateLatency({ tts_ms: performance.now() - tts_start });
 
@@ -492,10 +500,15 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         source.connect(audioCtxRef.current.destination);
 
         source.onended = () => {
+          pushConversationTrace("PLAYBACK_END");
           activeSourceRef.current = null;
           // R06 FIX: Clear speaking state only when audio actually finishes
           isSpeakingRef.current = false;
           onDone?.();
+        };
+
+        source.onstart = () => {
+            pushConversationTrace("PLAYBACK_START");
         };
 
         activeSourceRef.current = source;
@@ -504,8 +517,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         isSpeakingRef.current = true;
         setStatus("speaking");
         connectionState.updateState({ active_voice_out: "sarvam" });
+        pushConversationTrace("TTS_READY", { provider: "sarvam" });
         source.start(0);
       } catch (e) {
+        pushConversationTrace("PLAYBACK_ERROR", { error: "Audio decode failed" });
         console.warn("[Sarvam TTS] Audio decode failed, falling back to native:", e);
         speakChunkNative(text, lang, turnId, onDone);
       }
@@ -559,13 +574,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
    * is already running throws an InvalidStateError that silently kills
    * the voice pipeline. This wrapper absorbs the error.
    */
-  const safeRecognitionStart = (rec: any) => {
+  const safeRecognitionStart = (rec: any, isRestart = false) => {
     try {
+      pushConversationTrace(isRestart ? "STT_RESTART_REQUESTED" : "STT_START_REQUESTED");
       rec.start();
     } catch (err: any) {
-      // "InvalidStateError" = recognition is already started.
-      // "not-allowed" = permission was revoked between cycles.
       console.warn("[Sarvam STT] safeRecognitionStart caught:", err?.name || err?.message);
+      pushConversationTrace("STT_START_FAILED", { error: err?.name || err?.message });
     }
   };
 
@@ -627,6 +642,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // Try Backend /chat first (Phase 2 Full Request Cycle)
       try {
+        pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
+        pushConversationTrace("LLM_REQUEST", { provider: "openrouter" });
         const l4_start = performance.now();
         const response = await fetch(ENDPOINTS.chat, {
           method: "POST",
@@ -648,10 +665,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         });
 
         if (!response.ok) {
+          pushConversationTrace("LLM_ERROR", { error: `HTTP ${response.status}` });
           throw new Error(`Backend returned status ${response.status}`);
         }
 
         const data = await response.json();
+        pushConversationTrace("LLM_RESPONSE_COMPLETE");
         const replyText = data.response_text;
         
         connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
@@ -846,6 +865,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
         try {
           const l4_start = performance.now();
+          pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
+          pushConversationTrace("LLM_REQUEST", { provider: "openrouter", model: modelToTry });
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             signal: fetchAbortRef.current.signal,
@@ -959,6 +980,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 if (!token) continue;
                 if (!firstTokenReceived) {
                     firstTokenReceived = true;
+                    pushConversationTrace("LLM_FIRST_TOKEN", { provider: "openrouter", latencyMs: performance.now() - l4_start });
                     connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
                 currentBuffer += token;
@@ -985,6 +1007,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             currentBuffer = "";
           }
           streamDone = true;
+          pushConversationTrace("LLM_RESPONSE_COMPLETE");
           tryStartTTS();
           success = true;
           break;
@@ -992,10 +1015,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
+            pushConversationTrace("LLM_ERROR", { error: "AbortError" });
             success = true;
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
+          pushConversationTrace("LLM_ERROR", { error: e.message });
         }
       }
 
@@ -1036,10 +1061,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   // ── Start session ─────────────────────────────────────────────────
   const startSession = useCallback(async () => {
+    pushConversationTrace("SESSION_STARTED");
     const key = getOpenRouterKey();
     if (!key || isInactive) {
-      if (!isInactive) setLastError("OpenRouter API Key is missing. Add it in Settings.");
-      if (!isInactive) setStatus("error");
+      if (!isInactive) {
+        pushConversationTrace("SESSION_FAILED", { error: "Missing API Key" });
+        setLastError("OpenRouter API Key is missing. Add it in Settings.");
+        setStatus("error");
+      }
       return;
     }
 
@@ -1106,7 +1135,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           setWords("Listening...");
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
-              safeRecognitionStart(recognitionRef.current);
+              safeRecognitionStart(recognitionRef.current, true);
             }
           }, 300);
         }
@@ -1165,7 +1194,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         // Auto-restart recognition after a brief delay
         setTimeout(() => {
           if (isSessionActiveRef.current && recognitionRef.current) {
-            safeRecognitionStart(recognitionRef.current);
+            safeRecognitionStart(recognitionRef.current, true);
           }
         }, 500);
         return;
@@ -1196,6 +1225,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onstart = () => {
+      pushConversationTrace("STT_STARTED");
       setStatus("listening");
       setWords("Listening...");
       pcmSamplesRef.current = [];
@@ -1239,6 +1269,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
       }
 
+      pushConversationTrace(isFinal ? "TRANSCRIPT_FINAL" : "TRANSCRIPT_PARTIAL", { length: (isFinal ? currentFinal : interim).length });
+
       if (!isFinal && interim) {
         setWords(interim);
       }
@@ -1251,6 +1283,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
     recognition.onerror = (event: any) => {
       const errorType = event.error;
+      pushConversationTrace("STT_ERROR", { error: errorType });
       if (errorType !== "no-speech") {
         // MOBILE FIX: Retry on transient mobile errors (network, aborted)
         if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
@@ -1258,7 +1291,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           pcmSamplesRef.current = [];
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
-              safeRecognitionStart(recognitionRef.current);
+              safeRecognitionStart(recognitionRef.current, true);
             }
           }, 500);
           return;
@@ -1266,7 +1299,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
-        safeRecognitionStart(recognition);
+        safeRecognitionStart(recognition, true);
       } else {
         setStatus("idle");
       }
@@ -1275,12 +1308,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onend = () => {
+      pushConversationTrace("STT_ENDED");
       // MOBILE FIX: Resume AudioContext if it got suspended during recognition
       if (audioCtxRef.current?.state === "suspended") {
         audioCtxRef.current.resume().catch(() => {});
       }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
-        safeRecognitionStart(recognition);
+        safeRecognitionStart(recognition, true);
       } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
         setStatus("idle");
       }
@@ -1298,7 +1332,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
         // Re-kick recognition if it silently died
         if (statusRef.current === "listening" && recognitionRef.current) {
-          safeRecognitionStart(recognitionRef.current);
+          safeRecognitionStart(recognitionRef.current, true);
         }
       }
     };
@@ -1310,6 +1344,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {
+    pushConversationTrace("SESSION_STOPPED");
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     adaptiveTurn.endSession(); // Persist speech profile

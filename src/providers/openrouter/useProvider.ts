@@ -348,6 +348,8 @@ const SENTENCE_END = /[^.!?।\n]+[.!?।\n]+/g;
 const BARGE_IN_THRESHOLD = 0.018;
 
 // ─── Hook ───────────────────────────────────────────────────────────
+import { pushConversationTrace } from "../../core/telemetry";
+
 export function useOpenRouter(mode: string = "adaptive") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
@@ -578,20 +580,24 @@ export function useOpenRouter(mode: string = "adaptive") {
     if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
 
     utterance.onstart = () => {
+      pushConversationTrace("PLAYBACK_START");
       isSpeakingRef.current = true;
       setStatus("speaking");
       connectionState.updateState({ active_voice_out: "webspeech" });
     };
     utterance.onend = () => {
+      pushConversationTrace("PLAYBACK_END");
       const ttsLatency = performance.now() - (utterance as any)._startTime;
       connectionState.updateLatency({ tts_ms: ttsLatency });
       onDone?.();
     };
     utterance.onerror = () => {
+      pushConversationTrace("PLAYBACK_ERROR");
       console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
       connectionState.updateState({ active_voice: "textonly" });
       onDone?.();
     };
+    pushConversationTrace("TTS_READY", { provider: "webspeech" });
     window.speechSynthesis.speak(utterance);
   }, [setStatus]);
 
@@ -630,11 +636,13 @@ export function useOpenRouter(mode: string = "adaptive") {
    * MOBILE FIX: Guarded recognition.start() wrapper.
    * Prevents InvalidStateError from killing the voice pipeline on mobile.
    */
-  const safeRecognitionStart = (rec: any) => {
+  const safeRecognitionStart = (rec: any, isRestart = false) => {
     try {
+      pushConversationTrace(isRestart ? "STT_RESTART_REQUESTED" : "STT_START_REQUESTED");
       rec.start();
     } catch (err: any) {
       console.warn("[OpenRouter STT] safeRecognitionStart caught:", err?.name || err?.message);
+      pushConversationTrace("STT_START_FAILED", { error: err?.name || err?.message });
     }
   };
 
@@ -977,6 +985,9 @@ export function useOpenRouter(mode: string = "adaptive") {
 
         try {
           const l4_start = performance.now();
+          pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
+          pushConversationTrace("LLM_REQUEST", { provider: "openrouter" });
+      
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             signal: fetchAbortRef.current.signal,
@@ -1080,6 +1091,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 if (!token) continue;
                 if (!firstTokenReceived) {
                   firstTokenReceived = true;
+                  pushConversationTrace("LLM_FIRST_TOKEN", { provider: "openrouter", latencyMs: performance.now() - l4_start });
                   stopThinkingAudio();
                   connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
@@ -1107,6 +1119,7 @@ export function useOpenRouter(mode: string = "adaptive") {
             currentBuffer = "";
           }
           streamDone = true;
+          pushConversationTrace("LLM_RESPONSE_COMPLETE");
           tryStartTTS();
           success = true;
           break;
@@ -1115,9 +1128,11 @@ export function useOpenRouter(mode: string = "adaptive") {
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
             success = true;
+            pushConversationTrace("LLM_ERROR", { error: "AbortError" });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
+          pushConversationTrace("LLM_ERROR", { error: e.message });
         }
       }
 
@@ -1157,6 +1172,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── Start session ─────────────────────────────────────────────────
   const startSession = useCallback(async () => {
+    pushConversationTrace("SESSION_STARTED");
     const key = getOpenRouterKey();
     if (!key || isInactive) {
       if (!isInactive) setLastError("OpenRouter API Key is missing. Add it in Settings.");
@@ -1200,6 +1216,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     recognition.lang = lang;
 
     recognition.onstart = () => {
+      pushConversationTrace("STT_STARTED");
       setStatus("listening");
       setWords("Listening...");
       startTracking(micAnalyserRef.current);
@@ -1209,6 +1226,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       const l1_start = performance.now();
       const text = event.results[0][0].transcript;
       if (!text.trim()) return;
+      pushConversationTrace("TRANSCRIPT_FINAL", { length: text.length });
       const audioContextXML = stopTrackingAndAnalyze(text);
       connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
       console.log(
@@ -1245,13 +1263,14 @@ export function useOpenRouter(mode: string = "adaptive") {
 
     recognition.onerror = (event: any) => {
       const errorType = event.error;
+      pushConversationTrace("STT_ERROR", { error: errorType });
       if (errorType !== "no-speech") {
         // MOBILE FIX: Retry on transient mobile errors (network, aborted)
         if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
           console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in 500ms...`);
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
-              safeRecognitionStart(recognitionRef.current);
+              safeRecognitionStart(recognitionRef.current, true);
             }
           }, 500);
           return;
@@ -1259,19 +1278,20 @@ export function useOpenRouter(mode: string = "adaptive") {
         setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
-        safeRecognitionStart(recognition);
+        safeRecognitionStart(recognition, true);
       } else {
         setStatus("idle");
       }
     };
 
     recognition.onend = () => {
+      pushConversationTrace("STT_ENDED");
       // MOBILE FIX: Resume AudioContext if it got suspended during recognition
       if (audioCtxRef.current?.state === "suspended") {
         audioCtxRef.current.resume().catch(() => {});
       }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
-        safeRecognitionStart(recognition);
+        safeRecognitionStart(recognition, true);
       } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
         setStatus("idle");
       }
@@ -1287,7 +1307,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           audioCtxRef.current.resume().catch(() => {});
         }
         if (statusRef.current === "listening" && recognitionRef.current) {
-          safeRecognitionStart(recognitionRef.current);
+          safeRecognitionStart(recognitionRef.current, true);
         }
       }
     };
@@ -1298,6 +1318,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {
+    pushConversationTrace("SESSION_STOPPED");
     isSessionActiveRef.current = false;
     boundlessModeActiveRef.current = false; // Reset activation on session end
     adaptiveTurn.endSession(); // Persist speech profile

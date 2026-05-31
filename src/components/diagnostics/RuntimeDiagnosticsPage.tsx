@@ -22,6 +22,7 @@ import {
   type MobileLifecycleReport,
 } from "./mobileLifecycleTests";
 import { SpeechRecognitionProbe, type ProbeResult } from "./speechRecognitionProbe";
+import { ConversationTelemetryPanel } from "./ConversationTelemetryPanel";
 import "./runtimeDiagnostics.css";
 
 // ─── Health Item ────────────────────────────────────────────────────
@@ -553,6 +554,9 @@ export function RuntimeDiagnosticsPage() {
       <p className="rtd-timestamp">
         Trace engine active — {events.length} events captured
       </p>
+
+      {/* ── Conversation Telemetry Panel ───────────────────────────────────────────── */}
+      <ConversationTelemetryPanel />
     </div>
   );
 }
