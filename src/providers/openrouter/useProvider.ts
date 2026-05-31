@@ -516,7 +516,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
     // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
     const cleanText = text
-      .replace(/,\s*/g, " ")
+      .replace(/,\s*/g, "; ")
       .replace(/[.!?।]$/, "")
       .trim();
 
