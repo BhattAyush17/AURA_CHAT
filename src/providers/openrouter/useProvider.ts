@@ -58,7 +58,7 @@ const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
   const noEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
-  const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]/g;
+  const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]|<([^>]+)>/g;
   let lastIndex = 0;
   let match;
   
@@ -70,7 +70,7 @@ export function parseSegments(text: string): SpeechSegment[] {
       }
     }
     
-    const actionText = (match[1] || match[2] || match[3] || "").trim();
+    const actionText = (match[1] || match[2] || match[3] || match[4] || "").trim();
     const actionLower = actionText.toLowerCase();
     const now = performance.now();
     const canAct = (now - lastActionTime) > ACTION_COOLDOWN;

@@ -42,8 +42,11 @@ const stripEmojis = (text: string) => text.replace(/[\p{Emoji_Presentation}\p{Ex
 
 const extractStageDirections = (text: string) => {
     const directions: string[] = [];
-    const cleanText = text.replace(/\[(.*?)\]/g, (match, p1) => {
-        directions.push(p1.toLowerCase());
+    const cleanText = text.replace(/\[(.*?)\]|<(.*?)>/g, (match, p1, p2) => {
+        const val = p1 || p2;
+        if (val) {
+            directions.push(val.trim().toLowerCase());
+        }
         return ''; 
     });
     return { cleanText: cleanText.trim(), directions };
