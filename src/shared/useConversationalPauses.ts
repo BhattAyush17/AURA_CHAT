@@ -353,7 +353,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   // Standard sentence boundary
   return {
     category: "CONTINUE",
-    durationMs: durationInRange(300, 600),
+    durationMs: durationInRange(200, 500),
     listenForInterruption: false,
     reason: "Default sentence boundary",
   };
