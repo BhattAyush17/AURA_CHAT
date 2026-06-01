@@ -16,10 +16,12 @@ export interface BehaviorAnalysis {
   tags: string[];
   template: string | null;
   source: string | null;
-  energy: string;
+  energy: number;
   behavior_instructions: string;
   emotional_state: string;
   intensity: number;
+  mode?: string;
+  tension?: number;
   sensing_state?: {
     energy: number;
     warmth: number;

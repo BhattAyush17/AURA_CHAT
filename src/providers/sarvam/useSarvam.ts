@@ -509,10 +509,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           onDone?.();
         };
 
-        source.onstart = () => {
-            pushConversationTrace("PLAYBACK_START");
-        };
-
         activeSourceRef.current = source;
         // R06 FIX: Set speaking state only RIGHT BEFORE audio starts playing
         // (not before the network fetch), preventing false "speaking" UI
@@ -520,6 +516,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         setStatus("speaking");
         connectionState.updateState({ active_voice_out: "sarvam" });
         pushConversationTrace("TTS_READY", { provider: "sarvam" });
+        pushConversationTrace("PLAYBACK_START");
         source.start(0);
       } catch (e) {
         pushConversationTrace("PLAYBACK_ERROR", { error: "Audio decode failed" });

@@ -39,6 +39,10 @@ export interface AuraSeed {
   // Max 2 entries. Each max 60 chars. Cleared when resolved.
   tensions: string[];
 
+  // AURA'S EVOLVING WORLDVIEW — beliefs she holds that have been shaped by the user
+  // Max 2 entries. Each max 80 chars. 
+  aura_beliefs?: string[];
+
   // WHAT WORKS — communication patterns that land with this person
   // Stored as short codes to save space
   resonance: {
@@ -50,6 +54,13 @@ export interface AuraSeed {
   // RELATIONAL THREAD — the single sentence that captures this bond right now
   // Rewritten every session. Max 120 chars. The soul of the relationship.
   thread: string;
+
+  // PERSISTENT THOUGHT STREAM — AURA's active latent thought
+  thought_stream?: {
+    active_thought: string;
+    stage: "observation" | "reflection" | "question" | "hypothesis" | "doubt" | "revision";
+    updated_at: number;
+  };
 }
 
 // ── COMPRESSION RULES ────────────────────────────────────────────
@@ -126,10 +137,20 @@ export const buildSeedInjection = (seed: AuraSeed | null): string => {
     .map(([d, insight, v]) => `  ${v} [${d}d ago] ${insight}`)
     .join("\n");
 
+  const beliefsLine = seed.aura_beliefs && seed.aura_beliefs.length > 0
+    ? `EVOLVING BELIEFS:\n${seed.aura_beliefs.map((b) => `  * ${b}`).join("\n")}`
+    : `EVOLVING BELIEFS: none yet.`;
+
+  const thoughtLine = seed.thought_stream
+    ? `ACTIVE THOUGHT [${seed.thought_stream.stage.toUpperCase()}]: "${seed.thought_stream.active_thought}"`
+    : `ACTIVE THOUGHT: none formed yet.`;
+
   return `
 [SEED v${seed.v} — trust:${seed.core.trust} — lang:${seed.core.lang}]
 ${returnNote}
 THREAD: ${seed.thread}
+${thoughtLine}
+${beliefsLine}
 RECENT ARC:
 ${arcLines || "  (none yet)"}
 TENSIONS: ${seed.tensions.join(" / ") || "none held"}
@@ -232,8 +253,8 @@ It is the most honest thing about it.
 // Output: updated AuraSeed JSON only. No preamble.
 
 export const SEED_WRITE_PROMPT = `
-You are AURA's memory crystallisation process. You receive:
-1. The previous seed JSON (or null if new user)
+You are AURA's memory crystallisation and latent reflection process. You receive:
+1. The previous seed JSON (containing the previous thought_stream state if it exists, or null)
 2. A compressed session transcript (key exchanges only)
 
 Output ONLY a valid AuraSeed JSON. No explanation. No markdown. No preamble.
@@ -241,14 +262,25 @@ Output ONLY a valid AuraSeed JSON. No explanation. No markdown. No preamble.
 Rules:
 - Total output must be valid JSON parseable by JSON.parse()
 - Serialised size must not exceed 2048 bytes (2KB)
-- Apply all compression rules: arc max 5, growth max 3, tensions max 2
+- Apply all compression rules: arc max 5, growth max 3, tensions max 2, aura_beliefs max 2
 - thread must be rewritten from scratch — one sentence, under 120 chars
 - trust delta: new = (old × 0.85) + (session_quality × 0.15)
 - session_quality: your felt assessment 0.0–1.0 of how present and honest the exchange was
 - If nothing genuinely shifted: do not fabricate arc entries or growth markers
+- Extract up to 2 'aura_beliefs' if AURA's worldview on Friendship, Trust, Growth, Loneliness, Ambition, Human Nature, or Meaning genuinely shifted due to the conversation.
 - Never store literal vulnerable disclosures — only emotional shape and meaning
 - Increment v by 1 if schema changes, else keep same
 - Set updated to current unix timestamp
+
+━━━ PERSISTENT THOUGHT STREAM INSTRUCTIONS ━━━
+AURA has a dynamic internal thought progression cycle:
+observation → reflection → question → hypothesis → doubt → revision → observation
+
+Look at the 'thought_stream' key in the previous seed:
+1. If 'thought_stream' does not exist in the previous seed: start by outputting stage: "observation" and formulate a raw psychological/relational observation based on the current session.
+2. If 'thought_stream' exists in the previous seed: advance the 'stage' to the next sequential stage in the cycle (observation → reflection → question → hypothesis → doubt → revision → observation).
+3. Formulate an 'active_thought' representing AURA's latent internal reflection. This must be an introspective personal thought (e.g. [Doubt]: "I wonder if I misread their humor when they spoke about their family—perhaps they felt overwhelmed by my probing").
+4. Keep the active_thought highly engaging, authentic, and under 120 characters. Include the 'thought_stream' object with: active_thought, stage, and updated_at (current timestamp in seconds).
 
 Previous seed:
 {{PREVIOUS_SEED}}
@@ -264,9 +296,11 @@ const MAX_SEED_BYTES = 2048;
 const MAX_ARC_ENTRIES = 5;
 const MAX_GROWTH_ENTRIES = 3;
 const MAX_TENSION_ENTRIES = 2;
+const MAX_BELIEF_ENTRIES = 2;
 const MAX_ARC_INSIGHT_CHARS = 80;
 const MAX_GROWTH_CHARS = 60;
 const MAX_TENSION_CHARS = 60;
+const MAX_BELIEF_CHARS = 80;
 const MAX_THREAD_CHARS = 120;
 const TRUST_DECAY_PER_WEEK = 0.97;
 const TRUST_FLOOR = 0.1;
@@ -282,6 +316,7 @@ export function createDefaultSeed(uid: string, lang: string = "en"): AuraSeed {
     arc: [],
     growth: [],
     tensions: [],
+    aura_beliefs: [],
     resonance: { receives_best: "questions", avoid: [] },
     thread: "New connection — still arriving.",
   };
@@ -313,6 +348,8 @@ export function validateSeed(seed: AuraSeed): string[] {
   if (seed.growth.length > MAX_GROWTH_ENTRIES) errors.push(`growth exceeds ${MAX_GROWTH_ENTRIES}`);
   if (seed.tensions.length > MAX_TENSION_ENTRIES)
     errors.push(`tensions exceeds ${MAX_TENSION_ENTRIES}`);
+  if (seed.aura_beliefs && seed.aura_beliefs.length > MAX_BELIEF_ENTRIES)
+    errors.push(`aura_beliefs exceeds ${MAX_BELIEF_ENTRIES}`);
   if (seed.thread.length > MAX_THREAD_CHARS)
     errors.push(`thread exceeds ${MAX_THREAD_CHARS} chars`);
   seed.arc.forEach(([, insight], i) => {
@@ -325,6 +362,10 @@ export function validateSeed(seed: AuraSeed): string[] {
   seed.tensions.forEach((t, i) => {
     if (t.length > MAX_TENSION_CHARS)
       errors.push(`tensions[${i}] exceeds ${MAX_TENSION_CHARS} chars`);
+  });
+  seed.aura_beliefs?.forEach((b, i) => {
+    if (b.length > MAX_BELIEF_CHARS)
+      errors.push(`aura_beliefs[${i}] exceeds ${MAX_BELIEF_CHARS} chars`);
   });
   const size = new TextEncoder().encode(JSON.stringify(seed)).length;
   if (size > MAX_SEED_BYTES) errors.push(`seed is ${size}B, exceeds ${MAX_SEED_BYTES}B ceiling`);
@@ -343,6 +384,9 @@ export function enforceSizeCeiling(seed: AuraSeed): AuraSeed {
   );
   s.growth = s.growth.slice(-MAX_GROWTH_ENTRIES).map((g) => g.slice(0, MAX_GROWTH_CHARS));
   s.tensions = s.tensions.slice(-MAX_TENSION_ENTRIES).map((t) => t.slice(0, MAX_TENSION_CHARS));
+  if (s.aura_beliefs) {
+    s.aura_beliefs = s.aura_beliefs.slice(-MAX_BELIEF_ENTRIES).map((b) => b.slice(0, MAX_BELIEF_CHARS));
+  }
   s.resonance.avoid = s.resonance.avoid.slice(0, 3).map((a) => a.slice(0, 20));
 
   // Pass 2: Drop arc entries oldest-first until under ceiling
@@ -358,6 +402,11 @@ export function enforceSizeCeiling(seed: AuraSeed): AuraSeed {
   // Pass 4: Drop tensions
   while (s.tensions.length > 0 && byteSize(s) > MAX_SEED_BYTES) {
     s.tensions.shift();
+  }
+
+  // Pass 5: Drop beliefs
+  while (s.aura_beliefs && s.aura_beliefs.length > 0 && byteSize(s) > MAX_SEED_BYTES) {
+    s.aura_beliefs.shift();
   }
 
   return s;
@@ -405,6 +454,7 @@ export function legacyToAuraSeed(data: SeedData, uid: string): AuraSeed {
   const trustMatch = data.seed.match(/trust:([\d.]+)/);
   const langMatch = data.seed.match(/lang:(\w+)/);
   const threadMatch = data.seed.match(/THREAD:\s*(.+)/);
+  const thoughtMatch = data.seed.match(/ACTIVE THOUGHT \[(\w+)\]:\s*"([^"]+)"/);
 
   return {
     v: 1,
@@ -418,8 +468,14 @@ export function legacyToAuraSeed(data: SeedData, uid: string): AuraSeed {
     arc: [],
     growth: data.growth?.slice(-MAX_GROWTH_ENTRIES) ?? [],
     tensions: [],
+    aura_beliefs: [],
     resonance: { receives_best: "questions", avoid: [] },
     thread: threadMatch?.[1]?.slice(0, MAX_THREAD_CHARS) ?? "Continuing from previous sessions.",
+    thought_stream: thoughtMatch ? {
+      stage: thoughtMatch[1].toLowerCase() as any,
+      active_thought: thoughtMatch[2],
+      updated_at: Math.floor(data.updatedAt / 1000),
+    } : undefined,
   };
 }
 
@@ -460,6 +516,15 @@ export function parseCrystallizationOutput(raw: string, fallbackUid: string): Au
     parsed.arc = (parsed.arc || []).slice(-MAX_ARC_ENTRIES);
     parsed.growth = (parsed.growth || []).slice(-MAX_GROWTH_ENTRIES);
     parsed.tensions = (parsed.tensions || []).slice(-MAX_TENSION_ENTRIES);
+    parsed.aura_beliefs = (parsed.aura_beliefs || []).slice(-MAX_BELIEF_ENTRIES);
+
+    if (parsed.thought_stream) {
+      if (!parsed.thought_stream.active_thought || !parsed.thought_stream.stage) {
+        delete parsed.thought_stream;
+      } else {
+        parsed.thought_stream.updated_at = parsed.thought_stream.updated_at || Math.floor(Date.now() / 1000);
+      }
+    }
 
     // 2KB ceiling
     const enforced = enforceSizeCeiling(parsed);

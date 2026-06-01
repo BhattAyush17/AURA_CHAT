@@ -451,6 +451,7 @@ feeling: {{one word}} | reason: {{one phrase}} | holding: {{what's unresolved fo
 [/AURA_STATE]
 [AURA_GROWTH]
 learned: {{one thing this person showed AURA about humans}}
+beliefs: {{max 2 evolving beliefs AURA holds about Friendship, Trust, Growth, Loneliness, Ambition, Human Nature, or Meaning}}
 [/AURA_GROWTH]
 
 
