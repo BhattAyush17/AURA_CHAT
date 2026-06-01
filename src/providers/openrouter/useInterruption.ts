@@ -10,7 +10,8 @@ export function useBargeIn(
     analyserRef: React.MutableRefObject<AnalyserNode | null>,
     isAuraSpeaking: boolean,
     onInterrupt: () => void,
-    sentenceQueue?: React.MutableRefObject<string[]>
+    sentenceQueue?: React.MutableRefObject<string[]>,
+    isInInterjectionWindow?: () => boolean
 ) {
     const loudFrameCount = useRef(0);
     const speakingStartTime = useRef<number>(0);
@@ -43,9 +44,13 @@ export function useBargeIn(
             const isGracePeriod = isAuraSpeaking && (Date.now() - speakingStartTime.current < 400);
 
             // 2. Dynamic Thresholding: Use a higher threshold if AURA is currently making noise
-            const currentThreshold = isAuraSpeaking ? ACTIVE_TTS_THRESHOLD : BASE_THRESHOLD;
+            // If we are in an interjection window (pause), AURA is silent, so we can use the base threshold
+            const interjection = isInInterjectionWindow ? isInInterjectionWindow() : false;
+            const currentThreshold = (isAuraSpeaking && !interjection) ? ACTIVE_TTS_THRESHOLD : BASE_THRESHOLD;
 
-            if (isAuraSpeaking && !isGracePeriod && rms > currentThreshold) {
+            const shouldListen = isAuraSpeaking || interjection;
+
+            if (shouldListen && !isGracePeriod && rms > currentThreshold) {
                 loudFrameCount.current += 1;
                 
                 if (loudFrameCount.current >= SUSTAINED_FRAMES) {
@@ -72,5 +77,5 @@ export function useBargeIn(
         return () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
         };
-    }, [isAuraSpeaking, sentenceQueue, onInterrupt, analyserRef]);
+    }, [isAuraSpeaking, sentenceQueue, onInterrupt, analyserRef, isInInterjectionWindow]);
 }

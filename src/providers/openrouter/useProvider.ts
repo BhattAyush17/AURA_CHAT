@@ -37,6 +37,7 @@ import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
 import { useBargeIn } from "./useInterruption.ts";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
+import { useConversationalPauses } from "@/shared/useConversationalPauses";
 
 export type { ChatMessage };
 
@@ -485,6 +486,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const prompts = usePromptOrchestrator();
   const adaptiveTurn = useAdaptiveTurnDetection();
   const transcript_ = useTranscriptManager();
+  const conversationalPauses = useConversationalPauses();
 
   // Cleanup on unmount
   useEffect(() => {
@@ -608,6 +610,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const handleInterruption = useCallback(() => {
     console.log("🛑 BARGE-IN DETECTED: Killing audio and flushing queues.");
     adaptiveTurn.registerFalseDetection();
+    conversationalPauses.userRespondedDuringWindow();
     stopSpeech();
     fetchAbortRef.current?.abort();
     if (isSessionActiveRef.current && startSessionRef.current) {
@@ -615,9 +618,9 @@ export function useOpenRouter(mode: string = "adaptive") {
     } else {
       setStatus("idle");
     }
-  }, [setStatus, adaptiveTurn]);
+  }, [setStatus, adaptiveTurn, conversationalPauses]);
 
-  useBargeIn(micAnalyserRef, status === "speaking", handleInterruption, sentenceQueueRef);
+  useBargeIn(micAnalyserRef, status === "speaking", handleInterruption, sentenceQueueRef, conversationalPauses.isInInterjectionWindow);
 
   // ── STT helpers ──────────────────────────────────────────────────
   const stopRecognition = () => {
@@ -651,6 +654,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
       stopSpeech();
       stopThinkingAudio();
+      conversationalPauses.resetForNewTurn();
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
@@ -752,6 +756,8 @@ export function useOpenRouter(mode: string = "adaptive") {
         let streamDone = false;
 
           let segmentSubQueue: SpeechSegment[] = [];
+          let sentenceIndex = 0;
+          let lastSpokenSentence = "";
 
           const tryStartTTS = () => {
             if (ttsStarted || sentenceQueueRef.current.length === 0) return;
@@ -791,6 +797,35 @@ export function useOpenRouter(mode: string = "adaptive") {
                 return;
               }
               
+              if (lastSpokenSentence) {
+                  const lastAnalysis = behavior.lastAnalysisRef.current;
+                  const ctx = {
+                      currentSentence: lastSpokenSentence,
+                      nextSentence: rawNext,
+                      sentenceIndex: sentenceIndex,
+                      totalSentences: streamDone ? sentenceIndex + 1 : undefined,
+                      isStreamingDone: streamDone,
+                      emotionalState: lastAnalysis ? {
+                          tension: lastAnalysis.tension || 0,
+                          trust: lastAnalysis.trust || 0.5,
+                          energy: lastAnalysis.energy || 0.5,
+                          mode: lastAnalysis.mode || "calm"
+                      } : undefined
+                  };
+                  const pause = conversationalPauses.getPause(ctx);
+                  
+                  setTimeout(() => {
+                      if (!isSpeakingRef.current) return;
+                      lastSpokenSentence = rawNext;
+                      sentenceIndex++;
+                      segmentSubQueue = parseSegments(rawNext);
+                      drainQueue();
+                  }, pause.durationMs);
+                  return;
+              }
+              
+              lastSpokenSentence = rawNext;
+              sentenceIndex++;
               segmentSubQueue = parseSegments(rawNext);
               drainQueue();
             };
@@ -1025,6 +1060,8 @@ export function useOpenRouter(mode: string = "adaptive") {
           setIsThinking(false);
 
           let segmentSubQueue: SpeechSegment[] = [];
+          let sentenceIndex = 0;
+          let lastSpokenSentence = "";
 
           // Fire first TTS chunk as soon as one sentence is ready
           const tryStartTTS = () => {
@@ -1067,6 +1104,35 @@ export function useOpenRouter(mode: string = "adaptive") {
                 return;
               }
 
+              if (lastSpokenSentence) {
+                  const lastAnalysis = behavior.lastAnalysisRef.current;
+                  const ctx = {
+                      currentSentence: lastSpokenSentence,
+                      nextSentence: rawNext,
+                      sentenceIndex: sentenceIndex,
+                      totalSentences: streamDone ? sentenceIndex + 1 : undefined,
+                      isStreamingDone: streamDone,
+                      emotionalState: lastAnalysis ? {
+                          tension: lastAnalysis.tension || 0,
+                          trust: lastAnalysis.trust || 0.5,
+                          energy: lastAnalysis.energy || 0.5,
+                          mode: lastAnalysis.mode || "calm"
+                      } : undefined
+                  };
+                  const pause = conversationalPauses.getPause(ctx);
+                  
+                  setTimeout(() => {
+                      if (!isSpeakingRef.current) return;
+                      lastSpokenSentence = rawNext;
+                      sentenceIndex++;
+                      segmentSubQueue = parseSegments(rawNext);
+                      drainQueue();
+                  }, pause.durationMs);
+                  return;
+              }
+
+              lastSpokenSentence = rawNext;
+              sentenceIndex++;
               segmentSubQueue = parseSegments(rawNext);
               drainQueue();
             };

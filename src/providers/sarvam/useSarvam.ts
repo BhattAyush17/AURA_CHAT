@@ -36,6 +36,7 @@ import { connectionState } from "@/config/connectionState";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
+import { useConversationalPauses } from "@/shared/useConversationalPauses";
 
 // ─── Paralinguistic Interceptor & Audio Controller ──────────────────
 const stripEmojis = (text: string) => text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
@@ -364,6 +365,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const prompts = usePromptOrchestrator();
   const adaptiveTurn = useAdaptiveTurnDetection();
   const transcript_ = useTranscriptManager();
+  const conversationalPauses = useConversationalPauses();
 
   // Cleanup on unmount
   useEffect(() => {
@@ -540,20 +542,27 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     const buf = new Float32Array(analyser.fftSize);
     const check = () => {
       if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK: stop if turn advanced
-      if (!isSpeakingRef.current) return; // stop polling once TTS ends naturally
+      
+      const interjection = conversationalPauses.isInInterjectionWindow();
+      if (!isSpeakingRef.current && !interjection) return; // stop polling once TTS ends naturally
+      
       analyser.getFloatTimeDomainData(buf);
       let rms = 0;
       for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
       rms = Math.sqrt(rms / buf.length);
-      if (rms > BARGE_IN_THRESHOLD) {
-        console.log(`[OpenRouter Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
+      
+      const currentThreshold = (!interjection && isSpeakingRef.current) ? BARGE_IN_THRESHOLD : 0.015;
+
+      if (rms > currentThreshold) {
+        console.log(`[Sarvam Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
+        conversationalPauses.userRespondedDuringWindow();
         onInterrupt();
         return;
       }
       bargeInFrameRef.current = requestAnimationFrame(check);
     };
     bargeInFrameRef.current = requestAnimationFrame(check);
-  }, []);
+  }, [conversationalPauses]);
 
   // ── STT helpers ──────────────────────────────────────────────────
   const stopRecognition = () => {
@@ -604,6 +613,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // ── Bulletproof cleanup for any turn entry (voice or text) ──
       stopSpeech();
       stopRecognition();
+      conversationalPauses.resetForNewTurn();
 
       const turnStart = performance.now();
       setIsThinking(true);
@@ -905,6 +915,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
           // Capture the turn ID when this fetch starts so we can detect if a new turn preempts us
           const activeTurnId = currentTurnIdRef.current;
+          
+          let sentenceIndex = 0;
+          let lastSpokenSentence = "";
 
           // Fire first TTS chunk as soon as one sentence is ready
           const tryStartTTS = () => {
@@ -957,6 +970,34 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 return;
               }
               
+              if (lastSpokenSentence) {
+                  const lastAnalysis = behavior.lastAnalysisRef.current;
+                  const ctx = {
+                      currentSentence: lastSpokenSentence,
+                      nextSentence: cleanText,
+                      sentenceIndex: sentenceIndex,
+                      totalSentences: streamDone ? sentenceIndex + 1 : undefined,
+                      isStreamingDone: streamDone,
+                      emotionalState: lastAnalysis ? {
+                          tension: lastAnalysis.tension || 0,
+                          trust: lastAnalysis.trust || 0.5,
+                          energy: lastAnalysis.energy || 0.5,
+                          mode: lastAnalysis.mode || "calm"
+                      } : undefined
+                  };
+                  const pause = conversationalPauses.getPause(ctx);
+                  
+                  setTimeout(() => {
+                      if (currentTurnIdRef.current !== activeTurnId) return;
+                      lastSpokenSentence = cleanText;
+                      sentenceIndex++;
+                      speakChunk(cleanText, lang, activeTurnId, drainQueue);
+                  }, pause.durationMs);
+                  return;
+              }
+              
+              lastSpokenSentence = cleanText;
+              sentenceIndex++;
               speakChunk(cleanText, lang, activeTurnId, drainQueue);
             };
             drainQueue();
