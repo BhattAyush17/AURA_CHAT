@@ -40,9 +40,12 @@ export type ConversationMode =
   | "emotional"
   | "reflective";
 
+export type FloorOwnership = "ACTIVE" | "THINKING" | "UNCERTAIN" | "YIELDED";
+
 export interface TurnConfidenceResult {
   confidence: number;
   shouldRespond: boolean;
+  floorOwnership: FloorOwnership;
   silenceMs: number;
   effectiveThreshold: number;
   conversationMode: ConversationMode;
@@ -55,6 +58,7 @@ export interface TurnConfidenceResult {
 export interface TurnDetectionTelemetry {
   silence_ms: number;
   turn_confidence: number;
+  floor_ownership: FloorOwnership;
   conversation_mode: ConversationMode;
   response_delay: number;
   false_detection: boolean;
@@ -114,6 +118,11 @@ const EMO_RE = /\b(feel|feeling|felt|hurts?|miss|scared|afraid|anxious|worried|s
 const REF_RE = /\b(wonder|thinking about|reflect|contemplate|realize|meaning|purpose|life|death|existence|regret|remember when|used to|back then|years ago|growing up|believe|soul)\b/i;
 const STORY_RE = /\b(so basically|let me tell you|you know what happened|this one time|i was at|and then|so we|after that|long story|funny thing|get this|picture this)\b/i;
 
+const ELONGATED_RE = /\b(h+m{3,}|s+o{3,}|o+k+a{3,}y|y+e+a{3,}h)\b/i;
+const INCOMPLETE_RE = /\b(i think|the problem is|what happened was|so basically|and then)\s*$/i;
+const SELF_CORRECT_RE = /\b(no wait|actually|let me rephrase|hold on)\b/i;
+const TRAILING_FILLER_RE = /\b(hmm+|umm+|uh+|ah+|okay|wait|well|actually|let me think|so|and)\s*$/i;
+
 // ─── Utilities ──────────────────────────────────────────────────────
 
 function sigmoid(x: number, midpoint = 1.0, steepness = 4.0): number {
@@ -155,9 +164,16 @@ function getSemanticCompletionScore(text: string): number {
 function getThinkingConfidence(text: string): number {
   const t = text.toLowerCase();
   let score = 0;
-  const fillers = t.match(/\b(um|umm|uh|uhh|hm|hmm|like|actually wait|let me think)\b/g);
-  if (fillers) score += fillers.length * 0.2;
-  if (/\b(i mean|no wait|scratch that)\b/.test(t)) score += 0.3;
+  
+  if (TRAILING_FILLER_RE.test(t)) score += 0.5;
+  
+  const midFillers = t.match(/\b(um|umm|uh|uhh|hmm|let me think)\b/g);
+  if (midFillers) score += midFillers.length * 0.2;
+  
+  if (ELONGATED_RE.test(t)) score += 0.4;
+  if (INCOMPLETE_RE.test(t)) score += 0.5;
+  if (SELF_CORRECT_RE.test(t)) score += 0.4;
+  
   return Math.min(1.0, score);
 }
 
@@ -236,8 +252,20 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
       
       lastMetricsRef.current = { sem: semCompletion, think: thinkingConf, emo: emoBonus };
 
-      // 3. Effective wait target (personalized)
-      let effectiveWait = profile.comfort_pause_ms * PATIENCE_MAP[mode];
+      // 3. Dynamic Patience Model
+      let patienceMultiplier = 1.0;
+      
+      // If user frequently pauses while thinking: Increase patience
+      if (profile.thinking_pause_score > 0.6) patienceMultiplier += 0.3;
+      // If user frequently uses fillers: Increase patience
+      if (thinkingConf > 0.3) patienceMultiplier += 0.5;
+      // If user speaks in long reflective sentences: Increase patience
+      if (wordCount > 15 || mode === "reflective" || mode === "storytelling") patienceMultiplier += 0.4;
+      // If user speaks rapidly and cleanly: Decrease patience slightly
+      if (profile.speaking_rate > 150 && thinkingConf < 0.2 && wordCount < 10) patienceMultiplier -= 0.2;
+
+      // Effective wait target
+      let effectiveWait = profile.comfort_pause_ms * PATIENCE_MAP[mode] * patienceMultiplier;
 
       if (emotionalIntensity > 0.5) {
         effectiveWait *= 1.0 + (emotionalIntensity - 0.5) * 0.6;
@@ -248,46 +276,41 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
       
       // Add emotional recovery silence
       effectiveWait += emoBonus;
-      effectiveWait = Math.min(effectiveWait, ABSOLUTE_MAX_WAIT_MS);
+      effectiveWait = Math.min(effectiveWait, 4000); 
 
-      // 4. Silence ratio → sigmoid confidence
+      // 4. Floor Ownership Rules
+      let floorOwnership: FloorOwnership = "UNCERTAIN";
+      
+      if (silenceMs < 300) {
+        floorOwnership = "ACTIVE";
+      } else if (thinkingConf >= 0.5 || ELONGATED_RE.test(text) || INCOMPLETE_RE.test(text) || SELF_CORRECT_RE.test(text) || TRAILING_FILLER_RE.test(text)) {
+        floorOwnership = "THINKING";
+      }
+
+      // 5. Evaluate Yield
       const ratio = effectiveWait > 0 ? silenceMs / effectiveWait : 1.0;
-      const silenceConf = sigmoid(ratio, 1.0, 4.0);
+      
+      if (floorOwnership !== "ACTIVE" && floorOwnership !== "THINKING") {
+         if (ratio >= 1.0) {
+           floorOwnership = "YIELDED";
+         } else if (semCompletion >= 0.8 && ratio >= 0.8) {
+           floorOwnership = "YIELDED";
+         }
+      }
+      
+      // Hard override: If silence is huge, assume yielded even if thinking
+      if (silenceMs > Math.max(effectiveWait * 1.5, 5000)) {
+        floorOwnership = "YIELDED";
+      }
 
-      // Utterance completeness heuristic (basic length)
-      let completenessConf = 0.5;
-      if (wordCount <= 2) completenessConf = 0.7;
-      else if (wordCount <= 5) completenessConf = 0.5;
-      else if (wordCount <= 15) completenessConf = 0.4;
-      else completenessConf = 0.6;
+      const shouldRespond = floorOwnership === "YIELDED";
+      const confidence = Math.max(0, Math.min(1, ratio));
 
-      // Rate adjustment
-      let rateAdj = 0;
-      if (profile.speaking_rate > 160) rateAdj = 0.05;
-      else if (profile.speaking_rate < 100) rateAdj = -0.05;
-
-      // Blend all signals
-      let confidence = 
-        silenceConf * 0.60 + 
-        semCompletion * 0.20 + 
-        completenessConf * 0.10 + 
-        (profile.interruptibility_score - 0.5) * 0.10 + 
-        rateAdj;
-        
-      // Penalty if user is clearly thinking
-      confidence -= thinkingConf * 0.3;
-
-      // Safety override
-      if (silenceMs >= ABSOLUTE_MAX_WAIT_MS) confidence = 1.0;
-      confidence = Math.max(0, Math.min(1, confidence));
-
-      // Threshold adjustment per mode
+      // Threshold adjustment per mode (mostly logic metadata now)
       let effThreshold = threshold;
       if (mode === "command") effThreshold = Math.max(0.80, threshold - 0.10);
       else if (mode === "emotional" || mode === "reflective")
         effThreshold = Math.min(0.98, threshold + 0.02);
-
-      const shouldRespond = confidence >= effThreshold;
 
       // Response delay (Personality Timing Bias + Jitter)
       const baseDelay = DELAY_MAP[mode];
@@ -306,6 +329,7 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
       return {
         confidence: Math.round(confidence * 10000) / 10000,
         shouldRespond,
+        floorOwnership,
         silenceMs,
         effectiveThreshold: Math.round(effThreshold * 10000) / 10000,
         conversationMode: mode,
@@ -415,6 +439,7 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
     return {
       silence_ms: 0,
       turn_confidence: 0,
+      floor_ownership: "UNCERTAIN",
       conversation_mode: lastModeRef.current,
       response_delay: DELAY_MAP[lastModeRef.current],
       false_detection: sessionInterruptionsRef.current > 0,
