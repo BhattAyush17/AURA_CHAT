@@ -740,14 +740,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         addMessages([{ role: "user", content: userText }]);
       }
 
-      // Try Backend /chat first (Phase 2 Full Request Cycle)
+      // Try Backend SSE Stream first (Phase 2 Full Request Cycle)
       try {
         pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
         pushConversationTrace("LLM_REQUEST", { provider: "openrouter" });
         const l4_start = performance.now();
-        const response = await fetch(ENDPOINTS.chat, {
+        fetchAbortRef.current = new AbortController();
+        const response = await fetch(ENDPOINTS.analyzeStream, {
           method: "POST",
-          headers: { 
+          signal: fetchAbortRef.current.signal,
+          headers: {
             "Content-Type": "application/json",
             "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
             "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
@@ -758,102 +760,82 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           body: JSON.stringify({
             text: userText,
             user_id: userIdRef.current,
+            session_id: sessionIdRef.current,
             conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
             client_memories: memoryPayload?.client_memories || [],
             memory_mode: memoryPayload?.memory_mode || "supabase"
           })
         });
 
-        if (!response.ok) {
+        if (!response.ok || !response.body) {
           pushConversationTrace("LLM_ERROR", { error: `HTTP ${response.status}` });
           throw new Error(`Backend returned status ${response.status}`);
         }
 
-        const data = await response.json();
-        pushConversationTrace("LLM_RESPONSE_COMPLETE");
-        const replyText = data.response_text;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let textBuffer = "";
+        let fullResponse = "";
+        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
+        let firstTokenReceived = false;
         
-        connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
-
-        connectionState.updateState({ active_llm: data.active_llm });
-
-        setIsThinking(false);
-        setStatus("speaking");
-        setWords(replyText);
-
-        // Start barge-in monitor
-        startBargeInMonitor(() => {
-          adaptiveTurn.registerFalseDetection();
-          stopSpeech();
-          isSpeakingRef.current = false;
-          currentTurnIdRef.current += 1;
-          if (isSessionActiveRef.current && startSessionRef.current) {
-            startSessionRef.current();
-          } else {
-            setStatus("idle");
-          }
-        });
-        adaptiveTurn.markAuraSpeaking();
-
+        const backendSentenceQueue: string[] = [];
+        let ttsStarted = false;
+        let streamDone = false;
+        
         const activeTurnId = currentTurnIdRef.current;
-        
-        const noEmojis = stripEmojis(replyText);
-        const { cleanText, directions } = extractStageDirections(noEmojis);
-        
-        if (directions.length > 0) {
-          playParalinguisticCue(directions);
-        }
+        let bSentenceIndex = 0;
+        let bLastSpoken = "";
 
-        const finishTurn = () => {
-          if (currentTurnIdRef.current !== activeTurnId) return;
-          isSpeakingRef.current = false;
-          if (isSessionActiveRef.current && startSessionRef.current) {
-            startSessionRef.current();
-          } else {
-            setStatus("idle");
+        const tryStartTTS = () => {
+          // STRICT 2-SENTENCE BUFFER: Do not start TTS until we have at least 2 sentences ready
+          // (or if the stream is already finished and we have less than 2).
+          if (ttsStarted) return;
+          
+          if (!streamDone && backendSentenceQueue.length < 2) {
+              return;
           }
-        };
-        
-        if (!cleanText) {
-          finishTurn();
-        } else {
-          // CRITICAL FIX: Split the full response into sentences and drain them
-          // one-by-one. Sending the entire paragraph as a single Sarvam TTS call
-          // caused truncation — the API has text length / duration limits.
-          const backendSentenceQueue: string[] = [];
-          let tempBuffer = cleanText;
-          let regMatch: RegExpExecArray | null;
-          SENTENCE_END.lastIndex = 0;
-          let lastIdx = 0;
-          while ((regMatch = SENTENCE_END.exec(tempBuffer)) !== null) {
-            backendSentenceQueue.push(regMatch[0].trim());
-            lastIdx = regMatch.index + regMatch[0].length;
-          }
-          // Flush any remainder that doesn't end with punctuation
-          const remainder = tempBuffer.slice(lastIdx).trim();
-          if (remainder) {
-            backendSentenceQueue.push(remainder);
-          }
+          
+          ttsStarted = true;
+          setStatus("speaking");
 
-          console.log(`[Sarvam] 📝 Backend response split into ${backendSentenceQueue.length} sentence(s)`);
-
-          let bSentenceIndex = 0;
-          let bLastSpoken = "";
+          startBargeInMonitor(() => {
+            adaptiveTurn.registerFalseDetection();
+            stopSpeech();
+            isSpeakingRef.current = false;
+            fetchAbortRef.current?.abort();
+            currentTurnIdRef.current += 1;
+            if (isSessionActiveRef.current && startSessionRef.current) {
+              startSessionRef.current();
+            } else {
+              setStatus("idle");
+            }
+          });
+          adaptiveTurn.markAuraSpeaking();
 
           const drainBackendQueue = () => {
             if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK
 
             const next = backendSentenceQueue.shift();
             if (!next) {
-              // All sentences spoken
-              finishTurn();
+              if (streamDone) {
+                isSpeakingRef.current = false;
+                if (isSessionActiveRef.current && startSessionRef.current) {
+                  startSessionRef.current();
+                } else {
+                  setStatus("idle");
+                }
+              } else {
+                setTimeout(drainBackendQueue, 50);
+              }
               return;
             }
 
-            const { cleanText: segClean, directions: segDirs } = extractStageDirections(stripEmojis(next));
-            if (segDirs.length > 0) playParalinguisticCue(segDirs);
+            const noEmojis = stripEmojis(next);
+            const { cleanText, directions } = extractStageDirections(noEmojis);
+            if (directions.length > 0) playParalinguisticCue(directions);
 
-            if (!segClean) {
+            if (!cleanText) {
               drainBackendQueue(); // Skip empty segments
               return;
             }
@@ -863,10 +845,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               const lastAnalysis = behavior.lastAnalysisRef.current;
               const ctx = {
                 currentSentence: bLastSpoken,
-                nextSentence: segClean,
+                nextSentence: cleanText,
                 sentenceIndex: bSentenceIndex,
-                totalSentences: bSentenceIndex + backendSentenceQueue.length + 1,
-                isStreamingDone: true,
+                totalSentences: streamDone ? bSentenceIndex + backendSentenceQueue.length + 1 : undefined,
+                isStreamingDone: streamDone,
                 emotionalState: lastAnalysis ? {
                   tension: lastAnalysis.tension || 0,
                   trust: lastAnalysis.trust || 0.5,
@@ -877,23 +859,86 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               const pause = conversationalPauses.getPause(ctx);
               setTimeout(() => {
                 if (currentTurnIdRef.current !== activeTurnId) return;
-                bLastSpoken = segClean;
+                bLastSpoken = cleanText;
                 bSentenceIndex++;
-                speakChunk(segClean, lang, activeTurnId, drainBackendQueue);
+                speakChunk(cleanText, lang, activeTurnId, drainBackendQueue);
               }, pause.durationMs);
               return;
             }
 
-            bLastSpoken = segClean;
+            bLastSpoken = cleanText;
             bSentenceIndex++;
-            speakChunk(segClean, lang, activeTurnId, drainBackendQueue);
+            speakChunk(cleanText, lang, activeTurnId, drainBackendQueue);
           };
           drainBackendQueue();
+        };
+
+        setIsThinking(false);
+
+        let sseBuffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            if (textBuffer.trim().length > 0) {
+              backendSentenceQueue.push(textBuffer.trim());
+              textBuffer = "";
+            }
+            streamDone = true;
+            pushConversationTrace("LLM_RESPONSE_COMPLETE");
+            tryStartTTS();
+            break;
+          }
+
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n\n');
+          sseBuffer = lines.pop() ?? ""; // Keep the last incomplete chunk
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.event === "metadata") {
+                  // Metadata received instantly - update UI state
+                  connectionState.updateState({ active_llm: data.active_llm || "openrouter" });
+                } 
+                else if (data.event === "text_chunk") {
+                  if (!firstTokenReceived) {
+                    firstTokenReceived = true;
+                    connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
+                  }
+                  
+                  const chunkText = data.text;
+                  textBuffer += chunkText;
+                  fullResponse += chunkText;
+                  setWords(fullResponse);
+                  
+                  const match = TERMINAL_PUNCTUATION.exec(textBuffer);
+                  if (match) {
+                    const splitIndex = match.index + match[0].length;
+                    const sentence = textBuffer.substring(0, splitIndex);
+                    textBuffer = textBuffer.substring(splitIndex);
+                    backendSentenceQueue.push(sentence.trim());
+                    tryStartTTS();
+                  }
+                }
+                else if (data.event === "error") {
+                  throw new Error(data.error);
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete lines
+              }
+            }
+          }
         }
 
-        addMessages([{ role: "assistant", content: replyText }]);
-        transcript_.addTurn(replyText, false);
-        return;
+        if (fullResponse) {
+          addMessages([{ role: "assistant", content: fullResponse }]);
+          transcript_.addTurn(fullResponse, false);
+          return;
+        } else {
+           throw new Error("Empty response from stream");
+        }
       } catch (backendError: any) {
         if (backendError.name === 'AbortError') {
           console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
