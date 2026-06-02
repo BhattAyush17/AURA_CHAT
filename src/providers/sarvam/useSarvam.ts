@@ -667,7 +667,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
-    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "", isHiddenPrompt: boolean = false) => {
       // ── Bulletproof cleanup for any turn entry (voice or text) ──
       stopSpeech();
       stopRecognition();
@@ -679,8 +679,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       setWords("AURA is perceiving...");
 
       // Record in canonical transcript
-      transcript_.addTurn(userText, true);
-      transcript_.turnCountRef.current += 1;
+      if (!isHiddenPrompt) {
+        transcript_.addTurn(userText, true);
+        transcript_.turnCountRef.current += 1;
+      }
 
       // Extract emotional state from the last analysis (if available) for memory retrieval
       const lastAnalysis = behavior.lastAnalysisRef.current;
@@ -706,7 +708,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         ...messagesRef.current,
         { role: "user", content: audioContextXML + userText },
       ];
-      addMessages([{ role: "user", content: userText }]);
+      if (!isHiddenPrompt) {
+        addMessages([{ role: "user", content: userText }]);
+      }
 
       // Try Backend /chat first (Phase 2 Full Request Cycle)
       try {
@@ -1163,7 +1167,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   );
 
   // ── Start session ─────────────────────────────────────────────────
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (isUserInitiated = false) => {
     pushConversationTrace("SESSION_STARTED");
     const key = getOpenRouterKey();
     if (!key || isInactive) {
@@ -1194,8 +1198,26 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       storageManager.loadSeed(),
     ]);
     seedRef.current = seedData ? seedData.seed : undefined;
-
     const lang = localStorage.getItem("aura_voice_language") || "en-US";
+
+    if (isUserInitiated) {
+      if (messagesRef.current.length === 0) {
+        console.log("[AURA] Cold start greeting triggered.");
+        const greetingText = "Hey, I'm AURA. What's your mind wandering through today?";
+        addMessages([{ role: "assistant", content: greetingText }]);
+        transcript_.addTurn(greetingText, false);
+        speakChunk(greetingText, () => {
+          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current(false);
+        });
+        return; 
+      } else {
+        console.log("[AURA] Warm start greeting triggered.");
+        const warmPrompt = "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
+        processTurn(warmPrompt, key, lang, undefined, true);
+        return;
+      }
+    }
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 

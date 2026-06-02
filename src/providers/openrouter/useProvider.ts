@@ -673,7 +673,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
-    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "") => {
+    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "", isHiddenPrompt: boolean = false) => {
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
@@ -717,8 +717,10 @@ export function useOpenRouter(mode: string = "adaptive") {
       }, 1000));
 
       // Record in canonical transcript
-      transcript_.addTurn(userText, true);
-      transcript_.turnCountRef.current += 1;
+      if (!isHiddenPrompt) {
+        transcript_.addTurn(userText, true);
+        transcript_.turnCountRef.current += 1;
+      }
 
       // Extract emotional state from the last analysis (if available) for memory retrieval
       const lastAnalysis = behavior.lastAnalysisRef.current;
@@ -744,7 +746,9 @@ export function useOpenRouter(mode: string = "adaptive") {
         ...messagesRef.current,
         { role: "user", content: audioContextXML + userText },
       ];
-      addMessages([{ role: "user", content: userText }]);
+      if (!isHiddenPrompt) {
+        addMessages([{ role: "user", content: userText }]);
+      }
 
       // Try Backend SSE Stream first (Phase 2 Full Request Cycle)
       try {
@@ -1271,7 +1275,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   );
 
   // ── Start session ─────────────────────────────────────────────────
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (isUserInitiated = false) => {
     pushConversationTrace("SESSION_STARTED");
     const key = getOpenRouterKey();
     if (!key || isInactive) {
@@ -1299,8 +1303,26 @@ export function useOpenRouter(mode: string = "adaptive") {
       storageManager.loadSeed(),
     ]);
     seedRef.current = seedData ? seedData.seed : undefined;
-
     const lang = localStorage.getItem("aura_voice_language") || "en-US";
+
+    if (isUserInitiated) {
+      if (messagesRef.current.length === 0) {
+        console.log("[AURA] Cold start greeting triggered.");
+        const greetingText = "Hey, I'm AURA. What's your mind wandering through today?";
+        addMessages([{ role: "assistant", content: greetingText }]);
+        transcript_.addTurn(greetingText, false);
+        speakChunk(greetingText, lang, "normal", () => {
+          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current(false);
+        });
+        return; 
+      } else {
+        console.log("[AURA] Warm start greeting triggered.");
+        const warmPrompt = "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
+        processTurn(warmPrompt, key, lang, undefined, true);
+        return;
+      }
+    }
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 

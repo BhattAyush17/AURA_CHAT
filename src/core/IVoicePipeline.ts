@@ -19,7 +19,7 @@ export interface IVoicePipeline {
   words?: string;
 
   // Session Controls
-  startSession: () => Promise<void> | void;
+  startSession: (isUserInitiated?: boolean) => Promise<void> | void;
   endSession: () => Promise<void> | void;
   updateConfig?: (newVoice?: string, newMode?: string) => void;
 
