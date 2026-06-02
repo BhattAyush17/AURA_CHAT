@@ -226,7 +226,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (matchesAny(text, THINKING_PATTERNS)) {
     return {
       category: "THINKING",
-      durationMs: durationInRange(400, 700),
+      durationMs: durationInRange(200, 350),
       listenForInterruption: false,
       reason: "Thinking/reflection marker detected",
     };
@@ -237,7 +237,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
     if (matchesAny(text, GENUINE_QUESTION_PATTERNS)) {
       return {
         category: "INTERJECTION_WINDOW",
-        durationMs: durationInRange(600, 900),
+        durationMs: durationInRange(300, 450),
         listenForInterruption: true,
         reason: "Genuine question inviting user response",
       };
@@ -248,7 +248,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (matchesAny(text, SOFT_INVITATION_PATTERNS)) {
     return {
       category: "INTERJECTION_WINDOW",
-      durationMs: durationInRange(500, 800),
+      durationMs: durationInRange(250, 400),
       listenForInterruption: true,
       reason: "Soft invitation for user input",
     };
@@ -260,7 +260,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
     if (isLastSentence || totalSentences === undefined) {
       return {
         category: "INTERJECTION_WINDOW",
-        durationMs: durationInRange(600, 900),
+        durationMs: durationInRange(300, 450),
         listenForInterruption: true,
         reason: "Final sentence of response — natural turn ending",
       };
@@ -273,7 +273,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
     const emotionBoost = emotionalState && emotionalState.tension > 0.5 ? 100 : 0;
     return {
       category: "EMPHASIS",
-      durationMs: durationInRange(300, 500) + emotionBoost,
+      durationMs: durationInRange(150, 250) + emotionBoost,
       listenForInterruption: false,
       reason: "Emphasis-worthy statement",
     };
@@ -283,7 +283,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (matchesAny(text, TOPIC_TRANSITION_PATTERNS)) {
     return {
       category: "EMPHASIS",
-      durationMs: durationInRange(300, 400),
+      durationMs: durationInRange(150, 200),
       listenForInterruption: false,
       reason: "Topic transition",
     };
@@ -296,14 +296,14 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
     if (wordCount <= 6) {
       return {
         category: "THINKING",
-        durationMs: durationInRange(300, 600),
+        durationMs: durationInRange(150, 300),
         listenForInterruption: false,
         reason: "Short ellipsis → thinking trail-off",
       };
     }
     return {
       category: "EMPHASIS",
-      durationMs: durationInRange(200, 400),
+      durationMs: durationInRange(100, 200),
       listenForInterruption: false,
       reason: "Ellipsis → trailing emphasis",
     };
@@ -313,7 +313,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (punct.trailingPunctuation === "exclamation") {
     return {
       category: "EMPHASIS",
-      durationMs: durationInRange(150, 250),
+      durationMs: durationInRange(75, 125),
       listenForInterruption: false,
       reason: "Exclamation — emotional punctuation",
     };
@@ -323,7 +323,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (punct.trailingPunctuation === "question" && matchesAny(text, RHETORICAL_PATTERNS)) {
     return {
       category: "CONTINUE",
-      durationMs: durationInRange(150, 250),
+      durationMs: durationInRange(75, 125),
       listenForInterruption: false,
       reason: "Rhetorical question — no response expected",
     };
@@ -333,7 +333,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (nextSentence && matchesAny(nextSentence, CONTINUATION_SIGNALS)) {
     return {
       category: "CONTINUE",
-      durationMs: durationInRange(50, 150),
+      durationMs: durationInRange(25, 75),
       listenForInterruption: false,
       reason: "Next sentence continues same thought",
     };
@@ -344,7 +344,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   if (punct.trailingPunctuation === "comma") {
     return {
       category: "CONTINUE",
-      durationMs: durationInRange(10, 50),
+      durationMs: durationInRange(5, 25),
       listenForInterruption: false,
       reason: "Comma — minimal pause",
     };
@@ -353,7 +353,7 @@ export function classifySentencePause(ctx: ConversationalContext): PauseClassifi
   // Standard sentence boundary
   return {
     category: "CONTINUE",
-    durationMs: durationInRange(50, 150),
+    durationMs: durationInRange(25, 75),
     listenForInterruption: false,
     reason: "Default sentence boundary",
   };
@@ -384,7 +384,7 @@ export function useConversationalPauses() {
         unansweredWindowsRef.current >= 3
       ) {
         classification.category = "EMPHASIS";
-        classification.durationMs = Math.min(classification.durationMs, 800);
+        classification.durationMs = Math.min(classification.durationMs, 400);
         classification.listenForInterruption = false;
         classification.reason += " (downgraded: 3+ unanswered windows)";
       }

@@ -177,7 +177,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     wasInterruptedRef.current = true;
   }, [audio, ws]);
 
-  useBargeIn(audio.inputAnalyserRef, audio.isSpeaking, handleNativeInterruption);
+  useBargeIn(audio.inputAnalyserRef, audio.isSpeakingRef, handleNativeInterruption);
 
   // Provide bargeIn interface for behavior analysis compatibility
   const bargeIn = useMemo(() => ({

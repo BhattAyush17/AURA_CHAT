@@ -1,27 +1,21 @@
 import { useEffect, useRef } from 'react';
 
 // Base thresholds
-const BASE_THRESHOLD = 0.025; 
+const BASE_THRESHOLD = 0.04; 
 // When TTS is active, speaker bleed happens. Raise the threshold to require a louder human interruption.
-const ACTIVE_TTS_THRESHOLD = 0.065; 
-const SUSTAINED_FRAMES = 8; 
+const ACTIVE_TTS_THRESHOLD = 0.15; 
+const SUSTAINED_FRAMES = 15; 
 
 export function useBargeIn(
     analyserRef: React.MutableRefObject<AnalyserNode | null>,
-    isAuraSpeaking: boolean,
+    isSpeakingRef: React.MutableRefObject<boolean>,
     onInterrupt: () => void,
     sentenceQueue?: React.MutableRefObject<string[]>,
     isInInterjectionWindow?: () => boolean
 ) {
     const loudFrameCount = useRef(0);
     const speakingStartTime = useRef<number>(0);
-
-    // Track exactly when AURA starts speaking to manage the grace period
-    useEffect(() => {
-        if (isAuraSpeaking) {
-            speakingStartTime.current = Date.now();
-        }
-    }, [isAuraSpeaking]);
+    const wasSpeakingRef = useRef<boolean>(false);
 
     useEffect(() => {
         let animationFrameId: number;
@@ -39,16 +33,24 @@ export function useBargeIn(
             }
             const rms = Math.sqrt(sumSquares / bufferLength);
 
-            // 1. The Grace Period: Ignore all mic input for the first 400ms of TTS playback.
+            const currentlySpeaking = isSpeakingRef.current;
+            
+            // Track exactly when AURA starts speaking EACH SENTENCE to manage the grace period
+            if (currentlySpeaking && !wasSpeakingRef.current) {
+                speakingStartTime.current = Date.now();
+            }
+            wasSpeakingRef.current = currentlySpeaking;
+
+            // 1. The Grace Period: Ignore all mic input for the first 400ms of each TTS playback chunk.
             // This prevents the initial mechanical "pop" of the speaker activating from triggering a false barge-in.
-            const isGracePeriod = isAuraSpeaking && (Date.now() - speakingStartTime.current < 400);
+            const isGracePeriod = currentlySpeaking && (Date.now() - speakingStartTime.current < 400);
 
             // 2. Dynamic Thresholding: Use a higher threshold if AURA is currently making noise
             // If we are in an interjection window (pause), AURA is silent, so we can use the base threshold
             const interjection = isInInterjectionWindow ? isInInterjectionWindow() : false;
-            const currentThreshold = (isAuraSpeaking && !interjection) ? ACTIVE_TTS_THRESHOLD : BASE_THRESHOLD;
+            const currentThreshold = (currentlySpeaking && !interjection) ? ACTIVE_TTS_THRESHOLD : BASE_THRESHOLD;
 
-            const shouldListen = isAuraSpeaking || interjection;
+            const shouldListen = currentlySpeaking || interjection;
 
             if (shouldListen && !isGracePeriod && rms > currentThreshold) {
                 loudFrameCount.current += 1;
@@ -77,5 +79,5 @@ export function useBargeIn(
         return () => {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
         };
-    }, [isAuraSpeaking, sentenceQueue, onInterrupt, analyserRef, isInInterjectionWindow]);
+    }, [isSpeakingRef, sentenceQueue, onInterrupt, analyserRef, isInInterjectionWindow]);
 }

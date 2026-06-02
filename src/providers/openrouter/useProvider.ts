@@ -641,7 +641,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     }
   }, [setStatus, adaptiveTurn, conversationalPauses, addMessages, transcript_]);
 
-  useBargeIn(micAnalyserRef, status === "speaking", handleInterruption, sentenceQueueRef, conversationalPauses.isInInterjectionWindow);
+  useBargeIn(micAnalyserRef, isSpeakingRef, handleInterruption, sentenceQueueRef, conversationalPauses.isInInterjectionWindow);
 
   // ── STT helpers ──────────────────────────────────────────────────
   const stopRecognition = () => {

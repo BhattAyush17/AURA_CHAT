@@ -591,20 +591,37 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     if (!analyser) return;
     const activeTurnId = currentTurnIdRef.current;
     let loudFrameCount = 0;
+    
+    let speakingStartTime = 0;
+    let wasSpeaking = false;
 
     const buf = new Float32Array(analyser.fftSize);
     const check = () => {
       if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK: stop if turn advanced
+      if (statusRef.current !== "speaking") return; // stop polling once TTS completes its entire paragraph naturally
       
+      const currentlySpeaking = isSpeakingRef.current;
+      if (currentlySpeaking && !wasSpeaking) {
+        speakingStartTime = performance.now();
+      }
+      wasSpeaking = currentlySpeaking;
+
+      const isGracePeriod = currentlySpeaking && (performance.now() - speakingStartTime < 400);
       const interjection = conversationalPauses.isInInterjectionWindow();
-      if (!isSpeakingRef.current && !interjection) return; // stop polling once TTS ends naturally
+      const shouldListen = currentlySpeaking || interjection;
+
+      if (!shouldListen || isGracePeriod) {
+        loudFrameCount = 0;
+        bargeInFrameRef.current = requestAnimationFrame(check);
+        return;
+      }
       
       analyser.getFloatTimeDomainData(buf);
       let rms = 0;
       for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
       rms = Math.sqrt(rms / buf.length);
       
-      const currentThreshold = (!interjection && isSpeakingRef.current) ? BARGE_IN_THRESHOLD : BASE_THRESHOLD;
+      const currentThreshold = (!interjection && currentlySpeaking) ? BARGE_IN_THRESHOLD : BASE_THRESHOLD;
 
       if (rms > currentThreshold) {
         loudFrameCount += 1;
