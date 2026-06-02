@@ -1455,6 +1455,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     };
 
     recognition.onresult = (event: any) => {
+      if (isSpeakingRef.current) return; // Ignore STT while TTS is playing to prevent echo
       let interim = "";
       let isFinal = false;
       let currentFinal = "";
