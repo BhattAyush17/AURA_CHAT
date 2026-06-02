@@ -112,7 +112,9 @@ export const FALLBACK_MODELS = [
 const SENTENCE_END = /[^.!?।\n]+[.!?।\n]+/g;
 
 // Barge-in: fire if microphone RMS crosses this threshold while AURA speaks
-const BARGE_IN_THRESHOLD = 0.018;
+const BARGE_IN_THRESHOLD = 0.065;
+const BASE_THRESHOLD = 0.025;
+const SUSTAINED_FRAMES = 8;
 
 // Downsample PCM buffer to a target rate (e.g. 16kHz)
 function downsampleBuffer(
@@ -264,9 +266,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const fetchAbortRef = useRef<AbortController | null>(null);
   const currentTurnIdRef = useRef<number>(0);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const activeGainRef = useRef<GainNode | null>(null);
   const fallbackTranscriptRef = useRef<string>("");
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const pcmSamplesRef = useRef<Float32Array[]>([]);
+  const rollingBufferRef = useRef<Float32Array[]>([]);
   const isRecordingRef = useRef<boolean>(false);
   const recordingStartTimeRef = useRef<number>(0);
 
@@ -336,6 +340,23 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Chain the filters: Source -> HPF -> LPF -> Analyser
       src.connect(highPass).connect(lowPass).connect(analyser);
 
+      const sp = ctx.createScriptProcessor(4096, 1, 1);
+      sp.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const clone = new Float32Array(input);
+        if (isRecordingRef.current) {
+          pcmSamplesRef.current.push(clone);
+        } else {
+          rollingBufferRef.current.push(clone);
+          if (rollingBufferRef.current.length > 20) { // Keep ~1.5s of pre-buffer
+            rollingBufferRef.current.shift();
+          }
+        }
+      };
+      analyser.connect(sp);
+      sp.connect(ctx.destination);
+      scriptProcessorRef.current = sp;
+
       micAnalyserRef.current = analyser;
     } catch {
       console.warn("[OpenRouter Voice] Could not open mic analyser.");
@@ -381,7 +402,26 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── TTS helpers ──────────────────────────────────────────────────
   const stopSpeech = () => {
     fetchAbortRef.current?.abort();
-    if (activeSourceRef.current) {
+    if (activeSourceRef.current && activeGainRef.current && audioCtxRef.current) {
+      try {
+        const now = audioCtxRef.current.currentTime;
+        // Audio Ducking: Ramp down volume over 150ms instead of hard cut
+        activeGainRef.current.gain.setValueAtTime(activeGainRef.current.gain.value, now);
+        activeGainRef.current.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        activeSourceRef.current.stop(now + 0.15);
+      } catch {}
+      // We don't disconnect immediately, let the ducking finish
+      setTimeout(() => {
+        if (activeSourceRef.current) {
+          activeSourceRef.current.disconnect();
+          activeSourceRef.current = null;
+        }
+        if (activeGainRef.current) {
+          activeGainRef.current.disconnect();
+          activeGainRef.current = null;
+        }
+      }, 200);
+    } else if (activeSourceRef.current) {
       try {
         activeSourceRef.current.stop();
       } catch {}
@@ -401,11 +441,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         onDone?.();
         return;
       }
-      // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
-      // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
+      // Clean text to drastically reduce native TTS punctuation pauses
+      // We replace all commas and terminal punctuation with spaces to force continuous speech flow.
       const cleanText = text
-        .replace(/,\s*/g, "; ")
-        .replace(/[.!?।]$/, "")
+        .replace(/[,;:]\s*/g, " ")
+        .replace(/[.!?।]/g, " ")
         .trim();
 
       const utterance = new SpeechSynthesisUtterance(cleanText || text);
@@ -431,18 +471,29 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         connectionState.updateState({ active_voice_out: "webspeech" });
       };
       utterance.onend = () => {
+        if (typeof window !== "undefined") {
+          (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
+        }
         pushConversationTrace("PLAYBACK_END");
         const ttsLatency = performance.now() - (utterance as any)._startTime;
         connectionState.updateLatency({ tts_ms: ttsLatency });
         onDone?.();
       };
       utterance.onerror = () => {
+        if (typeof window !== "undefined") {
+          (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
+        }
         pushConversationTrace("PLAYBACK_ERROR");
         console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
         connectionState.updateState({ active_voice: "textonly" });
         onDone?.();
       };
       pushConversationTrace("TTS_READY", { provider: "webspeech_fallback" });
+      
+      if (typeof window !== "undefined") {
+        (window as any)._utterances = (window as any)._utterances || [];
+        (window as any)._utterances.push(utterance);
+      }
       window.speechSynthesis.speak(utterance);
     },
     [setStatus],
@@ -498,18 +549,22 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         const bufferCopy = bytes.buffer.slice(0);
         const audioBuffer = await audioCtxRef.current.decodeAudioData(bufferCopy);
         const source = audioCtxRef.current.createBufferSource();
+        const gainNode = audioCtxRef.current.createGain();
         source.buffer = audioBuffer;
-        source.connect(audioCtxRef.current.destination);
+        source.connect(gainNode);
+        gainNode.connect(audioCtxRef.current.destination);
 
         source.onended = () => {
           pushConversationTrace("PLAYBACK_END");
           activeSourceRef.current = null;
+          activeGainRef.current = null;
           // R06 FIX: Clear speaking state only when audio actually finishes
           isSpeakingRef.current = false;
           onDone?.();
         };
 
         activeSourceRef.current = source;
+        activeGainRef.current = gainNode;
         // R06 FIX: Set speaking state only RIGHT BEFORE audio starts playing
         // (not before the network fetch), preventing false "speaking" UI
         isSpeakingRef.current = true;
@@ -535,6 +590,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     const analyser = micAnalyserRef.current;
     if (!analyser) return;
     const activeTurnId = currentTurnIdRef.current;
+    let loudFrameCount = 0;
 
     const buf = new Float32Array(analyser.fftSize);
     const check = () => {
@@ -548,13 +604,18 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
       rms = Math.sqrt(rms / buf.length);
       
-      const currentThreshold = (!interjection && isSpeakingRef.current) ? BARGE_IN_THRESHOLD : 0.015;
+      const currentThreshold = (!interjection && isSpeakingRef.current) ? BARGE_IN_THRESHOLD : BASE_THRESHOLD;
 
       if (rms > currentThreshold) {
-        console.log(`[Sarvam Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
-        conversationalPauses.userRespondedDuringWindow();
-        onInterrupt();
-        return;
+        loudFrameCount += 1;
+        if (loudFrameCount >= SUSTAINED_FRAMES) {
+          console.log(`[Sarvam Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
+          conversationalPauses.userRespondedDuringWindow();
+          onInterrupt();
+          return;
+        }
+      } else {
+        loudFrameCount = 0;
       }
       bargeInFrameRef.current = requestAnimationFrame(check);
     };
@@ -737,6 +798,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         transcript_.addTurn(replyText, false);
         return;
       } catch (backendError: any) {
+        if (backendError.name === 'AbortError') {
+          console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
+          return;
+        }
         console.warn("[Voice Pipeline] Backend /chat endpoint failed. Falling back to frontend direct LLM.", backendError);
       }
 
@@ -1266,32 +1331,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       pushConversationTrace("STT_STARTED");
       setStatus("listening");
       setWords("Listening...");
-      pcmSamplesRef.current = [];
+      pcmSamplesRef.current = [...rollingBufferRef.current];
+      rollingBufferRef.current = [];
       fallbackTranscriptRef.current = "";
       recordingStartTimeRef.current = Date.now();
       startTracking(micAnalyserRef.current);
-
-      const ctx = audioCtxRef.current;
-      if (ctx && micAnalyserRef.current) {
-        try {
-          if (scriptProcessorRef.current) {
-            scriptProcessorRef.current.disconnect();
-          }
-          const sp = ctx.createScriptProcessor(4096, 1, 1);
-          sp.onaudioprocess = (e) => {
-            if (isRecordingRef.current) {
-              const input = e.inputBuffer.getChannelData(0);
-              pcmSamplesRef.current.push(new Float32Array(input));
-            }
-          };
-          micAnalyserRef.current.connect(sp);
-          sp.connect(ctx.destination);
-          scriptProcessorRef.current = sp;
-          isRecordingRef.current = true;
-        } catch (err) {
-          console.warn("[Sarvam STT] Could not start WAV recording:", err);
-        }
-      }
+      isRecordingRef.current = true;
     };
 
     recognition.onresult = (event: any) => {

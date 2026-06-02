@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 // Base thresholds
-const BASE_THRESHOLD = 0.015; 
+const BASE_THRESHOLD = 0.025; 
 // When TTS is active, speaker bleed happens. Raise the threshold to require a louder human interruption.
-const ACTIVE_TTS_THRESHOLD = 0.035; 
-const SUSTAINED_FRAMES = 3; 
+const ACTIVE_TTS_THRESHOLD = 0.065; 
+const SUSTAINED_FRAMES = 8; 
 
 export function useBargeIn(
     analyserRef: React.MutableRefObject<AnalyserNode | null>,

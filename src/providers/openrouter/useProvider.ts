@@ -413,6 +413,8 @@ export function useOpenRouter(mode: string = "adaptive") {
   const sentenceQueueRef = useRef<string[]>([]);
   const thinkingTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
   const activeThinkingAudioRef = useRef<HTMLAudioElement | null>(null);
+  const spokenTextRef = useRef<string>("");
+  const wasInterruptedRef = useRef<boolean>(false);
 
   // ── Real waveform: microphone AudioAnalyser ──────────────────────
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -523,11 +525,12 @@ export function useOpenRouter(mode: string = "adaptive") {
       onDone?.();
       return;
     }
-    // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
-    // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
+    // Clean text to drastically reduce native TTS punctuation pauses
+    // We replace all commas and terminal punctuation with spaces to force
+    // continuous speech flow, relying purely on our custom setTimeout delays.
     const cleanText = text
-      .replace(/,\s*/g, "; ")
-      .replace(/[.!?।]$/, "")
+      .replace(/[,;:]\s*/g, " ")
+      .replace(/[.!?।]/g, " ")
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText || text);
@@ -588,18 +591,29 @@ export function useOpenRouter(mode: string = "adaptive") {
       connectionState.updateState({ active_voice_out: "webspeech" });
     };
     utterance.onend = () => {
+      if (typeof window !== "undefined") {
+        (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
+      }
       pushConversationTrace("PLAYBACK_END");
       const ttsLatency = performance.now() - (utterance as any)._startTime;
       connectionState.updateLatency({ tts_ms: ttsLatency });
       onDone?.();
     };
     utterance.onerror = () => {
+      if (typeof window !== "undefined") {
+        (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
+      }
       pushConversationTrace("PLAYBACK_ERROR");
       console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
       connectionState.updateState({ active_voice: "textonly" });
       onDone?.();
     };
     pushConversationTrace("TTS_READY", { provider: "webspeech" });
+    
+    if (typeof window !== "undefined") {
+      (window as any)._utterances = (window as any)._utterances || [];
+      (window as any)._utterances.push(utterance);
+    }
     window.speechSynthesis.speak(utterance);
   }, [setStatus]);
 
@@ -612,13 +626,21 @@ export function useOpenRouter(mode: string = "adaptive") {
     adaptiveTurn.registerFalseDetection();
     conversationalPauses.userRespondedDuringWindow();
     stopSpeech();
+    
+    if (spokenTextRef.current.trim().length > 0) {
+      const interruptedText = spokenTextRef.current.trim() + " - [Interrupted]";
+      addMessages([{ role: "assistant", content: interruptedText }]);
+      transcript_.addTurn(interruptedText, false);
+      wasInterruptedRef.current = true;
+    }
+    
     fetchAbortRef.current?.abort();
     if (isSessionActiveRef.current && startSessionRef.current) {
       startSessionRef.current();
     } else {
       setStatus("idle");
     }
-  }, [setStatus, adaptiveTurn, conversationalPauses]);
+  }, [setStatus, adaptiveTurn, conversationalPauses, addMessages, transcript_]);
 
   useBargeIn(micAnalyserRef, status === "speaking", handleInterruption, sentenceQueueRef, conversationalPauses.isInInterjectionWindow);
 
@@ -655,6 +677,11 @@ export function useOpenRouter(mode: string = "adaptive") {
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
+      
+      const wasInterrupted = wasInterruptedRef.current;
+      spokenTextRef.current = "";
+      wasInterruptedRef.current = false;
+      
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
@@ -818,6 +845,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                       if (!isSpeakingRef.current) return;
                       lastSpokenSentence = rawNext;
                       sentenceIndex++;
+                      spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
                       segmentSubQueue = parseSegments(rawNext);
                       drainQueue();
                   }, pause.durationMs);
@@ -826,6 +854,7 @@ export function useOpenRouter(mode: string = "adaptive") {
               
               lastSpokenSentence = rawNext;
               sentenceIndex++;
+              spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
               segmentSubQueue = parseSegments(rawNext);
               drainQueue();
             };
@@ -898,6 +927,10 @@ export function useOpenRouter(mode: string = "adaptive") {
            throw new Error("Empty response from stream");
         }
       } catch (backendError: any) {
+        if (backendError.name === 'AbortError') {
+          console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
+          return;
+        }
         console.warn("[Voice Pipeline] Backend /analyze/stream endpoint failed. Falling back to frontend direct LLM.", backendError);
       }
 
@@ -990,6 +1023,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         basePrompt,
         liveContext,
         `Respond natively in the user's language (locale: ${lang}).`,
+        ...(wasInterrupted ? ["[SYSTEM NOTE]: The user just interrupted you mid-sentence. Acknowledge the interruption gracefully, listen to what they just said, and adapt your response."] : []),
         ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
         ...(modulationDirective ? [modulationDirective] : []),
       ].join("\n");
