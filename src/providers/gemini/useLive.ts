@@ -486,6 +486,7 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
     }
 
     try {
+      transcript_.reset(); // FIX: Reset transcript before connect so greeting check works
       const seedData = await storageManager.loadSeed();
       const seedBlock = seedData ? seedData.seed : undefined;
 
@@ -600,9 +601,17 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
                   tone: fc.args.detected_tone,
                   intent: fc.args.perceived_intent,
                 });
-                return { id: fc.id, name: fc.name, response: { result: "Logged" } };
+                return { id: fc.id, name: fc.name, response: { result: "Updated" } };
               }
-              return { id: fc.id, name: fc.name, response: { error: "Unknown" } };
+              if (fc.name === "playYouTubeMusic") {
+                const query = fc.args.query;
+                console.log(`[AURA] 🎵 Playing YouTube Music: ${query}`);
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
+                }
+                return { id: fc.id, name: fc.name, response: { result: `Playing "${query}" on YouTube now.` } };
+              }
+              return { id: fc.id, name: fc.name, response: { result: "OK" } };
             });
           },
           onTurnComplete: () => {
@@ -675,7 +684,6 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
       await prompts.warmL2Cache();
 
       sessionIdRef.current = initSessionId();
-      transcript_.reset();
 
       // Fire session registration async
       fetch(

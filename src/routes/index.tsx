@@ -29,6 +29,7 @@ function AuraExperience() {
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [memoryWarning, setMemoryWarning] = useState<string | null>(null);
+  const [youtubeQuery, setYoutubeQuery] = useState<string | null>(null);
 
   // Settings modal indicator state
   const [dbConnected, setDbConnected] = useState(false);
@@ -66,6 +67,12 @@ function AuraExperience() {
       if (savedBrain === "sarvam") setSelectedVoice("Priya");
     }
     setHasOpenRouterKey(!!getOpenRouterKey());
+
+    const handlePlayMusic = (e: any) => {
+      setYoutubeQuery(e.detail);
+    };
+    window.addEventListener("playYouTubeMusic", handlePlayMusic);
+    return () => window.removeEventListener("playYouTubeMusic", handlePlayMusic);
   }, []);
 
   // Reset to a sensible default voice when switching brains
@@ -508,6 +515,40 @@ function AuraExperience() {
                             : brainModel.replace(":free", "").split("/").pop()}
                     </span>
                   </div>
+                </div>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {/* YouTube Player */}
+        <AnimatePresence mode="wait">
+          {youtubeQuery && (
+            <motion.section
+              initial={{ opacity: 0, y: 10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: 10, height: 0 }}
+              className="mt-8 w-full max-w-lg"
+            >
+              <div className="flex flex-col gap-2 rounded-[1.5rem] border border-border/50 p-4 bg-muted/5 backdrop-blur-sm relative overflow-hidden">
+                <div className="flex justify-between items-center mb-2 px-2">
+                  <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60 flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                    Now Playing
+                  </span>
+                  <button onClick={() => setYoutubeQuery(null)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="w-full aspect-video rounded-xl overflow-hidden shadow-lg border border-border/20">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeQuery)}&autoplay=1`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               </div>
             </motion.section>

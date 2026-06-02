@@ -304,6 +304,17 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                         required: ["user_words", "detected_tone", "perceived_intent"],
                       },
                     },
+                    {
+                      name: "playYouTubeMusic",
+                      description: "Plays a requested song or music on YouTube instantly.",
+                      parameters: {
+                        type: Type.OBJECT,
+                        properties: {
+                          query: { type: Type.STRING, description: "The song name and artist to search and play" },
+                        },
+                        required: ["query"],
+                      },
+                    },
                   ],
                 },
               ],
