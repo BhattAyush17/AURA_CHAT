@@ -46,7 +46,14 @@ const extractStageDirections = (text: string) => {
     const cleanText = text.replace(/\[(.*?)\]|<(.*?)>/g, (match, p1, p2) => {
         const val = p1 || p2;
         if (val) {
-            directions.push(val.trim().toLowerCase());
+            if (val.startsWith("PLAY_YOUTUBE:")) {
+                const query = val.replace("PLAY_YOUTUBE:", "").trim();
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
+                }
+            } else {
+                directions.push(val.trim().toLowerCase());
+            }
         }
         return ''; 
     });

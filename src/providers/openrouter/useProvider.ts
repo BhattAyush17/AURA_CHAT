@@ -76,6 +76,15 @@ export function parseSegments(text: string): SpeechSegment[] {
     const now = performance.now();
     const canAct = (now - lastActionTime) > ACTION_COOLDOWN;
     
+    if (actionText.startsWith("PLAY_YOUTUBE:")) {
+      const query = actionText.replace("PLAY_YOUTUBE:", "").trim();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
+      }
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
     let style: SegmentStyle = "aside";
     if (actionLower.includes("laugh") || actionLower.includes("chuckle") || actionLower.includes("giggle")) style = "laugh";
     else if (actionLower.includes("sigh")) style = "sigh";
