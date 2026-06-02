@@ -71,8 +71,15 @@ function AuraExperience() {
     const handlePlayMusic = (e: any) => {
       setYoutubeQuery(e.detail);
     };
+    const handleStopMusic = () => {
+      setYoutubeQuery(null);
+    };
     window.addEventListener("playYouTubeMusic", handlePlayMusic);
-    return () => window.removeEventListener("playYouTubeMusic", handlePlayMusic);
+    window.addEventListener("stopYouTubeMusic", handleStopMusic);
+    return () => {
+      window.removeEventListener("playYouTubeMusic", handlePlayMusic);
+      window.removeEventListener("stopYouTubeMusic", handleStopMusic);
+    };
   }, []);
 
   // Reset to a sensible default voice when switching brains

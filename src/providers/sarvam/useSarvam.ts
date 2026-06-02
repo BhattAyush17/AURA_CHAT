@@ -51,6 +51,10 @@ const extractStageDirections = (text: string) => {
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
                 }
+            } else if (val === "STOP_YOUTUBE") {
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("stopYouTubeMusic"));
+                }
             } else {
                 directions.push(val.trim().toLowerCase());
             }

@@ -315,6 +315,10 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                         required: ["query"],
                       },
                     },
+                    {
+                      name: "stopYouTubeMusic",
+                      description: "Stops or closes the currently playing YouTube music.",
+                    },
                   ],
                 },
               ],

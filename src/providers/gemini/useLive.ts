@@ -611,6 +611,13 @@ export function useGeminiLive(mode: string = "adaptive", voice: string = "Zephyr
                 }
                 return { id: fc.id, name: fc.name, response: { result: `Playing "${query}" on YouTube now.` } };
               }
+              if (fc.name === "stopYouTubeMusic") {
+                console.log(`[AURA] 🎵 Stopping YouTube Music`);
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("stopYouTubeMusic"));
+                }
+                return { id: fc.id, name: fc.name, response: { result: "Music stopped." } };
+              }
               return { id: fc.id, name: fc.name, response: { result: "OK" } };
             });
           },

@@ -84,6 +84,14 @@ export function parseSegments(text: string): SpeechSegment[] {
       lastIndex = regex.lastIndex;
       continue;
     }
+    
+    if (actionText === "STOP_YOUTUBE") {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("stopYouTubeMusic"));
+      }
+      lastIndex = regex.lastIndex;
+      continue;
+    }
 
     let style: SegmentStyle = "aside";
     if (actionLower.includes("laugh") || actionLower.includes("chuckle") || actionLower.includes("giggle")) style = "laugh";
