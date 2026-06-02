@@ -1453,3 +1453,25 @@ async def turn_detect(request: Request, body: TurnDetectPayload):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)
+
+# ═══════════════════════════════════════════════════════════════════
+# YTMUSIC INTEGRATION
+# ═══════════════════════════════════════════════════════════════════
+class YTMusicSearchResponse(BaseModel):
+    videoId: Optional[str]
+
+@app.get("/api/ytmusic/search", response_model=YTMusicSearchResponse)
+async def search_ytmusic(query: str, request: Request, response: Response):
+    client_ip = request.client.host if request.client else "unknown"
+    await apply_rate_limit(f"ytmusic:{client_ip}", 30, response)
+    try:
+        from ytmusicapi import YTMusic
+        ytmusic = YTMusic()
+        # Search explicitly for songs to get official audio tracks (which are rarely embed-blocked)
+        results = ytmusic.search(query, filter="songs")
+        if results and len(results) > 0:
+            return YTMusicSearchResponse(videoId=results[0].get("videoId"))
+        return YTMusicSearchResponse(videoId=None)
+    except Exception as e:
+        log.error("ytmusic_search_failed", error=str(e))
+        return YTMusicSearchResponse(videoId=None)

@@ -68,8 +68,20 @@ function AuraExperience() {
     }
     setHasOpenRouterKey(!!getOpenRouterKey());
 
-    const handlePlayMusic = (e: any) => {
-      setYoutubeQuery(e.detail);
+    const handlePlayMusic = async (e: any) => {
+      const query = e.detail;
+      try {
+        // Attempt to get official track videoId via ytmusicapi backend
+        const res = await fetch(`${ENDPOINTS.analyzeStream.replace('/analyze/stream', '/ytmusic/search')}?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.videoId) {
+          setYoutubeQuery(data.videoId);
+        } else {
+          setYoutubeQuery(query);
+        }
+      } catch (err) {
+        setYoutubeQuery(query);
+      }
     };
     const handleStopMusic = () => {
       setYoutubeQuery(null);
@@ -551,7 +563,11 @@ function AuraExperience() {
                   <iframe
                     width="100%"
                     height="100%"
-                    src={`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeQuery)}&autoplay=1`}
+                    src={
+                      youtubeQuery.length === 11 && !youtubeQuery.includes(" ")
+                        ? `https://www.youtube.com/embed/${youtubeQuery}?autoplay=1`
+                        : `https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(youtubeQuery)}&autoplay=1`
+                    }
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                     className="w-full h-full object-cover"
