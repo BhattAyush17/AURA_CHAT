@@ -112,9 +112,9 @@ export const FALLBACK_MODELS = [
 const SENTENCE_END = /[^.!?।\n]+[.!?।\n]+/g;
 
 // Barge-in: fire if microphone RMS crosses this threshold while AURA speaks
-const BARGE_IN_THRESHOLD = 0.065;
-const BASE_THRESHOLD = 0.025;
-const SUSTAINED_FRAMES = 8;
+const BARGE_IN_THRESHOLD = 0.15;
+const BASE_THRESHOLD = 0.04;
+const SUSTAINED_FRAMES = 15;
 
 // Downsample PCM buffer to a target rate (e.g. 16kHz)
 function downsampleBuffer(
@@ -441,11 +441,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         onDone?.();
         return;
       }
-      // Clean text to drastically reduce native TTS punctuation pauses
-      // We replace all commas and terminal punctuation with spaces to force continuous speech flow.
+      // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
+      // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
       const cleanText = text
-        .replace(/[,;:]\s*/g, " ")
-        .replace(/[.!?।]/g, " ")
+        .replace(/,\s*/g, "; ")
+        .replace(/[.!?।]$/, "")
         .trim();
 
       const utterance = new SpeechSynthesisUtterance(cleanText || text);
@@ -775,27 +775,92 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         if (directions.length > 0) {
           playParalinguisticCue(directions);
         }
-        
-        if (!cleanText) {
+
+        const finishTurn = () => {
+          if (currentTurnIdRef.current !== activeTurnId) return;
           isSpeakingRef.current = false;
-          currentTurnIdRef.current += 1;
           if (isSessionActiveRef.current && startSessionRef.current) {
             startSessionRef.current();
           } else {
             setStatus("idle");
           }
+        };
+        
+        if (!cleanText) {
+          finishTurn();
         } else {
-          speakChunk(cleanText, lang, activeTurnId, () => {
-            // PREEMPTION CHECK: If a new turn has started, do not restart session state
-            if (currentTurnIdRef.current !== activeTurnId) return;
+          // CRITICAL FIX: Split the full response into sentences and drain them
+          // one-by-one. Sending the entire paragraph as a single Sarvam TTS call
+          // caused truncation — the API has text length / duration limits.
+          const backendSentenceQueue: string[] = [];
+          let tempBuffer = cleanText;
+          let regMatch: RegExpExecArray | null;
+          SENTENCE_END.lastIndex = 0;
+          let lastIdx = 0;
+          while ((regMatch = SENTENCE_END.exec(tempBuffer)) !== null) {
+            backendSentenceQueue.push(regMatch[0].trim());
+            lastIdx = regMatch.index + regMatch[0].length;
+          }
+          // Flush any remainder that doesn't end with punctuation
+          const remainder = tempBuffer.slice(lastIdx).trim();
+          if (remainder) {
+            backendSentenceQueue.push(remainder);
+          }
 
-            isSpeakingRef.current = false;
-            if (isSessionActiveRef.current && startSessionRef.current) {
-              startSessionRef.current();
-            } else {
-              setStatus("idle");
+          console.log(`[Sarvam] 📝 Backend response split into ${backendSentenceQueue.length} sentence(s)`);
+
+          let bSentenceIndex = 0;
+          let bLastSpoken = "";
+
+          const drainBackendQueue = () => {
+            if (currentTurnIdRef.current !== activeTurnId) return; // PREEMPTION CHECK
+
+            const next = backendSentenceQueue.shift();
+            if (!next) {
+              // All sentences spoken
+              finishTurn();
+              return;
             }
-          });
+
+            const { cleanText: segClean, directions: segDirs } = extractStageDirections(stripEmojis(next));
+            if (segDirs.length > 0) playParalinguisticCue(segDirs);
+
+            if (!segClean) {
+              drainBackendQueue(); // Skip empty segments
+              return;
+            }
+
+            if (bLastSpoken) {
+              // Apply conversational pause between sentences
+              const lastAnalysis = behavior.lastAnalysisRef.current;
+              const ctx = {
+                currentSentence: bLastSpoken,
+                nextSentence: segClean,
+                sentenceIndex: bSentenceIndex,
+                totalSentences: bSentenceIndex + backendSentenceQueue.length + 1,
+                isStreamingDone: true,
+                emotionalState: lastAnalysis ? {
+                  tension: lastAnalysis.tension || 0,
+                  trust: lastAnalysis.trust || 0.5,
+                  energy: lastAnalysis.energy || 0.5,
+                  mode: lastAnalysis.mode || "calm"
+                } : undefined
+              };
+              const pause = conversationalPauses.getPause(ctx);
+              setTimeout(() => {
+                if (currentTurnIdRef.current !== activeTurnId) return;
+                bLastSpoken = segClean;
+                bSentenceIndex++;
+                speakChunk(segClean, lang, activeTurnId, drainBackendQueue);
+              }, pause.durationMs);
+              return;
+            }
+
+            bLastSpoken = segClean;
+            bSentenceIndex++;
+            speakChunk(segClean, lang, activeTurnId, drainBackendQueue);
+          };
+          drainBackendQueue();
         }
 
         addMessages([{ role: "assistant", content: replyText }]);
@@ -1206,8 +1271,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         const greetingText = "Hey, I'm AURA. What's your mind wandering through today?";
         addMessages([{ role: "assistant", content: greetingText }]);
         transcript_.addTurn(greetingText, false);
-        speakChunk(greetingText, () => {
-          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current(false);
+        speakChunk(greetingText, lang, currentTurnIdRef.current, () => {
+          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
         });
         return; 
       } else {

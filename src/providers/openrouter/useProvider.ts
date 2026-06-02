@@ -525,12 +525,11 @@ export function useOpenRouter(mode: string = "adaptive") {
       onDone?.();
       return;
     }
-    // Clean text to drastically reduce native TTS punctuation pauses
-    // We replace all commas and terminal punctuation with spaces to force
-    // continuous speech flow, relying purely on our custom setTimeout delays.
+    // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
+    // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
     const cleanText = text
-      .replace(/[,;:]\s*/g, " ")
-      .replace(/[.!?।]/g, " ")
+      .replace(/,\s*/g, "; ")
+      .replace(/[.!?।]$/, "")
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText || text);
@@ -846,7 +845,9 @@ export function useOpenRouter(mode: string = "adaptive") {
                   const pause = conversationalPauses.getPause(ctx);
                   
                   setTimeout(() => {
-                      if (!isSpeakingRef.current) return;
+                      // FIX: Don't check isSpeakingRef — it's false between sentences
+                      // (cleared by speakChunk.onend). Check if barge-in flushed the queue instead.
+                      if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
                       lastSpokenSentence = rawNext;
                       sentenceIndex++;
                       spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
@@ -1160,7 +1161,9 @@ export function useOpenRouter(mode: string = "adaptive") {
                   const pause = conversationalPauses.getPause(ctx);
                   
                   setTimeout(() => {
-                      if (!isSpeakingRef.current) return;
+                      // FIX: Don't check isSpeakingRef — it's false between sentences
+                      // (cleared by speakChunk.onend). Check if barge-in flushed the queue instead.
+                      if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
                       lastSpokenSentence = rawNext;
                       sentenceIndex++;
                       segmentSubQueue = parseSegments(rawNext);
@@ -1312,7 +1315,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         addMessages([{ role: "assistant", content: greetingText }]);
         transcript_.addTurn(greetingText, false);
         speakChunk(greetingText, lang, "normal", () => {
-          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current(false);
+          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
         });
         return; 
       } else {
