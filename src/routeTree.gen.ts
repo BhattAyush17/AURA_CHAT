@@ -9,42 +9,40 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as DiagnosticsRuntimeRouteImport } from './routes/diagnostics.runtime'
-
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 const DiagnosticsRoute = DiagnosticsRouteImport.update({
   id: '/diagnostics',
   path: '/diagnostics',
   getParentRoute: () => rootRouteImport,
 } as any)
-
-const DiagnosticsRuntimeRoute = DiagnosticsRuntimeRouteImport.update({
-  id: '/diagnostics/runtime',
-  path: '/diagnostics/runtime',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DiagnosticsRuntimeRoute = DiagnosticsRuntimeRouteImport.update({
+  id: '/runtime',
+  path: '/runtime',
+  getParentRoute: () => DiagnosticsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics': typeof DiagnosticsRouteWithChildren
   '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics': typeof DiagnosticsRouteWithChildren
   '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/diagnostics': typeof DiagnosticsRoute
+  '/diagnostics': typeof DiagnosticsRouteWithChildren
   '/diagnostics/runtime': typeof DiagnosticsRuntimeRoute
 }
 export interface FileRouteTypes {
@@ -57,19 +55,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DiagnosticsRoute: typeof DiagnosticsRoute
-  DiagnosticsRuntimeRoute: typeof DiagnosticsRuntimeRoute
+  DiagnosticsRoute: typeof DiagnosticsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/diagnostics': {
       id: '/diagnostics'
       path: '/diagnostics'
@@ -77,20 +67,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DiagnosticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/diagnostics/runtime': {
       id: '/diagnostics/runtime'
-      path: '/diagnostics/runtime'
+      path: '/runtime'
       fullPath: '/diagnostics/runtime'
       preLoaderRoute: typeof DiagnosticsRuntimeRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DiagnosticsRoute
     }
   }
 }
 
+interface DiagnosticsRouteChildren {
+  DiagnosticsRuntimeRoute: typeof DiagnosticsRuntimeRoute
+}
+
+const DiagnosticsRouteChildren: DiagnosticsRouteChildren = {
+  DiagnosticsRuntimeRoute: DiagnosticsRuntimeRoute,
+}
+
+const DiagnosticsRouteWithChildren = DiagnosticsRoute._addFileChildren(
+  DiagnosticsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DiagnosticsRoute: DiagnosticsRoute,
-  DiagnosticsRuntimeRoute: DiagnosticsRuntimeRoute,
+  DiagnosticsRoute: DiagnosticsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

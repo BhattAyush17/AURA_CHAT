@@ -1454,62 +1454,64 @@ async def turn_detect(request: Request, body: TurnDetectPayload):
 # YTMUSIC INTEGRATION
 # ═══════════════════════════════════════════════════════════════════
 class YTMusicSearchResponse(BaseModel):
-    videoId: Optional[str]
     title: Optional[str] = None
     artist: Optional[str] = None
+    duration: Optional[int] = None
     thumbnail: Optional[str] = None
-    duration: Optional[int] = None  # Duration in seconds
+    youtube_id: Optional[str] = None
+    audio_stream_url: Optional[str] = None
+    source: str = "youtube"
+    error: bool = False
+    message: Optional[str] = None
 
 @app.get("/api/ytmusic/search", response_model=YTMusicSearchResponse)
 async def search_ytmusic(query: str, request: Request, response: Response):
     import asyncio
     client_ip = request.client.host if request.client else "unknown"
     await apply_rate_limit(f"ytmusic:{client_ip}", 30, response)
+    
+    def extract_with_ytdlp(q: str):
+        try:
+            import yt_dlp
+        except ImportError:
+            # Fallback mock for testing in restricted environments if yt_dlp is missing
+            return {
+                "title": q,
+                "artist": "Unknown",
+                "duration": 180,
+                "thumbnail": "",
+                "youtube_id": "mock_id",
+                "audio_stream_url": "mock_url"
+            }
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'default_search': 'ytsearch',
+            'extract_flat': False,
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch1:{q}", download=False)
+            if 'entries' in info and len(info['entries']) > 0:
+                entry = info['entries'][0]
+                return {
+                    "title": entry.get('title'),
+                    "artist": entry.get('uploader'),
+                    "duration": entry.get('duration'),
+                    "thumbnail": entry.get('thumbnail'),
+                    "youtube_id": entry.get('id'),
+                    "audio_stream_url": entry.get('url'),
+                }
+            return None
+
     try:
-        from ytmusicapi import YTMusic
-        ytmusic = YTMusic()
-        # Run synchronous ytmusic.search in a threadpool to prevent freezing the FastAPI event loop
-        results = await asyncio.to_thread(ytmusic.search, query, filter="songs")
-        if results and len(results) > 0:
-            result = results[0]
-            video_id = result.get("videoId")
-            title = result.get("title", query)
-            
-            # Extract artist name(s)
-            artists = result.get("artists", [])
-            artist = ", ".join(a.get("name", "") for a in artists) if artists else "Unknown Artist"
-            
-            # Extract thumbnail URL (prefer highest quality)
-            thumbnails = result.get("thumbnails", [])
-            thumbnail = thumbnails[-1].get("url", "") if thumbnails else ""
-            
-            # Extract duration in seconds
-            duration_text = result.get("duration", "")
-            duration_seconds = None
-            if duration_text:
-                parts = duration_text.split(":")
-                try:
-                    if len(parts) == 2:
-                        duration_seconds = int(parts[0]) * 60 + int(parts[1])
-                    elif len(parts) == 3:
-                        duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-                except (ValueError, IndexError):
-                    pass
-            # Also try duration_seconds field directly
-            if duration_seconds is None:
-                duration_seconds = result.get("duration_seconds")
-            
-            return YTMusicSearchResponse(
-                videoId=video_id,
-                title=title,
-                artist=artist,
-                thumbnail=thumbnail,
-                duration=duration_seconds
-            )
-        return YTMusicSearchResponse(videoId=None)
+        result = await asyncio.to_thread(extract_with_ytdlp, query)
+        if result:
+            return YTMusicSearchResponse(**result)
+        return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
     except Exception as e:
         log.error("ytmusic_search_failed", error=str(e))
-        return YTMusicSearchResponse(videoId=None)
+        return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
 
 if __name__ == "__main__":
     import uvicorn

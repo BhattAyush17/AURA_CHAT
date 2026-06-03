@@ -58,7 +58,21 @@ const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
 
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
-  const noEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+  
+  // Extract JSON tool calls first
+  let processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
+      try {
+          const data = JSON.parse(match);
+          if (data.user_query) {
+              import("@/music/MusicManager").then(({ MusicManager }) => {
+                  MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+              });
+          }
+      } catch(e) {}
+      return "";
+  });
+
+  const noEmojis = processedText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
   const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]|<([^>]+)>/g;
   let lastIndex = 0;
   let match;
@@ -190,9 +204,8 @@ export function parseSegments(text: string): SpeechSegment[] {
         segments.push({ text: "", style });
         lastActionTime = now;
       }
-    } else {
-      segments.push({ text: actionText, style });
     }
+    // Intentionally dropping non-audio actionText so AURA doesn't speak her stage directions.
     
     lastIndex = regex.lastIndex;
   }
@@ -484,6 +497,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const recognitionRef = useRef<any>(null);
   const isSpeakingRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const lastAudioEndRef = useRef<number>(0);
 
   // Activation state — persists across turns, resets on session end
   const boundlessModeActiveRef = useRef(false);
@@ -680,12 +694,28 @@ export function useOpenRouter(mode: string = "adaptive") {
     if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
 
     utterance.onstart = () => {
+      const startMs = performance.now();
+      const endMs = lastAudioEndRef.current;
+      if (endMs > 0) {
+        const gap = startMs - endMs;
+        if (gap >= 1500) {
+          console.error(`🚨 [AURA Timing] FAILURE: Speech gap was ${Math.round(gap)}ms (exceeded 1500ms max)`);
+        } else if (gap >= 1200) {
+          console.warn(`⚠️ [AURA Timing] WARNING: Speech gap was ${Math.round(gap)}ms (target: <600ms)`);
+        } else if (gap > 600) {
+          console.log(`[AURA Timing] Acceptable gap: ${Math.round(gap)}ms`);
+        }
+      }
       pushConversationTrace("PLAYBACK_START");
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().onAuraSpeechStart();
+      });
       isSpeakingRef.current = true;
       setStatus("speaking");
       connectionState.updateState({ active_voice_out: "webspeech" });
     };
     utterance.onend = () => {
+      lastAudioEndRef.current = performance.now();
       if (typeof window !== "undefined") {
         (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
       }
@@ -777,6 +807,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
+      lastAudioEndRef.current = 0;
       
       const wasInterrupted = wasInterruptedRef.current;
       spokenTextRef.current = "";
@@ -925,6 +956,9 @@ export function useOpenRouter(mode: string = "adaptive") {
               const rawNext = sentenceQueueRef.current.shift();
               if (!rawNext) {
                 if (streamDone) {
+                  import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().onAuraSpeechEnd();
+                  });
                   isSpeakingRef.current = false;
                   if (isSessionActiveRef.current && startSessionRef.current) {
                     startSessionRef.current();
@@ -945,6 +979,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                       sentenceIndex: sentenceIndex,
                       totalSentences: streamDone ? sentenceIndex + 1 : undefined,
                       isStreamingDone: streamDone,
+                      queueSize: sentenceQueueRef.current.length,
                       emotionalState: lastAnalysis ? {
                           tension: lastAnalysis.tension || 0,
                           trust: lastAnalysis.trust || 0.5,
@@ -954,16 +989,22 @@ export function useOpenRouter(mode: string = "adaptive") {
                   };
                   const pause = conversationalPauses.getPause(ctx);
                   
-                  setTimeout(() => {
-                      // FIX: Don't check isSpeakingRef — it's false between sentences
-                      // (cleared by speakChunk.onend). Check if barge-in flushed the queue instead.
+                  const doNext = () => {
                       if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
                       lastSpokenSentence = rawNext;
                       sentenceIndex++;
                       spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
                       segmentSubQueue = parseSegments(rawNext);
                       drainQueue();
-                  }, pause.durationMs);
+                  };
+                  
+                  if (pause.isBreath) {
+                      setTimeout(() => {
+                          playAudioAsset("breath", doNext);
+                      }, pause.durationMs);
+                  } else {
+                      setTimeout(doNext, pause.durationMs);
+                  }
                   return;
               }
               
@@ -1239,6 +1280,9 @@ export function useOpenRouter(mode: string = "adaptive") {
               const rawNext = sentenceQueueRef.current.shift();
               if (!rawNext) {
                 if (streamDone) {
+                  import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().onAuraSpeechEnd();
+                  });
                   // All spoken
                   isSpeakingRef.current = false;
                   if (isSessionActiveRef.current && startSessionRef.current) {
@@ -1261,6 +1305,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                       sentenceIndex: sentenceIndex,
                       totalSentences: streamDone ? sentenceIndex + 1 : undefined,
                       isStreamingDone: streamDone,
+                      queueSize: sentenceQueueRef.current.length,
                       emotionalState: lastAnalysis ? {
                           tension: lastAnalysis.tension || 0,
                           trust: lastAnalysis.trust || 0.5,
@@ -1270,15 +1315,21 @@ export function useOpenRouter(mode: string = "adaptive") {
                   };
                   const pause = conversationalPauses.getPause(ctx);
                   
-                  setTimeout(() => {
-                      // FIX: Don't check isSpeakingRef — it's false between sentences
-                      // (cleared by speakChunk.onend). Check if barge-in flushed the queue instead.
+                  const doNext = () => {
                       if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
                       lastSpokenSentence = rawNext;
                       sentenceIndex++;
                       segmentSubQueue = parseSegments(rawNext);
                       drainQueue();
-                  }, pause.durationMs);
+                  };
+
+                  if (pause.isBreath) {
+                      setTimeout(() => {
+                          playAudioAsset("breath", doNext);
+                      }, pause.durationMs);
+                  } else {
+                      setTimeout(doNext, pause.durationMs);
+                  }
                   return;
               }
 
@@ -1455,6 +1506,12 @@ export function useOpenRouter(mode: string = "adaptive") {
       setStatus("listening");
       setWords("Listening...");
       startTracking(micAnalyserRef.current);
+    };
+
+    recognition.onspeechstart = () => {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().onUserSpeechStart();
+      });
     };
 
     recognition.onresult = async (event: any) => {

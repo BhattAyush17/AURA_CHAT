@@ -43,8 +43,22 @@ const stripEmojis = (text: string) => text.replace(/[\p{Emoji_Presentation}\p{Ex
 
 const extractStageDirections = (text: string) => {
     const directions: string[] = [];
-    const cleanText = text.replace(/\[(.*?)\]|<(.*?)>/g, (match, p1, p2) => {
-        const val = p1 || p2;
+    
+    // Extract JSON tool calls first
+    let processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
+        try {
+            const data = JSON.parse(match);
+            if (data.user_query) {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+                });
+            }
+        } catch(e) {}
+        return "";
+    });
+
+    const cleanText = processedText.replace(/\*([^*]+)\*|\(([^)]+)\)|\[(.*?)\]|<(.*?)>/g, (match, p_ast, p_par, p1, p2) => {
+        const val = p_ast || p_par || p1 || p2;
         if (val) {
             if (val.startsWith("PLAY_YOUTUBE:")) {
                 const query = val.replace("PLAY_YOUTUBE:", "").trim();
@@ -502,6 +516,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
 
       utterance.onstart = () => {
+        import("@/music/MusicManager").then(({ MusicManager }) => {
+          MusicManager.getInstance().onAuraSpeechStart();
+        });
         pushConversationTrace("PLAYBACK_START");
         isSpeakingRef.current = true;
         setStatus("speaking");
@@ -604,6 +621,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         activeGainRef.current = gainNode;
         // R06 FIX: Set speaking state only RIGHT BEFORE audio starts playing
         // (not before the network fetch), preventing false "speaking" UI
+        import("@/music/MusicManager").then(({ MusicManager }) => {
+          MusicManager.getInstance().onAuraSpeechStart();
+        });
         isSpeakingRef.current = true;
         setStatus("speaking");
         connectionState.updateState({ active_voice_out: "sarvam" });
@@ -857,6 +877,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             const next = backendSentenceQueue.shift();
             if (!next) {
               if (streamDone) {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                  MusicManager.getInstance().onAuraSpeechEnd();
+                });
                 isSpeakingRef.current = false;
                 if (isSessionActiveRef.current && startSessionRef.current) {
                   startSessionRef.current();
@@ -1461,7 +1484,21 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const downsampled = downsampleBuffer(merged, inputSampleRate, 16000);
       const wavBlob = encodeWAV(downsampled, 16000);
 
-      const transcript = await transcribeAudio(wavBlob);
+      // MOBILE LATENCY FIX: Race the Sarvam STT upload. If it takes too long, 
+      // immediately fall back to the instant browser-native transcript.
+      let transcript: string | null = null;
+      if (fallbackTranscriptRef.current) {
+        transcript = await Promise.race([
+          transcribeAudio(wavBlob),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)) // 1.2s timeout if fallback exists
+        ]);
+      } else {
+        transcript = await Promise.race([
+          transcribeAudio(wavBlob),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)) // 3s max timeout otherwise
+        ]);
+      }
+      
       const finalText = transcript || fallbackTranscriptRef.current;
       const audioContextXML = stopTrackingAndAnalyze(finalText);
 
@@ -1471,7 +1508,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       );
       console.log(
         "├─ Sarvam Transcribed (saaras:v3):",
-        transcript ? `"${transcript}"` : "[Empty/Failed]",
+        transcript ? `"${transcript}"` : "[Timeout/Failed/Empty]",
       );
       console.log(
         "├─ Fallback (Browser WebSpeech):",
@@ -1514,9 +1551,17 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         emotionalIntensity,
         { tension: lastAnalysis?.tension || 0, trust: lastAnalysis?.trust || 0.3 },
       );
-      const adaptiveDelay = turnResult.responseDelay;
+      
+      let adaptiveDelay = turnResult.responseDelay;
+      
+      // MOBILE LATENCY FIX: Aggressively cap the adaptive delay on mobile devices to prevent compounded dead-air
+      const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        adaptiveDelay = Math.min(adaptiveDelay, 300); // Max 300ms delay on mobile
+      }
+
       console.log(
-        `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence})`,
+        `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence}, mobile=${isMobile})`,
         "color: #8b5cf6; font-weight: bold;",
       );
       adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
@@ -1535,6 +1580,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       recordingStartTimeRef.current = Date.now();
       startTracking(micAnalyserRef.current);
       isRecordingRef.current = true;
+    };
+
+    recognition.onspeechstart = () => {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().onUserSpeechStart();
+      });
     };
 
     recognition.onresult = (event: any) => {

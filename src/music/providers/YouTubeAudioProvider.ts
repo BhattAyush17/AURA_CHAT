@@ -17,15 +17,17 @@ import { ENDPOINTS } from "@/config/api";
 const BASE_URL = ENDPOINTS.analyzeStream.replace("/api/analyze/stream", "");
 
 export interface YouTubeSearchResult {
-  videoId: string | null;
+  youtube_id: string | null;
   title?: string;
   artist?: string;
   thumbnail?: string;
   duration?: number;
+  audio_stream_url?: string;
+  error?: boolean;
 }
 
 export class YouTubeAudioProvider implements IAudioProvider {
-  readonly name = "youtube";
+  readonly name = "ytdlp";
 
   async search(query: string): Promise<TrackInfo[]> {
     try {
@@ -34,16 +36,16 @@ export class YouTubeAudioProvider implements IAudioProvider {
       );
       const data: YouTubeSearchResult = await res.json();
 
-      if (!data.videoId) return [];
+      if (data.error || !data.audio_stream_url) return [];
 
-      // The backend currently returns a single result
       const track: TrackInfo = {
-        id: data.videoId,
+        id: data.youtube_id || "unknown",
         title: data.title || query,
         artist: data.artist || "Unknown Artist",
-        source: "youtube",
-        thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.videoId}/mqdefault.jpg`,
+        source: "ytdlp",
+        thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
         duration: data.duration || 0,
+        streamUrl: data.audio_stream_url,
       };
 
       return [track];
@@ -54,9 +56,6 @@ export class YouTubeAudioProvider implements IAudioProvider {
   }
 
   async getStreamUrl(track: TrackInfo): Promise<string | null> {
-    // For YouTube IFrame Player API, we don't need a stream URL.
-    // The videoId is used directly by the IFrame player.
-    // Return a marker URL that the MusicManager recognizes.
-    return `youtube://${track.id}`;
+    return track.streamUrl || null;
   }
 }
