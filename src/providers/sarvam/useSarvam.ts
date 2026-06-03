@@ -1266,7 +1266,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               const next = sentenceQueue.shift();
               if (!next) {
                 if (streamDone) {
-                  // All spoken
+                  // All spoken — restore music volume
+                  import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().onAuraSpeechEnd();
+                  });
                   isSpeakingRef.current = false;
                   if (isSessionActiveRef.current && startSessionRef.current) {
                     startSessionRef.current();

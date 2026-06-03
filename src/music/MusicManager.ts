@@ -294,6 +294,12 @@ export class MusicManager {
       } else {
         this.playback.restoreVolume();
       }
+      
+      // Auto-resume if it was paused because the user was speaking
+      if (state.isPaused && state.lastPausedReason === "user_speaking") {
+        console.log("[MusicManager] ▶️ Auto-resuming music after conversation turn");
+        this.resume();
+      }
     }
   }
 
