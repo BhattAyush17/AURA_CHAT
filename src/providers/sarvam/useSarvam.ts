@@ -365,13 +365,24 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         },
       });
       micStreamRef.current = stream;
-      const ctx = new AudioContext();
+      const ctx = new AudioContext({ sampleRate: 16000 });
       audioCtxRef.current = ctx;
 
       // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
       if (ctx.state === "suspended") {
         try { await ctx.resume(); } catch {}
       }
+      // MOBILE FIX: Android Chrome requires a user gesture to unlock AudioContext.
+      // Listen for the first touch/click to force-resume if still suspended.
+      const unlockAudio = () => {
+        if (audioCtxRef.current?.state === "suspended") {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+        document.removeEventListener("touchstart", unlockAudio);
+        document.removeEventListener("click", unlockAudio);
+      };
+      document.addEventListener("touchstart", unlockAudio, { once: true });
+      document.addEventListener("click", unlockAudio, { once: true });
 
       const src = ctx.createMediaStreamSource(stream);
 
@@ -1519,7 +1530,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         totalLength += chunk.length;
       }
 
-      if (totalLength === 0 || duration < 600) {
+      if (totalLength === 0 || duration < 400) { // MOBILE: Reduced from 600ms to 400ms for faster turn detection
         if (isSessionActiveRef.current) {
           setStatus("listening");
           setWords("Listening...");
@@ -1550,18 +1561,28 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const downsampled = downsampleBuffer(merged, inputSampleRate, 16000);
       const wavBlob = encodeWAV(downsampled, 16000);
 
-      // MOBILE LATENCY FIX: Race the Sarvam STT upload. If it takes too long, 
-      // immediately fall back to the instant browser-native transcript.
+      // MOBILE FAST PATH: On mobile devices, skip the expensive Sarvam STT upload
+      // entirely when the browser already has a transcript. The browser's native
+      // speech recognition runs locally with zero latency — uploading a WAV blob
+      // over mobile data adds 2-8 seconds of dead air for negligible quality gain.
+      const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
+      
       let transcript: string | null = null;
-      if (fallbackTranscriptRef.current) {
+      if (isMobile && fallbackTranscriptRef.current) {
+        // MOBILE: Skip Sarvam STT entirely — use instant browser transcript
+        console.log("%c📱 MOBILE FAST PATH: Skipping Sarvam STT upload, using browser transcript", "color: #10b981; font-weight: bold;");
+        transcript = null; // Force fallback path
+      } else if (fallbackTranscriptRef.current) {
+        // Desktop with fallback: Race with tight timeout
         transcript = await Promise.race([
           transcribeAudio(wavBlob),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)) // 1.2s timeout if fallback exists
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200))
         ]);
       } else {
+        // No fallback available: Must wait for Sarvam (but cap at 3s)
         transcript = await Promise.race([
           transcribeAudio(wavBlob),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)) // 3s max timeout otherwise
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), isMobile ? 2000 : 3000))
         ]);
       }
       
@@ -1622,9 +1643,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       let adaptiveDelay = turnResult.responseDelay;
       
       // MOBILE LATENCY FIX: Aggressively cap the adaptive delay on mobile devices to prevent compounded dead-air
-      const isMobile = typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent);
       if (isMobile) {
-        adaptiveDelay = Math.min(adaptiveDelay, 300); // Max 300ms delay on mobile
+        adaptiveDelay = Math.min(adaptiveDelay, 150); // Max 150ms delay on mobile (down from 300ms)
       }
 
       console.log(
@@ -1687,13 +1707,17 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       if (errorType !== "no-speech") {
         // MOBILE FIX: Retry on transient mobile errors (network, aborted)
         if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
-          console.warn(`[Sarvam STT] Transient error "${errorType}", retrying in 500ms...`);
+          console.warn(`[Sarvam STT] Transient error "${errorType}", retrying in 200ms...`);
           pcmSamplesRef.current = [];
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
+              // MOBILE FIX: Resume AudioContext before restarting recognition
+              if (audioCtxRef.current?.state === "suspended") {
+                audioCtxRef.current.resume().catch(() => {});
+              }
               safeRecognitionStart(recognitionRef.current, true);
             }
-          }, 500);
+          }, 200); // MOBILE: Reduced from 500ms to 200ms for faster recovery
           return;
         }
         setLastError(`Listening failed: ${errorType}`);

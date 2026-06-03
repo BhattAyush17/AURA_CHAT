@@ -89,14 +89,40 @@ export class PlaybackController {
     this.state.duration = track.duration || 0;
     this.savedPosition = 0;
 
+    console.log(`[PlaybackController] 🎵 Loading: ${track.title} — ${track.artist}`);
+    console.log(`[PlaybackController] 🔗 Stream URL: ${streamUrl.substring(0, 80)}...`);
+
     this.audio.src = streamUrl;
     this.audio.volume = this.state.volume;
     
     try {
       await this.audio.play();
-    } catch (err) {
-      console.error("[PlaybackController] Play failed:", err);
-      this.callbacks.onError?.(`Failed to play: ${err}`);
+      console.log(`[PlaybackController] ✅ Playback started successfully`);
+    } catch (err: any) {
+      // MOBILE FIX: Android Chrome blocks autoplay without user gesture.
+      // If play() fails with NotAllowedError, wait for the next user interaction
+      // to resume playback. AbortError happens when src changes mid-load.
+      if (err?.name === "NotAllowedError") {
+        console.warn("[PlaybackController] Autoplay blocked by browser. Waiting for user gesture...");
+        const resumeOnGesture = async () => {
+          try {
+            if (this.audio.src && this.audio.paused) {
+              await this.audio.play();
+              console.log("[PlaybackController] ✅ Resumed after user gesture");
+            }
+          } catch {}
+          document.removeEventListener("touchstart", resumeOnGesture);
+          document.removeEventListener("click", resumeOnGesture);
+        };
+        document.addEventListener("touchstart", resumeOnGesture, { once: true });
+        document.addEventListener("click", resumeOnGesture, { once: true });
+      } else if (err?.name === "AbortError") {
+        // Happens when audio.src is changed while loading — safe to ignore
+        console.log("[PlaybackController] Load aborted (track changed rapidly)");
+      } else {
+        console.error("[PlaybackController] Play failed:", err);
+        this.callbacks.onError?.(`Failed to play: ${err}`);
+      }
     }
   }
 
