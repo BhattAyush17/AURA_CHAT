@@ -48,13 +48,39 @@ const extractStageDirections = (text: string) => {
         if (val) {
             if (val.startsWith("PLAY_YOUTUBE:")) {
                 const query = val.replace("PLAY_YOUTUBE:", "").trim();
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
-                }
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "play", query });
+                });
             } else if (val === "STOP_YOUTUBE") {
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("stopYouTubeMusic"));
-                }
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "stop" });
+                });
+            } else if (val === "PAUSE_MUSIC") {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "pause" });
+                });
+            } else if (val === "RESUME_MUSIC") {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "resume" });
+                });
+            } else if (val === "NEXT_SONG") {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "next" });
+                });
+            } else if (val === "PREV_SONG") {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "previous" });
+                });
+            } else if (val.startsWith("MUSIC_ASSOCIATION:")) {
+                const assocText = val.replace("MUSIC_ASSOCIATION:", "").trim();
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "association", text: assocText });
+                });
+            } else if (val.startsWith("MUSIC_EMOTION:")) {
+                const emotionText = val.replace("MUSIC_EMOTION:", "").trim();
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                    MusicManager.getInstance().processIntent({ type: "emotion", text: emotionText });
+                });
             } else {
                 directions.push(val.trim().toLowerCase());
             }
@@ -639,6 +665,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         if (loudFrameCount >= SUSTAINED_FRAMES) {
           console.log(`[Sarvam Voice] 🛑 Barge-in detected (RMS ${rms.toFixed(4)})`);
           conversationalPauses.userRespondedDuringWindow();
+          // ── Music VAD Integration: Pause music when user speaks ──
+          import("@/music/MusicManager").then(({ MusicManager }) => {
+            MusicManager.getInstance().onUserSpeechStart();
+          });
           onInterrupt();
           return;
         }
@@ -731,10 +761,18 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       );
       connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
 
+      // ── Music Context Injection ──
+      let musicContextXML = "";
+      try {
+        const { MusicManager } = await import("@/music/MusicManager");
+        const manager = MusicManager.getInstance();
+        musicContextXML = manager.buildContextInjection();
+      } catch {}
+
       // Append to OR message buffer with XML metadata
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: audioContextXML + userText },
+        { role: "user", content: musicContextXML + audioContextXML + userText },
       ];
       if (!isHiddenPrompt) {
         addMessages([{ role: "user", content: userText }]);

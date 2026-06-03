@@ -1455,6 +1455,10 @@ async def turn_detect(request: Request, body: TurnDetectPayload):
 # ═══════════════════════════════════════════════════════════════════
 class YTMusicSearchResponse(BaseModel):
     videoId: Optional[str]
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    thumbnail: Optional[str] = None
+    duration: Optional[int] = None  # Duration in seconds
 
 @app.get("/api/ytmusic/search", response_model=YTMusicSearchResponse)
 async def search_ytmusic(query: str, request: Request, response: Response):
@@ -1467,7 +1471,41 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         # Run synchronous ytmusic.search in a threadpool to prevent freezing the FastAPI event loop
         results = await asyncio.to_thread(ytmusic.search, query, filter="songs")
         if results and len(results) > 0:
-            return YTMusicSearchResponse(videoId=results[0].get("videoId"))
+            result = results[0]
+            video_id = result.get("videoId")
+            title = result.get("title", query)
+            
+            # Extract artist name(s)
+            artists = result.get("artists", [])
+            artist = ", ".join(a.get("name", "") for a in artists) if artists else "Unknown Artist"
+            
+            # Extract thumbnail URL (prefer highest quality)
+            thumbnails = result.get("thumbnails", [])
+            thumbnail = thumbnails[-1].get("url", "") if thumbnails else ""
+            
+            # Extract duration in seconds
+            duration_text = result.get("duration", "")
+            duration_seconds = None
+            if duration_text:
+                parts = duration_text.split(":")
+                try:
+                    if len(parts) == 2:
+                        duration_seconds = int(parts[0]) * 60 + int(parts[1])
+                    elif len(parts) == 3:
+                        duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                except (ValueError, IndexError):
+                    pass
+            # Also try duration_seconds field directly
+            if duration_seconds is None:
+                duration_seconds = result.get("duration_seconds")
+            
+            return YTMusicSearchResponse(
+                videoId=video_id,
+                title=title,
+                artist=artist,
+                thumbnail=thumbnail,
+                duration=duration_seconds
+            )
         return YTMusicSearchResponse(videoId=None)
     except Exception as e:
         log.error("ytmusic_search_failed", error=str(e))

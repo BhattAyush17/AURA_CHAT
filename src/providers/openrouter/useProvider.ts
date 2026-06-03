@@ -76,19 +76,98 @@ export function parseSegments(text: string): SpeechSegment[] {
     const now = performance.now();
     const canAct = (now - lastActionTime) > ACTION_COOLDOWN;
     
+    // ── Music Intent Tags → MusicManager ──
     if (actionText.startsWith("PLAY_YOUTUBE:")) {
       const query = actionText.replace("PLAY_YOUTUBE:", "").trim();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("playYouTubeMusic", { detail: query }));
-      }
+      // Route through MusicManager instead of raw CustomEvents
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "play", query });
+      });
       lastIndex = regex.lastIndex;
       continue;
     }
     
     if (actionText === "STOP_YOUTUBE") {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("stopYouTubeMusic"));
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "stop" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "PAUSE_MUSIC") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "pause" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "RESUME_MUSIC") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "resume" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "NEXT_SONG") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "next" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "PREV_SONG") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "previous" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "VOLUME_UP") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "volume_up" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText === "VOLUME_DOWN") {
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "volume_down" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText.startsWith("VOLUME:")) {
+      const level = parseFloat(actionText.replace("VOLUME:", "").trim());
+      if (!isNaN(level)) {
+        import("@/music/MusicManager").then(({ MusicManager }) => {
+          MusicManager.getInstance().processIntent({ type: "volume", level });
+        });
       }
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText.startsWith("MUSIC_ASSOCIATION:")) {
+      const text = actionText.replace("MUSIC_ASSOCIATION:", "").trim();
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "association", text });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText.startsWith("MUSIC_EMOTION:")) {
+      const text = actionText.replace("MUSIC_EMOTION:", "").trim();
+      import("@/music/MusicManager").then(({ MusicManager }) => {
+        MusicManager.getInstance().processIntent({ type: "emotion", text });
+      });
       lastIndex = regex.lastIndex;
       continue;
     }
@@ -643,6 +722,11 @@ export function useOpenRouter(mode: string = "adaptive") {
     conversationalPauses.userRespondedDuringWindow();
     stopSpeech();
     
+    // ── Music VAD Integration: Pause music when user speaks ──
+    import("@/music/MusicManager").then(({ MusicManager }) => {
+      MusicManager.getInstance().onUserSpeechStart();
+    });
+    
     if (spokenTextRef.current.trim().length > 0) {
       const interruptedText = spokenTextRef.current.trim() + " - [Interrupted]";
       addMessages([{ role: "assistant", content: interruptedText }]);
@@ -757,10 +841,19 @@ export function useOpenRouter(mode: string = "adaptive") {
       );
       connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
 
+      // ── Music Context Injection ──
+      // If music is active, inject song context into the conversation
+      let musicContextXML = "";
+      try {
+        const { MusicManager } = await import("@/music/MusicManager");
+        const manager = MusicManager.getInstance();
+        musicContextXML = manager.buildContextInjection();
+      } catch {}
+
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: audioContextXML + userText },
+        { role: "user", content: musicContextXML + audioContextXML + userText },
       ];
       if (!isHiddenPrompt) {
         addMessages([{ role: "user", content: userText }]);
