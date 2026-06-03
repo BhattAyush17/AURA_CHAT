@@ -1,14 +1,13 @@
 /**
  * AURA Music System — YouTubeAudioProvider
  * 
- * Provider implementation that uses the existing ytmusicapi backend
- * for search and resolves audio via YouTube IFrame Player API 
- * with postMessage-based programmatic control.
+ * Provider that uses yt-dlp backend for search and resolves audio 
+ * through a server-side proxy to bypass CORS restrictions.
  * 
- * For Phase 1, we use a hybrid approach:
- *   - Search: ytmusicapi backend endpoint (/api/ytmusic/search)
- *   - Playback: YouTube IFrame Player API (embedded, production-safe)
- *   - Control: postMessage API for play/pause/seek/volume
+ * Flow:
+ *   1. Search: /api/ytmusic/search → yt-dlp resolves direct audio URL
+ *   2. Proxy:  /api/ytmusic/proxy?url=<encoded_url> → backend streams audio
+ *   3. Play:   HTMLAudioElement plays the proxied stream (no CORS issues)
  */
 
 import type { IAudioProvider, TrackInfo } from "../types";
@@ -31,12 +30,23 @@ export class YouTubeAudioProvider implements IAudioProvider {
 
   async search(query: string): Promise<TrackInfo[]> {
     try {
+      console.log(`[YouTubeAudioProvider] 🔍 Searching: "${query}"`);
       const res = await fetch(
         `${BASE_URL}/api/ytmusic/search?query=${encodeURIComponent(query)}`
       );
       const data: YouTubeSearchResult = await res.json();
 
+      console.log("[YouTubeAudioProvider] 📦 Backend response:", {
+        title: data.title,
+        artist: data.artist,
+        has_stream: !!data.audio_stream_url,
+        error: data.error,
+      });
+
       if (data.error || !data.audio_stream_url) return [];
+
+      // Route through the backend proxy to avoid CORS
+      const proxyUrl = `${BASE_URL}/api/ytmusic/proxy?url=${encodeURIComponent(data.audio_stream_url)}`;
 
       const track: TrackInfo = {
         id: data.youtube_id || "unknown",
@@ -45,9 +55,10 @@ export class YouTubeAudioProvider implements IAudioProvider {
         source: "ytdlp",
         thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
         duration: data.duration || 0,
-        streamUrl: data.audio_stream_url,
+        streamUrl: proxyUrl,
       };
 
+      console.log(`[YouTubeAudioProvider] ✅ Track resolved: ${track.title} — ${track.artist}`);
       return [track];
     } catch (err) {
       console.error("[YouTubeAudioProvider] Search failed:", err);

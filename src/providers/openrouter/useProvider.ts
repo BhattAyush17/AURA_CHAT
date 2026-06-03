@@ -635,6 +635,27 @@ export function useOpenRouter(mode: string = "adaptive") {
       onDone?.();
       return;
     }
+    // SAFETY NET: Never speak JSON tool calls — silently execute and skip
+    if (/"tool"\s*:\s*"play_music"/.test(text) || /^\s*\{/.test(text.trim()) && /"user_query"/.test(text)) {
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const data = JSON.parse(jsonMatch[0]);
+          if (data.user_query) {
+            import("@/music/MusicManager").then(({ MusicManager }) => {
+              MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+            });
+          }
+        }
+      } catch {}
+      onDone?.();
+      return;
+    }
+    // Skip leftover JSON fragments
+    if (/^\s*[\{\}"\[\]]/.test(text.trim()) && text.trim().length < 20) {
+      onDone?.();
+      return;
+    }
     // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
     // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
     const cleanText = text
@@ -1055,6 +1076,29 @@ export function useOpenRouter(mode: string = "adaptive") {
                   textBuffer += chunkText;
                   fullResponse += chunkText;
                   setWords(fullResponse);
+                  
+                  // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
+                  const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
+                  if (toolMatch) {
+                    if (!textBuffer.includes('}')) {
+                      continue; // Wait for the chunk with the closing brace
+                    } else {
+                      // Execute and strip the full JSON block
+                      textBuffer = textBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
+                          try {
+                              const data = JSON.parse(match);
+                              if (data.user_query) {
+                                  import("@/music/MusicManager").then(({ MusicManager }) => {
+                                      MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+                                  });
+                              }
+                          } catch(e) {}
+                          return "";
+                      });
+                      // Clean up lingering markdown ticks
+                      textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
+                    }
+                  }
                   
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {

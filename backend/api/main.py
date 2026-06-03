@@ -1513,6 +1513,60 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         log.error("ytmusic_search_failed", error=str(e))
         return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
 
+
+# ═══════════════════════════════════════════════════════════════════
+# AUDIO PROXY — Streams YouTube audio through the backend to bypass
+# browser CORS restrictions on googlevideo.com URLs.
+# ═══════════════════════════════════════════════════════════════════
+import base64 as b64
+from urllib.parse import quote, unquote
+
+# In-memory cache for resolved audio URLs (short TTL, they expire quickly)
+_audio_url_cache: dict[str, tuple[str, float]] = {}
+
+@app.get("/api/ytmusic/proxy")
+async def proxy_audio(url: str, request: Request, response: Response):
+    """Proxy an audio stream URL to bypass CORS restrictions."""
+    import httpx
+    import time
+
+    decoded_url = unquote(url)
+    
+    # Validate URL is from a trusted source
+    if not any(domain in decoded_url for domain in ["googlevideo.com", "youtube.com", "ytimg.com"]):
+        return Response(content="Forbidden", status_code=403)
+
+    # Forward range headers for seeking support
+    headers = {}
+    range_header = request.headers.get("range")
+    if range_header:
+        headers["Range"] = range_header
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            upstream = await client.get(decoded_url, headers=headers)
+            
+            response_headers = {
+                "Content-Type": upstream.headers.get("Content-Type", "audio/webm"),
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+            }
+            
+            if "Content-Length" in upstream.headers:
+                response_headers["Content-Length"] = upstream.headers["Content-Length"]
+            if "Content-Range" in upstream.headers:
+                response_headers["Content-Range"] = upstream.headers["Content-Range"]
+            
+            return Response(
+                content=upstream.content,
+                status_code=upstream.status_code,
+                headers=response_headers,
+            )
+    except Exception as e:
+        log.error("audio_proxy_failed", error=str(e))
+        return Response(content="Proxy error", status_code=502)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)

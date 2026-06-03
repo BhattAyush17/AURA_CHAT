@@ -21,7 +21,7 @@ export class PlaybackController {
   constructor() {
     this.state = createDefaultMusicState();
     this.audio = new Audio();
-    this.audio.crossOrigin = "anonymous";
+    // this.audio.crossOrigin = "anonymous"; // Disabled: Prevents direct playback of YouTube URLs due to lack of ACAO header
     this.audio.preload = "auto";
     this.audio.playsInline = true; // Mobile iOS fix to prevent fullscreen takeover
 

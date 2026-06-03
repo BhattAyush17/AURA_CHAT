@@ -560,6 +560,28 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         return;
       }
 
+      // SAFETY NET: If any JSON tool fragment leaked through sentence splitting,
+      // silently execute it and skip TTS entirely — never speak code.
+      if (/"tool"\s*:\s*"play_music"/.test(text) || /^\s*\{/.test(text.trim()) && /"user_query"/.test(text)) {
+        try {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const data = JSON.parse(jsonMatch[0]);
+            if (data.user_query) {
+              const { MusicManager } = await import("@/music/MusicManager");
+              MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+            }
+          }
+        } catch {}
+        onDone?.();
+        return;
+      }
+      // Also skip text that looks like leftover JSON fragments
+      if (/^\s*[\{\}"\[\]]/.test(text.trim()) && text.trim().length < 20) {
+        onDone?.();
+        return;
+      }
+
       // Calculate dynamic pace based on emotional state for Sarvam Bulbul:v3
       let targetPace = 1.0; // Default
       const lastAnalysis = behavior.lastAnalysisRef.current;
@@ -974,6 +996,29 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                   fullResponse += chunkText;
                   setWords(fullResponse);
                   
+                  // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
+                  const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
+                  if (toolMatch) {
+                    if (!textBuffer.includes('}')) {
+                      continue; // Wait for the chunk with the closing brace
+                    } else {
+                      // Execute and strip the full JSON block
+                      textBuffer = textBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
+                          try {
+                              const data = JSON.parse(match);
+                              if (data.user_query) {
+                                  import("@/music/MusicManager").then(({ MusicManager }) => {
+                                      MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+                                  });
+                              }
+                          } catch(e) {}
+                          return "";
+                      });
+                      // Clean up lingering markdown ticks
+                      textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
+                    }
+                  }
+                  
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {
                     const splitIndex = match.index + match[0].length;
@@ -1293,6 +1338,27 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 completeResponse += token;
                 setWords(completeResponse);
 
+                // MUSIC TOOL INTERCEPTOR: Hold buffer if JSON tool block is being assembled
+                const toolStart = currentBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
+                if (toolStart) {
+                  if (!currentBuffer.includes('}')) {
+                    continue; // Wait for closing brace
+                  }
+                  // Full JSON block received — execute and strip
+                  currentBuffer = currentBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (m) => {
+                    try {
+                      const d = JSON.parse(m);
+                      if (d.user_query) {
+                        import("@/music/MusicManager").then(({ MusicManager }) => {
+                          MusicManager.getInstance().processIntent({ type: "play", query: d.user_query });
+                        });
+                      }
+                    } catch {}
+                    return "";
+                  });
+                  currentBuffer = currentBuffer.replace(/```json|```/g, "").trim();
+                }
+
                 // Sentence-boundary detection: hand off completed sentences to TTS
                 let match: RegExpExecArray | null;
                 SENTENCE_END.lastIndex = 0;
@@ -1501,6 +1567,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       
       const finalText = transcript || fallbackTranscriptRef.current;
       const audioContextXML = stopTrackingAndAnalyze(finalText);
+      connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
 
       console.log(
         "%c🎙️ SARVAM STT DIAGNOSTICS",
