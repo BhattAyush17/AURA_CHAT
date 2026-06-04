@@ -204,6 +204,16 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
     if (stored) setUsageStats(JSON.parse(stored));
   }, []);
 
+  // Auto-set voice language when pipeline is selected (dropdown defaultValue doesn't write to localStorage)
+  useEffect(() => {
+    if (!selectedPipeline) return;
+    const currentLang = localStorage.getItem("aura_voice_language");
+    if (!currentLang) {
+      const defaultLang = selectedPipeline === "sarvam" ? "hi-IN" : "en-US";
+      localStorage.setItem("aura_voice_language", defaultLang);
+    }
+  }, [selectedPipeline]);
+
   const handleSupabaseConnected = () => {
     setCloudSyncEnabled(true);
   };

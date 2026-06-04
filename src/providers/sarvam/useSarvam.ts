@@ -1477,7 +1477,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       storageManager.loadSeed(),
     ]);
     seedRef.current = seedData ? seedData.seed : undefined;
-    const lang = localStorage.getItem("aura_voice_language") || "en-US";
+    const lang = localStorage.getItem("aura_voice_language") || "hi-IN";
 
     if (isUserInitiated) {
       if (messagesRef.current.length === 0) {

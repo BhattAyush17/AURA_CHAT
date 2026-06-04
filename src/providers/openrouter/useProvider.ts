@@ -1511,7 +1511,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       storageManager.loadSeed(),
     ]);
     seedRef.current = seedData ? seedData.seed : undefined;
-    const lang = localStorage.getItem("aura_voice_language") || "en-US";
+    const lang = localStorage.getItem("aura_voice_language") || "hi-IN";
 
     if (isUserInitiated) {
       if (messagesRef.current.length === 0) {
@@ -1542,7 +1542,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = lang;
 
     recognition.onstart = () => {
@@ -1559,10 +1559,32 @@ export function useOpenRouter(mode: string = "adaptive") {
     };
 
     recognition.onresult = async (event: any) => {
-      const l1_start = performance.now();
-      const text = event.results[0][0].transcript;
+      if (isSpeakingRef.current) return; // Ignore STT while TTS is playing to prevent echo
+
+      let interim = "";
+      let isFinal = false;
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          isFinal = true;
+          finalText += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+
+      pushConversationTrace(isFinal ? "TRANSCRIPT_FINAL" : "TRANSCRIPT_PARTIAL", { length: (isFinal ? finalText : interim).length });
+
+      // Show interim results in real-time so the user sees their speech being recognized
+      if (!isFinal) {
+        if (interim) setWords(interim);
+        return;
+      }
+
+      const text = finalText;
       if (!text.trim()) return;
-      pushConversationTrace("TRANSCRIPT_FINAL", { length: text.length });
+
+      const l1_start = performance.now();
       const audioContextXML = stopTrackingAndAnalyze(text);
       connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
       console.log(
