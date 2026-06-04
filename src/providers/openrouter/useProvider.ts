@@ -1240,6 +1240,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
+      let rawCompleteResponse = "";
       let success = false;
       const attempted: string[] = [];
 
@@ -1407,8 +1408,19 @@ export function useOpenRouter(mode: string = "adaptive") {
                   stopThinkingAudio();
                   connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
-                currentBuffer += token;
-                completeResponse += token;
+                rawCompleteResponse += token;
+
+                // Dynamically strip internal system blocks (even while they are partially streaming)
+                let displayString = rawCompleteResponse;
+                displayString = displayString.replace(/\[SYSTEM DIRECTIVE[\s\S]*?(?:\]|$)/gi, "");
+                displayString = displayString.replace(/\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi, "");
+                displayString = displayString.replace(/\[CRITICAL:[\s\S]*?(?:\]|$)/gi, "");
+                
+                const newText = displayString.slice(completeResponse.length);
+                if (!newText) continue;
+
+                currentBuffer += newText;
+                completeResponse += newText;
                 setWords(completeResponse);
 
                 // Sentence-boundary detection: hand off completed sentences to TTS

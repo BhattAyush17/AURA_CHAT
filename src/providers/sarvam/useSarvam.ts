@@ -1182,6 +1182,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
       let currentBuffer = "";
       let completeResponse = "";
+      let rawCompleteResponse = "";
       let success = false;
       const attempted: string[] = [];
 
@@ -1348,8 +1349,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                     pushConversationTrace("LLM_FIRST_TOKEN", { provider: "openrouter", latencyMs: performance.now() - l4_start });
                     connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
-                currentBuffer += token;
-                completeResponse += token;
+                rawCompleteResponse += token;
+
+                // Dynamically strip internal system blocks (even while they are partially streaming)
+                let displayString = rawCompleteResponse;
+                displayString = displayString.replace(/\[SYSTEM DIRECTIVE[\s\S]*?(?:\]|$)/gi, "");
+                displayString = displayString.replace(/\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi, "");
+                displayString = displayString.replace(/\[CRITICAL:[\s\S]*?(?:\]|$)/gi, "");
+                
+                const newText = displayString.slice(completeResponse.length);
+                if (!newText) continue;
+
+                currentBuffer += newText;
+                completeResponse += newText;
                 setWords(completeResponse);
 
                 // MUSIC TOOL INTERCEPTOR: Hold buffer if JSON tool block is being assembled
