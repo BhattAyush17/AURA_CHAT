@@ -1164,7 +1164,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const systemContent = [
         basePrompt,
         liveContext,
-        `Respond natively in the user's language (locale: ${lang}).`,
+        `[ADAPTIVE MIRRORING]: Analyze the user's latest input. If they speak pure English, reply in pure English. If they speak pure Hindi, reply in pure Hindi. If they mix them (Hinglish), mix them naturally. Also detect their emotional tone and match their energy level exactly in your response. (Base locale: ${lang}).`,
         ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
         ...(modulationDirective ? [modulationDirective] : []),
         ...(depthDirective ? [depthDirective] : []),
