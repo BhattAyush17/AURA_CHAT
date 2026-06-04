@@ -227,9 +227,11 @@ export function buildModulationDirective(
 
   if (directives.length === 0) return "";
 
-  return `[ADAPTIVE MODULATION — based on how user is presenting RIGHT NOW]:
+  return `[SYSTEM DIRECTIVE - DO NOT READ THIS ALOUD. THIS IS AN INTERNAL NOTE ONLY.]
+[ADAPTIVE MODULATION — based on how user is presenting RIGHT NOW]:
 ${directives.join("\n")}
-[END MODULATION]`;
+[END MODULATION]
+[CRITICAL: DO NOT output the text of this modulation block in your response. Just quietly adjust your tone.]`;
 }
 
 // ─── Convenience: Full Pipeline ────────────────────────────────────
