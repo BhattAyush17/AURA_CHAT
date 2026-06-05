@@ -199,9 +199,10 @@ export function useConversationalPauses() {
       if (/^(and|but|so|because|since|also|plus|like|or|yet|still|then|which|where|that|—|–|-)/i.test(nextTrimmed)) return true;
       
       // Next starts with Hindi/Hinglish connectors → same thought
-      if (/^(aur|lekin|toh|kyunki|isliye|matlab|jaise|ya|par|phir|waise|haan|nahi)/i.test(nextTrimmed)) return true;
+      if (/^(aur|lekin|toh|kyunki|isliye|matlab|jaise|ya|par|phir|waise|haan|nahi|bas|ki)/i.test(nextTrimmed)) return true;
       
-      // Current ends without strong punctuation (no ., !, ?, ।) → unfinished thought
+      // Do not treat punctuation as conversational boundaries.
+      // If the semantic intent continues, ignore the period.
       if (!punct.hasStrongEnding) return true;
       
       // Current ends with comma or dash → explicitly continuing
@@ -209,8 +210,11 @@ export function useConversationalPauses() {
       
       // Next starts lowercase → not a new thought boundary
       if (/^[a-z]/.test(nextTrimmed)) return true;
-      
-      return false;
+
+      // "Is this the same thought?" -> Treat as single stream
+      // AURA Universal Framework: Do not treat language switches as boundaries
+      // Allow seamless Hindi to English and vice-versa
+      return true; // Aggressive thought grouping default per Framework
     })();
     
     if (isThoughtContinuation) {

@@ -21,6 +21,7 @@ import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { EmotionalState } from "@/lib/gemini-prompt";
 import type { LiveSession } from "./types";
+import { useExperienceMode } from "@/resilience";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
   const speculativeResultRef = useRef<BehaviorAnalysis | null>(null);
   const speculativeInputRef = useRef<string>("");
   const speculativeAbortRef = useRef<AbortController | null>(null);
+  const experienceMode = useExperienceMode("default_session"); // Or pass sessionId if available from provider
 
   /**
    * Primary analysis path. Checks if speculative result is usable,
@@ -176,6 +178,7 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
             personality || "adaptive",
             result,
             lastPresentationRef.current,
+            experienceMode
           );
           lastPresentationRef.current = presentation;
           lastModulationRef.current = directive;

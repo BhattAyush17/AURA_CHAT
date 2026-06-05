@@ -146,6 +146,7 @@ export function analyzeUserPresentation(
 export function buildModulationDirective(
   presentation: UserPresentation,
   personality: string,
+  experienceMode: string = "A"
 ): string {
   const directives: string[] = [];
 
@@ -225,6 +226,38 @@ export function buildModulationDirective(
     );
   }
 
+  // ── Intelligent Response Scaling (Universal Performance Framework) ──
+  if (experienceMode === "A") {
+    directives.push(
+      "[MODE A - OPTIMAL]: Full personality. Full depth. Detailed explanations. Storytelling. Rich reasoning. Mobile and desktop receive identical high quality."
+    );
+  } else if (experienceMode === "B") {
+    directives.push(
+      "[MODE B - NORMAL]: Maintain answer depth, but reduce repetition, redundant wording, and excess filler. Keep intelligence intact."
+    );
+  } else if (experienceMode === "C") {
+    directives.push(
+      "[MODE C - RECOVERY]: Preserve answer quality. Compress delivery structure. Prioritize: 1. Core answer, 2. Key details. Omit optional details. Be progressive."
+    );
+  } else if (experienceMode === "D") {
+    directives.push(
+      "[MODE D - EMERGENCY]: Generate shortest useful response possible. Preserve correctness. Never remain silent. Deliver fast."
+    );
+  }
+
+  // Universal rules
+  directives.push(
+    "AURA must always respond. Continuous, responsive, and reliable. A shorter response is preferable to silence. Avoid broad project analysis unless requested. Minimize token consumption."
+  );
+  
+  // Content Preservation & Progressive Expansion
+  directives.push(
+    "[CONTENT PRESERVATION]: If reducing length, first reduce formatting, redundancy, and repetition. Optional details last. Never remove core information."
+  );
+  directives.push(
+    "[PROGRESSIVE EXPANSION]: Prefer fast, useful answer first, then expand naturally. E.g., 'Yes, that's possible. Here's why...'."
+  );
+
   if (directives.length === 0) return "";
 
   return `[SYSTEM DIRECTIVE - DO NOT READ THIS ALOUD. THIS IS AN INTERNAL NOTE ONLY.]
@@ -245,8 +278,9 @@ export function getAdaptiveModulation(
   personality: string,
   analysis?: BehaviorAnalysis | null,
   prevPresentation?: UserPresentation | null,
+  experienceMode: string = "A"
 ): { presentation: UserPresentation; directive: string } {
   const presentation = analyzeUserPresentation(userText, analysis, prevPresentation);
-  const directive = buildModulationDirective(presentation, personality);
+  const directive = buildModulationDirective(presentation, personality, experienceMode);
   return { presentation, directive };
 }

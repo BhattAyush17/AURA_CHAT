@@ -246,6 +246,7 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
 
 // ─── Hook ───────────────────────────────────────────────────────────
 import { pushConversationTrace } from "../../core/telemetry";
+import { useResilience } from "@/resilience";
 
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
@@ -449,6 +450,51 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const adaptiveTurn = useAdaptiveTurnDetection();
   const transcript_ = useTranscriptManager();
   const conversationalPauses = useConversationalPauses();
+
+  // ── Resilience Subsystem ──
+  const { orchestrator } = useResilience(sessionIdRef.current);
+
+  // Wire Resilience Audio Callbacks
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireAudioCallbacks({
+      onResumeContext: async () => {
+        if (!audioCtxRef.current) return false;
+        try {
+          await audioCtxRef.current.resume();
+          return audioCtxRef.current.state === "running";
+        } catch {
+          return false;
+        }
+      },
+      onRebuildPlayback: () => {
+        console.log("🛠️ [Resilience] Rebuilding audio context...");
+        setupMicAnalyser();
+      },
+      onRequestNextChunk: () => {
+        // Handled by inline queue draining in Sarvam
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser]);
+
+  // Wire Silence Protection
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireSilenceProtection({
+      getStatus: () => statusRef.current,
+      getLastActivityTs: () => 0, // Sarvam doesn't use lastAudioEndRef
+      getLastTokenTs: () => 0,    // Handled differently in Sarvam
+      speakFiller: (text) => speakChunkNative(text, "en-US", currentTurnIdRef.current),
+      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
+      triggerSTTRecovery: () => {
+        stopRecognition();
+        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
+      },
+      triggerAudioRecovery: () => {
+        setupMicAnalyser();
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser, speakChunkNative]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -741,6 +787,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
         recognitionRef.current.stop();
+        orchestrator.sttWatchdog.reportStopped();
       } catch {}
       recognitionRef.current = null;
     }
@@ -756,9 +803,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     try {
       pushConversationTrace(isRestart ? "STT_RESTART_REQUESTED" : "STT_START_REQUESTED");
       rec.start();
+      orchestrator.sttWatchdog.reportListening();
     } catch (err: any) {
       console.warn("[Sarvam STT] safeRecognitionStart caught:", err?.name || err?.message);
       pushConversationTrace("STT_START_FAILED", { error: err?.name || err?.message });
+      orchestrator.sttWatchdog.reportError(err?.name || "UnknownError");
     }
   };
 

@@ -38,6 +38,7 @@ import { memoryGateway } from "@/lib/memory-gateway";
 import { useBargeIn } from "./useInterruption.ts";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 import { useConversationalPauses } from "@/shared/useConversationalPauses";
+import { useResilience } from "@/resilience";
 
 export type { ChatMessage };
 
@@ -600,6 +601,54 @@ export function useOpenRouter(mode: string = "adaptive") {
   const transcript_ = useTranscriptManager();
   const conversationalPauses = useConversationalPauses();
 
+  // ── Resilience Subsystem ──
+  const { orchestrator } = useResilience(sessionIdRef.current);
+
+  // Wire Resilience Audio Callbacks
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireAudioCallbacks({
+      onResumeContext: async () => {
+        if (!audioCtxRef.current) return false;
+        try {
+          await audioCtxRef.current.resume();
+          return audioCtxRef.current.state === "running";
+        } catch {
+          return false;
+        }
+      },
+      onRebuildPlayback: () => {
+        console.log("🛠️ [Resilience] Rebuilding audio context...");
+        setupMicAnalyser();
+      },
+      onRequestNextChunk: () => {
+        // Triggered if queue is empty during playback
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser]);
+
+  // Wire Silence Protection
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireSilenceProtection({
+      getStatus: () => statusRef.current,
+      getLastActivityTs: () => lastAudioEndRef.current || 0,
+      getLastTokenTs: () => lastTokenTimeRef.current || 0,
+      speakFiller: (text) => speakChunk(text, "en-US", "aside"),
+      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
+      triggerSTTRecovery: () => {
+        stopRecognition();
+        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
+      },
+      triggerAudioRecovery: () => {
+        setupMicAnalyser();
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser]);
+
+  // ── Telemetry & Time tracking ──
+  const lastTokenTimeRef = useRef<number>(0);
+
   // Cleanup on unmount
   useEffect(() => {
     if (isInactive) return;
@@ -803,6 +852,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
         recognitionRef.current.stop();
+        orchestrator.sttWatchdog.reportStopped();
       } catch { }
       recognitionRef.current = null;
     }
@@ -816,9 +866,11 @@ export function useOpenRouter(mode: string = "adaptive") {
     try {
       pushConversationTrace(isRestart ? "STT_RESTART_REQUESTED" : "STT_START_REQUESTED");
       rec.start();
+      orchestrator.sttWatchdog.reportListening();
     } catch (err: any) {
       console.warn("[OpenRouter STT] safeRecognitionStart caught:", err?.name || err?.message);
       pushConversationTrace("STT_START_FAILED", { error: err?.name || err?.message });
+      orchestrator.sttWatchdog.reportError(err?.name || "UnknownError");
     }
   };
 
@@ -841,6 +893,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       // -- THINKING INTENT ENGINE --
       // Instantly start thinking audio before L3/L4 API fetches
+      lastTokenTimeRef.current = performance.now();
       const intent = inferThinkingIntent(userText);
       const cueFile = resolveThinkingCue(intent);
       
@@ -858,15 +911,14 @@ export function useOpenRouter(mode: string = "adaptive") {
         });
       }
       
-      // Dead air rule: 500ms verbal filler (uses local TTS — voice-matched)
+      // ── LATENCY MASKING ──
+      // >250ms: Prepare response state (handled above by setStatus("thinking"))
+      // >750ms: Generate conversational acknowledgement ("Yeah...", "I see...", "Interesting...", "Got it...")
       thinkingTimeoutsRef.current.push(setTimeout(() => {
-        speakChunk(getRandomFiller(intent), lang, "aside");
-      }, 500));
-      
-      // Dead air rule: 1000ms secondary filler
-      thinkingTimeoutsRef.current.push(setTimeout(() => {
-        speakChunk("Still thinking...", lang, "aside");
-      }, 1000));
+        const acks = ["Yeah...", "I see...", "Interesting...", "Got it..."];
+        const ack = acks[Math.floor(Math.random() * acks.length)];
+        speakChunk(ack, lang, "aside");
+      }, 750));
 
       // Record in canonical transcript
       if (!isHiddenPrompt) {
@@ -1066,6 +1118,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                   // Metadata received instantly - can update UI state here if needed
                 } 
                 else if (data.event === "text_chunk") {
+                  lastTokenTimeRef.current = performance.now();
                   if (!firstTokenReceived) {
                     firstTokenReceived = true;
                     stopThinkingAudio();
@@ -1103,9 +1156,10 @@ export function useOpenRouter(mode: string = "adaptive") {
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {
                     const splitIndex = match.index + match[0].length;
-                    const sentence = textBuffer.substring(0, splitIndex);
+                    const sentence = textBuffer.substring(0, splitIndex).trim();
                     textBuffer = textBuffer.substring(splitIndex);
-                    sentenceQueueRef.current.push(sentence.trim());
+                    sentenceQueueRef.current.push(sentence);
+                    orchestrator.queueProtection.reportChunkAdded(sentence);
                     tryStartTTS();
                   }
                 }
@@ -1303,6 +1357,7 @@ export function useOpenRouter(mode: string = "adaptive") {
             if (ttsStarted || sentenceQueueRef.current.length === 0) return;
             ttsStarted = true;
             setStatus("speaking");
+            orchestrator.queueProtection.markPlaybackActive();
 
             const drainQueue = () => {
               if (segmentSubQueue.length > 0) {
@@ -1323,6 +1378,8 @@ export function useOpenRouter(mode: string = "adaptive") {
               }
 
               const rawNext = sentenceQueueRef.current.shift();
+              if (rawNext) orchestrator.queueProtection.reportChunkConsumed();
+              
               if (!rawNext) {
                 if (streamDone) {
                   import("@/music/MusicManager").then(({ MusicManager }) => {
@@ -1330,6 +1387,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                   });
                   // All spoken
                   isSpeakingRef.current = false;
+                  orchestrator.queueProtection.markPlaybackIdle();
                   if (isSessionActiveRef.current && startSessionRef.current) {
                     startSessionRef.current();
                   } else {
