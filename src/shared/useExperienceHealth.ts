@@ -27,7 +27,7 @@ export function useExperienceHealth(): ExperienceMetrics {
       else if (cores >= 4 && mem >= 4) deviceScore = 75;
       else deviceScore = 40;
 
-      if (/Android [4-7]/.test(navigator.userAgent) || /iPhone OS [8-11]/.test(navigator.userAgent)) {
+      if (/Android [4-7]/.test(navigator.userAgent) || /iPhone OS [89]/.test(navigator.userAgent)) {
         deviceScore -= 20;
       }
     }

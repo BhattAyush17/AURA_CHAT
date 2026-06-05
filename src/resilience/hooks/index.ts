@@ -51,26 +51,19 @@ export interface ResilienceAPI {
 
 // Module-level singleton to prevent re-creation across Fast Refresh
 let _orchestratorInstance: ResilienceOrchestrator | null = null;
-let _orchestratorSessionId: string | null = null;
 
-function getOrCreateOrchestrator(sessionId: string): ResilienceOrchestrator {
-  if (_orchestratorInstance && _orchestratorSessionId === sessionId) {
+function getOrCreateOrchestrator(): ResilienceOrchestrator {
+  if (_orchestratorInstance) {
     return _orchestratorInstance;
   }
 
-  // Destroy old instance if session changed
-  if (_orchestratorInstance) {
-    _orchestratorInstance.destroy();
-  }
-
-  _orchestratorInstance = new ResilienceOrchestrator(sessionId);
-  _orchestratorSessionId = sessionId;
+  _orchestratorInstance = new ResilienceOrchestrator("global_session");
   return _orchestratorInstance;
 }
 
-export function useResilience(sessionId: string): ResilienceAPI {
+export function useResilience(): ResilienceAPI {
   const orchestratorRef = useRef<ResilienceOrchestrator>(
-    getOrCreateOrchestrator(sessionId)
+    getOrCreateOrchestrator()
   );
 
   const [mode, setMode] = useState<ExperienceMode>("HEALTHY");
@@ -111,9 +104,9 @@ export function useResilience(sessionId: string): ResilienceAPI {
     return () => {
       clearInterval(pollHandle);
       unsub();
-      orch.stop();
+      // We don't stop the orchestrator anymore since it's a true global singleton
     };
-  }, [sessionId]);
+  }, []);
 
   const onEvent = useCallback(
     (listener: (event: ResilienceEvent) => void): (() => void) => {
@@ -140,8 +133,8 @@ export function useResilience(sessionId: string): ResilienceAPI {
  * useAdaptationPolicy — Lightweight hook for components that only
  * need the current adaptation policy (e.g., LLM prompt builders).
  */
-export function useAdaptationPolicy(sessionId: string): AdaptationPolicy {
-  const { policy } = useResilience(sessionId);
+export function useAdaptationPolicy(): AdaptationPolicy {
+  const { policy } = useResilience();
   return policy;
 }
 
@@ -149,7 +142,7 @@ export function useAdaptationPolicy(sessionId: string): AdaptationPolicy {
  * useExperienceMode — Lightweight hook for components that only
  * need the current mode string.
  */
-export function useExperienceMode(sessionId: string): ExperienceMode {
-  const { mode } = useResilience(sessionId);
+export function useExperienceMode(): ExperienceMode {
+  const { mode } = useResilience();
   return mode;
 }

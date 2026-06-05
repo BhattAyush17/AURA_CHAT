@@ -78,7 +78,7 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
   const speculativeResultRef = useRef<BehaviorAnalysis | null>(null);
   const speculativeInputRef = useRef<string>("");
   const speculativeAbortRef = useRef<AbortController | null>(null);
-  const experienceMode = useExperienceMode("default_session"); // Or pass sessionId if available from provider
+  const experienceMode = useExperienceMode();
 
   /**
    * Primary analysis path. Checks if speculative result is usable,

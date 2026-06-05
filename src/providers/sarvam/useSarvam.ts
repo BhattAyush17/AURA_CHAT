@@ -452,49 +452,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const conversationalPauses = useConversationalPauses();
 
   // ── Resilience Subsystem ──
-  const { orchestrator } = useResilience(sessionIdRef.current);
-
-  // Wire Resilience Audio Callbacks
-  useEffect(() => {
-    if (isInactive) return;
-    orchestrator.wireAudioCallbacks({
-      onResumeContext: async () => {
-        if (!audioCtxRef.current) return false;
-        try {
-          await audioCtxRef.current.resume();
-          return audioCtxRef.current.state === "running";
-        } catch {
-          return false;
-        }
-      },
-      onRebuildPlayback: () => {
-        console.log("🛠️ [Resilience] Rebuilding audio context...");
-        setupMicAnalyser();
-      },
-      onRequestNextChunk: () => {
-        // Handled by inline queue draining in Sarvam
-      }
-    });
-  }, [isInactive, orchestrator, setupMicAnalyser]);
-
-  // Wire Silence Protection
-  useEffect(() => {
-    if (isInactive) return;
-    orchestrator.wireSilenceProtection({
-      getStatus: () => statusRef.current,
-      getLastActivityTs: () => 0, // Sarvam doesn't use lastAudioEndRef
-      getLastTokenTs: () => 0,    // Handled differently in Sarvam
-      speakFiller: (text) => speakChunkNative(text, "en-US", currentTurnIdRef.current),
-      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
-      triggerSTTRecovery: () => {
-        stopRecognition();
-        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
-      },
-      triggerAudioRecovery: () => {
-        setupMicAnalyser();
-      }
-    });
-  }, [isInactive, orchestrator, setupMicAnalyser, speakChunkNative]);
+  const { orchestrator } = useResilience();
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1915,6 +1873,48 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   useEffect(() => {
     startSessionRef.current = startSession;
   }, [startSession]);
+
+  // Wire Resilience Audio Callbacks
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireAudioCallbacks({
+      onResumeContext: async () => {
+        if (!audioCtxRef.current) return false;
+        try {
+          await audioCtxRef.current.resume();
+          return audioCtxRef.current.state === "running";
+        } catch {
+          return false;
+        }
+      },
+      onRebuildPlayback: () => {
+        console.log("🛠️ [Resilience] Rebuilding audio context...");
+        setupMicAnalyser();
+      },
+      onRequestNextChunk: () => {
+        // Handled by inline queue draining in Sarvam
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser]);
+
+  // Wire Silence Protection
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireSilenceProtection({
+      getStatus: () => statusRef.current,
+      getLastActivityTs: () => 0, // Sarvam doesn't use lastAudioEndRef
+      getLastTokenTs: () => 0,    // Handled differently in Sarvam
+      speakFiller: (text) => speakChunkNative(text, "en-US", currentTurnIdRef.current),
+      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
+      triggerSTTRecovery: () => {
+        stopRecognition();
+        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
+      },
+      triggerAudioRecovery: () => {
+        setupMicAnalyser();
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser, speakChunkNative, stopRecognition]);
 
   return {
     status,

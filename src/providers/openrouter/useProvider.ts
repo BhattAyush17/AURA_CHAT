@@ -602,49 +602,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const conversationalPauses = useConversationalPauses();
 
   // ── Resilience Subsystem ──
-  const { orchestrator } = useResilience(sessionIdRef.current);
-
-  // Wire Resilience Audio Callbacks
-  useEffect(() => {
-    if (isInactive) return;
-    orchestrator.wireAudioCallbacks({
-      onResumeContext: async () => {
-        if (!audioCtxRef.current) return false;
-        try {
-          await audioCtxRef.current.resume();
-          return audioCtxRef.current.state === "running";
-        } catch {
-          return false;
-        }
-      },
-      onRebuildPlayback: () => {
-        console.log("🛠️ [Resilience] Rebuilding audio context...");
-        setupMicAnalyser();
-      },
-      onRequestNextChunk: () => {
-        // Triggered if queue is empty during playback
-      }
-    });
-  }, [isInactive, orchestrator, setupMicAnalyser]);
-
-  // Wire Silence Protection
-  useEffect(() => {
-    if (isInactive) return;
-    orchestrator.wireSilenceProtection({
-      getStatus: () => statusRef.current,
-      getLastActivityTs: () => lastAudioEndRef.current || 0,
-      getLastTokenTs: () => lastTokenTimeRef.current || 0,
-      speakFiller: (text) => speakChunk(text, "en-US", "aside"),
-      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
-      triggerSTTRecovery: () => {
-        stopRecognition();
-        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
-      },
-      triggerAudioRecovery: () => {
-        setupMicAnalyser();
-      }
-    });
-  }, [isInactive, orchestrator, setupMicAnalyser]);
+  const { orchestrator } = useResilience();
 
   // ── Telemetry & Time tracking ──
   const lastTokenTimeRef = useRef<number>(0);
@@ -1819,6 +1777,48 @@ export function useOpenRouter(mode: string = "adaptive") {
   useEffect(() => {
     startSessionRef.current = startSession;
   }, [startSession]);
+
+  // Wire Resilience Audio Callbacks
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireAudioCallbacks({
+      onResumeContext: async () => {
+        if (!audioCtxRef.current) return false;
+        try {
+          await audioCtxRef.current.resume();
+          return audioCtxRef.current.state === "running";
+        } catch {
+          return false;
+        }
+      },
+      onRebuildPlayback: () => {
+        console.log("🛠️ [Resilience] Rebuilding audio context...");
+        setupMicAnalyser();
+      },
+      onRequestNextChunk: () => {
+        // Triggered if queue is empty during playback
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser]);
+
+  // Wire Silence Protection
+  useEffect(() => {
+    if (isInactive) return;
+    orchestrator.wireSilenceProtection({
+      getStatus: () => statusRef.current,
+      getLastActivityTs: () => lastAudioEndRef.current || 0,
+      getLastTokenTs: () => lastTokenTimeRef.current || 0,
+      speakFiller: (text) => speakChunk(text, "en-US", "aside"),
+      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
+      triggerSTTRecovery: () => {
+        stopRecognition();
+        if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
+      },
+      triggerAudioRecovery: () => {
+        setupMicAnalyser();
+      }
+    });
+  }, [isInactive, orchestrator, setupMicAnalyser, speakChunk, stopRecognition]);
 
   return {
     status,
