@@ -137,7 +137,7 @@ export function useConversationalPauses() {
   const lastPauseStartRef = useRef(0);
   const inInterjectionWindowRef = useRef(false);
 
-  // Measure User Rhythm on their responses
+  // Measure User Rhythm on their responses — GRADUAL learning, not overreaction
   const userRespondedDuringWindow = useCallback((latencyMs?: number) => {
     inInterjectionWindowRef.current = false;
     
@@ -147,18 +147,21 @@ export function useConversationalPauses() {
     profile.turnCount++;
     
     if (latencyMs) {
-      // Exponential moving average for response latency
-      profile.avgResponseLatency = (profile.avgResponseLatency * 0.7) + (latencyMs * 0.3);
+      // Exponential moving average for response latency — 80% old, 20% new for stability
+      profile.avgResponseLatency = (profile.avgResponseLatency * 0.8) + (latencyMs * 0.2);
     }
     
-    // Adjust rhythm factor: frequent interrupters get a lower factor (faster pacing)
+    // Gradual rhythm factor adjustment: long-term patterns influence style more than
+    // short-term fluctuations. Only shift by 0.02 per interaction, never overreact.
     const interruptRate = profile.interruptCount / Math.max(1, profile.turnCount);
-    if (interruptRate > 0.3) {
-      profile.factor = Math.max(0.7, profile.factor - 0.05);
+    if (interruptRate > 0.3 && profile.factor > 0.7) {
+      profile.factor -= 0.02; // Slowly speed up for frequent interrupters
+    } else if (interruptRate < 0.1 && profile.factor < 1.3) {
+      profile.factor += 0.02; // Slowly relax for patient listeners
     }
     
-    // Increase momentum on fast replies/interrupts
-    momentumRef.current = Math.min(1.5, momentumRef.current + 0.1);
+    // Gentle momentum increase on fast replies/interrupts
+    momentumRef.current = Math.min(1.5, momentumRef.current + 0.05);
   }, []);
 
   const resetForNewTurn = useCallback(() => {
@@ -180,7 +183,48 @@ export function useConversationalPauses() {
     // If the queue is empty and we are not done streaming, we must NOT pause, to avoid stalling.
     const isStarving = queueSize === 0 && !isStreamingDone;
 
-    // 2. Base Classification & Interruption Probability
+    // 2. THOUGHT CONTINUITY CHECK (Highest semantic priority)
+    // If consecutive sentences belong to the same thought-unit, collapse them into
+    // a single continuous flow with near-zero pause. A "thought" is defined as:
+    // - Same emotional direction / intent
+    // - Next sentence starts with a conjunction or continuation
+    // - Current sentence ends without a strong terminal (ellipsis, comma, dash)
+    // - Language switch within the same conversational idea (e.g. Hindi → English mid-thought)
+    
+    const isThoughtContinuation = (() => {
+      if (!nextSentence) return false;
+      const nextTrimmed = nextSentence.trim();
+      
+      // Next starts with a conjunction/connector → same thought
+      if (/^(and|but|so|because|since|also|plus|like|or|yet|still|then|which|where|that|—|–|-)/i.test(nextTrimmed)) return true;
+      
+      // Next starts with Hindi/Hinglish connectors → same thought
+      if (/^(aur|lekin|toh|kyunki|isliye|matlab|jaise|ya|par|phir|waise|haan|nahi)/i.test(nextTrimmed)) return true;
+      
+      // Current ends without strong punctuation (no ., !, ?, ।) → unfinished thought
+      if (!punct.hasStrongEnding) return true;
+      
+      // Current ends with comma or dash → explicitly continuing
+      if (punct.trailingPunctuation === "comma") return true;
+      
+      // Next starts lowercase → not a new thought boundary
+      if (/^[a-z]/.test(nextTrimmed)) return true;
+      
+      return false;
+    })();
+    
+    if (isThoughtContinuation) {
+      // Same thought — nearly seamless transition
+      return {
+        category: "CONTINUE" as PauseCategory,
+        durationMs: Math.round(20 + Math.random() * 20), // 20-40ms micro-jitter only
+        listenForInterruption: false,
+        reason: "THOUGHT_CONTINUATION: same thought-unit, near-zero pause",
+        isBreath: false,
+      };
+    }
+
+    // 3. Base Classification & Interruption Probability (for thought-BOUNDARY sentences)
     let category: PauseCategory = "CONTINUE";
     let basePause = 50;
     let interruptionProbability = 0.1;
