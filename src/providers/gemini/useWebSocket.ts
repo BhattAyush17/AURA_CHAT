@@ -277,7 +277,7 @@ export function useGeminiWebSocket(): GeminiWebSocketAPI {
                     text: getSystemPromptForPersonality(
                       activeOpts.personality,
                       activeOpts.seedBlock,
-                    ) + `\n\n[ADAPTIVE MIRRORING]: Analyze the user's latest input. If they speak pure English, reply in pure English. If they speak pure Hindi, reply in pure Hindi. If they mix them (Hinglish), mix them naturally. Also detect their emotional tone and match their energy level exactly in your response. (Base locale: ${activeOpts.voiceLanguage}).`,
+                    ) + `\n\n[ADAPTIVE MIRRORING]: Analyze the exact language of the user's latest input. CRITICAL RULE: You MUST reply in the EXACT SAME language they used. If they speak pure English, reply in pure English. If they speak pure Hindi (Devanagari), reply in pure Hindi. If they mix them (Hinglish/Roman Hindi), mix them naturally using Romanized script. Never change the language arbitrarily. Also detect their emotional tone and match their energy level exactly in your response. (Base locale fallback: ${activeOpts.voiceLanguage}).`,
                   },
                 ],
               },

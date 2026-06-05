@@ -146,6 +146,10 @@ function AuraExperience() {
       : isThinking
         ? "Mapping..."
         : pipeline.liveStats?.intent || "Steady";
+  const detectedLanguage = 
+    activeBrain === "gemini"
+      ? (pipeline as any).liveStats?.language || "English"
+      : pipeline.liveStats?.language || "English";
   const brainModel = activeBrain === "gemini" ? "Gemini Live 🎙️" : activeModel || "Unknown";
 
   const handleMicClick = useCallback(async () => {
@@ -482,7 +486,13 @@ function AuraExperience() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 border-t border-border/20 pt-4 mt-2">
+                <div className="grid grid-cols-4 gap-4 border-t border-border/20 pt-4 mt-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      LANGUAGE
+                    </span>
+                    <span className="text-xs text-foreground/80 font-medium">{detectedLanguage}</span>
+                  </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
                       DETECTED TONE

@@ -19,7 +19,7 @@ export function useVoiceAcoustics() {
   const rmsSamplesRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
 
-  const [liveStats, setLiveStats] = useState({ tone: "Normal", intent: "Listening" });
+  const [liveStats, setLiveStats] = useState({ tone: "Normal", intent: "Listening", language: "Detecting..." });
 
   const startTracking = useCallback((analyser: AnalyserNode | null) => {
     if (!analyser) return;
@@ -109,7 +109,26 @@ export function useVoiceAcoustics() {
       mood = "frustrated or urgent";
     }
 
-    setLiveStats({ tone: energy.charAt(0).toUpperCase() + energy.slice(1), intent: mood });
+    // 5. Detect Language (Basic Heuristics)
+    let language = "English";
+    const hasDevanagari = /[\u0900-\u097F]/.test(text);
+    const commonHindiRoman = /\b(hai|kya|kaise|ho|nahi|haan|bhai|yaar|acha|theek|mera|tum|aap|yeh|woh|karo|raha|rahi|baat)\b/i;
+    
+    if (hasDevanagari) {
+      if (text.match(/[a-zA-Z]/)) {
+        language = "Hinglish";
+      } else {
+        language = "Hindi";
+      }
+    } else if (commonHindiRoman.test(text)) {
+      language = "Hinglish";
+    }
+
+    setLiveStats({ 
+      tone: energy.charAt(0).toUpperCase() + energy.slice(1), 
+      intent: mood,
+      language: language 
+    });
 
     // Build the XML Tag
     return `<audio_context>\n  <energy>${energy} (rms: ${averageRms.toFixed(3)})</energy>\n  <pace>${pace} (${Math.round(wpm)} wpm)</pace>\n  <delivery>${delivery}</delivery>\n  <mood>${mood}</mood>\n</audio_context>\n`;
