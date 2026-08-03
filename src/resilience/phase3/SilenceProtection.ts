@@ -22,14 +22,7 @@ const CHECK_INTERVAL_MS = 500;
 const FILL_COOLDOWN_MS = 3000;
 const MAX_CONSECUTIVE_FILLS = 3;
 
-const FILL_PHRASES = [
-  "Give me just a moment...",
-  "Still here, thinking...",
-  "One second...",
-  "Working on it...",
-  "Hmm, let me think...",
-  "Almost there...",
-];
+// Conversational fillers removed to enforce strict runtime/LLM separation.
 
 export interface SilenceProtectionCallbacks {
   /** Returns current pipeline status */
@@ -38,8 +31,8 @@ export interface SilenceProtectionCallbacks {
   getLastActivityTs: () => number;
   /** Returns timestamp of last token received */
   getLastTokenTs: () => number;
-  /** Speak a filler phrase */
-  speakFiller: (text: string) => void;
+  /** Speak a filler phrase (Deprecated: Runtime must not author dialogue) */
+  speakFiller?: (text: string) => void;
   /** Check if AudioContext is alive */
   isAudioContextAlive: () => boolean;
   /** Trigger STT recovery */
@@ -144,31 +137,21 @@ export class SilenceProtection {
       return;
     }
 
-    // Fill with a conversational phrase
-    const phrase = this.getNextPhrase();
-    this.callbacks.speakFiller(phrase);
+    // Latency masking with artificial speech is disabled per human conversation rules.
+    // We do NOT speak "Hmm" or "One moment" just because of elapsed time.
     this.lastFillTs = now;
     this.consecutiveFills++;
 
     this.emit({
-      kind: "silence_filled",
-      text: phrase,
+      kind: "silence_detected",
+      durationMs: silenceDuration,
       ts: now,
     });
 
-    this.recordEvent(silenceDuration, `filler: "${phrase}"`);
+    this.recordEvent(silenceDuration, "silence_tolerated");
   }
 
-  private getNextPhrase(): string {
-    // Avoid repeating the same phrase consecutively
-    let index: number;
-    do {
-      index = Math.floor(Math.random() * FILL_PHRASES.length);
-    } while (index === this.lastFillIndex && FILL_PHRASES.length > 1);
-
-    this.lastFillIndex = index;
-    return FILL_PHRASES[index];
-  }
+  // getNextPhrase removed.
 
   private recordEvent(durationMs: number, action: string): void {
     const event: SilenceEvent = {

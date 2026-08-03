@@ -15,11 +15,11 @@ export class AdaptiveAcknowledgementEngine {
   }
 
   private getOptions(intent: string, emotion: string, rhythm: string): string[] {
-    if (rhythm === "TECHNICAL") return ["Let me think about that...", "Analyzing...", "Hmm..."];
-    if (emotion === "excited") return ["Wow...", "Oh...", "Interesting!"];
-    if (intent === "agreement") return ["Yeah...", "Right...", "I see..."];
-    if (rhythm === "EMOTIONAL") return ["[sigh]", "Mm...", "I hear you..."];
+    if (rhythm === "TECHNICAL") return ["That's an interesting question.", "Let me analyze this.", "Let me look into that."];
+    if (emotion === "excited") return ["Wow!", "Oh, interesting!", "That's great!"];
+    if (intent === "agreement") return ["I understand.", "Right.", "I see."];
+    if (rhythm === "EMOTIONAL") return ["I hear you.", "I understand.", "That's deep."];
     
-    return ["Hmm...", "Let's see...", "Okay..."]; // Default casual
+    return []; // Silence is preferred over artificial fillers
   }
 }

@@ -118,14 +118,9 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
 
   const interruptPlayback = useCallback(
     (gracefulMs: number = 20) => {
-      const now = audioContextRef.current?.currentTime || 0;
-      activeAudioNodesRef.current.forEach((node) => {
-        try {
-          node.stop(now + gracefulMs / 1000);
-        } catch {}
+      import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+        SpeechCoordinator.getInstance().flush();
       });
-      activeAudioNodesRef.current.clear();
-      nextPlayTimeRef.current = now;
       setIsSpeakingState(false);
     },
     [setIsSpeakingState],
@@ -359,21 +354,18 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
       const f32 = base64PcmToFloat32(base64Audio);
       const buf = audioContext.createBuffer(1, f32.length, SAMPLE_RATE_OUT);
       buf.getChannelData(0).set(f32);
-      const node = audioContext.createBufferSource();
-      node.buffer = buf;
-      node.connect(outAnalyser);
-
-      const startAt = Math.max(audioContext.currentTime, nextPlayTimeRef.current);
-      const scheduledAt = startAt + delayOffsetSec;
-
-      node.start(scheduledAt);
-      activeAudioNodesRef.current.add(node);
-      nextPlayTimeRef.current = scheduledAt + buf.duration;
-
-      node.onended = () => {
-        activeAudioNodesRef.current.delete(node);
-        if (audioContext.currentTime >= nextPlayTimeRef.current - 0.1) setIsSpeakingState(false);
-      };
+      
+      import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+        SpeechCoordinator.getInstance().queueAudioContextBuffer(
+          audioContext, 
+          buf, 
+          outAnalyser, 
+          delayOffsetSec, 
+          () => {
+            if (audioContext.currentTime >= SpeechCoordinator.getInstance().getNextPlayTime() - 0.1) setIsSpeakingState(false);
+          }
+        );
+      });
     },
     [setIsSpeakingState],
   );
@@ -402,12 +394,9 @@ export function useAudioPipeline(onInterrupt: () => void): AudioPipelineAPI {
       streamRef.current = null;
     }
     if (audioContextRef.current) {
-      activeAudioNodesRef.current.forEach((n) => {
-        try {
-          n.stop();
-        } catch {}
+      import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+        SpeechCoordinator.getInstance().flush();
       });
-      activeAudioNodesRef.current.clear();
       if (audioContextRef.current.state !== "closed")
         audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;

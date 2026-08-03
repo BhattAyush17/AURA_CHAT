@@ -59,25 +59,25 @@ const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
 
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
-  
+
   // Extract JSON tool calls first
   let processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
-      try {
-          const data = JSON.parse(match);
-          if (data.user_query) {
-              import("@/music/MusicManager").then(({ MusicManager }) => {
-                  MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
-              });
-          }
-      } catch(e) {}
-      return "";
+    try {
+      const data = JSON.parse(match);
+      if (data.user_query) {
+        import("@/music/MusicManager").then(({ MusicManager }) => {
+          MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+        });
+      }
+    } catch (e) { }
+    return "";
   });
 
   const noEmojis = processedText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
   const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]|<([^>]+)>/g;
   let lastIndex = 0;
   let match;
-  
+
   while ((match = regex.exec(noEmojis)) !== null) {
     if (match.index > lastIndex) {
       const normalText = noEmojis.substring(lastIndex, match.index).trim();
@@ -85,12 +85,12 @@ export function parseSegments(text: string): SpeechSegment[] {
         segments.push({ text: normalText, style: "normal" });
       }
     }
-    
+
     const actionText = (match[1] || match[2] || match[3] || match[4] || "").trim();
     const actionLower = actionText.toLowerCase();
     const now = performance.now();
     const canAct = (now - lastActionTime) > ACTION_COOLDOWN;
-    
+
     // ── Music Intent Tags → MusicManager ──
     if (actionText.startsWith("PLAY_YOUTUBE:")) {
       const query = actionText.replace("PLAY_YOUTUBE:", "").trim();
@@ -101,7 +101,7 @@ export function parseSegments(text: string): SpeechSegment[] {
       lastIndex = regex.lastIndex;
       continue;
     }
-    
+
     if (actionText === "STOP_YOUTUBE") {
       import("@/music/MusicManager").then(({ MusicManager }) => {
         MusicManager.getInstance().processIntent({ type: "stop" });
@@ -199,7 +199,7 @@ export function parseSegments(text: string): SpeechSegment[] {
     else if (match[3] || actionLower.includes("whisper") || actionLower.includes("murmur") || actionLower.includes("softly")) style = "whisper";
     else if (actionLower.includes("serious") || actionLower.includes("stern") || actionLower.includes("firm")) style = "serious";
     else if (actionLower.includes("excited") || actionLower.includes("beaming") || actionLower.includes("grinning")) style = "excited";
-    
+
     if (AUDIO_ASSET_STYLES.has(style)) {
       if (canAct) {
         segments.push({ text: "", style });
@@ -207,23 +207,23 @@ export function parseSegments(text: string): SpeechSegment[] {
       }
     }
     // Intentionally dropping non-audio actionText so AURA doesn't speak her stage directions.
-    
+
     lastIndex = regex.lastIndex;
   }
-  
+
   const trailingText = noEmojis.substring(lastIndex).trim();
   if (trailingText) {
     segments.push({ text: trailingText, style: "normal" });
   }
-  
+
   return segments;
 }
 
 // ─── Smart Audio Loader with Gender Fallback Chain ──────────────────
 // Priority: gender-specific file → shared gender-neutral file → null (skip)
 const getAudioClip = (filename: string) => {
-    if (typeof window === 'undefined') return null;
-    return new Audio(`/emotion_sounds/${filename}`);
+  if (typeof window === 'undefined') return null;
+  return new Audio(`/emotion_sounds/${filename}`);
 };
 
 /**
@@ -233,45 +233,45 @@ const getAudioClip = (filename: string) => {
  *   [2] shared gender-neutral fallback (works for both)
  */
 const ASSET_TABLE: Record<string, [string, string, string | null]> = {
-  laughs:  ['female_laugh.mp3',       'male_laugh.mp3',       'soft_laugh.mp3'],
-  sighs:   ['female-sigh.mp3',        'male_sigh.mp3',        'deep_sigh.mp3'],
-  breaths: ['female_deepbreath.mp3',  'male_deepbreath.mp3',  'inhale.mp3'],
-  cries:   ['female_cry.mp3',         'male_cry.mp3',         null],
-  grunts:  ['female_grunt.mp3',       'male_grunt.mp3',       null],
-  scoffs:  ['female_scoff.mp3',       'male_scoff.mp3',       'scoff.mp3'],
-  moans:   ['female_m_sound.mp3',     'male_moan.mp3',        null],
+  laughs: ['female_laugh.mp3', 'male_laugh.mp3', 'soft_laugh.mp3'],
+  sighs: ['female-sigh.mp3', 'male_sigh.mp3', 'deep_sigh.mp3'],
+  breaths: ['female_deepbreath.mp3', 'male_deepbreath.mp3', 'inhale.mp3'],
+  cries: ['female_cry.mp3', 'male_cry.mp3', null],
+  grunts: ['female_grunt.mp3', 'male_grunt.mp3', null],
+  scoffs: ['female_scoff.mp3', 'male_scoff.mp3', 'scoff.mp3'],
+  moans: ['female_m_sound.mp3', 'male_moan.mp3', null],
 };
 
 const audioClips: Record<string, HTMLAudioElement | null> = {
-    laughs: null, sighs: null, breaths: null, cries: null,
-    grunts: null, scoffs: null, moans: null,
+  laughs: null, sighs: null, breaths: null, cries: null,
+  grunts: null, scoffs: null, moans: null,
 };
 
 let activeGender = "";
 
 const initAudioClips = () => {
-    if (typeof window === 'undefined') return;
-    
-    const gender = localStorage.getItem("aura_voice_gender") || "female";
-    
-    // Only re-initialize if not loaded or if gender changed mid-session
-    if (!audioClips.laughs || activeGender !== gender) {
-        activeGender = gender;
-        const idx = gender === "female" ? 0 : 1;
-        
-        for (const [key, files] of Object.entries(ASSET_TABLE)) {
-            // Try gender-specific file first; use shared fallback if available
-            audioClips[key] = getAudioClip(files[idx]);
-            
-            // Preload the audio so the browser caches it and can report duration
-            if (audioClips[key]) {
-                audioClips[key]!.preload = "auto";
-                // If the gender-specific file 404s at play time, the onerror handler
-                // in playAudioAsset will gracefully skip. But if a shared fallback exists,
-                // we also keep it ready to swap in at play time.
-            }
-        }
+  if (typeof window === 'undefined') return;
+
+  const gender = localStorage.getItem("aura_voice_gender") || "female";
+
+  // Only re-initialize if not loaded or if gender changed mid-session
+  if (!audioClips.laughs || activeGender !== gender) {
+    activeGender = gender;
+    const idx = gender === "female" ? 0 : 1;
+
+    for (const [key, files] of Object.entries(ASSET_TABLE)) {
+      // Try gender-specific file first; use shared fallback if available
+      audioClips[key] = getAudioClip(files[idx]);
+
+      // Preload the audio so the browser caches it and can report duration
+      if (audioClips[key]) {
+        audioClips[key]!.preload = "auto";
+        // If the gender-specific file 404s at play time, the onerror handler
+        // in playAudioAsset will gracefully skip. But if a shared fallback exists,
+        // we also keep it ready to swap in at play time.
+      }
     }
+  }
 };
 
 /**
@@ -281,12 +281,12 @@ const initAudioClips = () => {
  *   [2] shared gender-neutral fallback
  */
 const THINKING_AUDIO_TABLE: Record<string, [string, string, string | null]> = {
-  analytical: ['female_hmm.mp3',           'male_hmm.mp3',           null],
-  searching:  ['female_inhale.mp3',        'male_inhale.mp3',        'inhale.mp3'],
-  uncertain:  ['female_soft_uh.mp3',       'male_soft_uh.mp3',       null],
-  emotional:  ['female_soft_sigh.mp3',     'male_soft_sigh.mp3',     'deep_sigh.mp3'],
-  amused:     ['female_soft_laugh.mp3',    'male_soft_laugh.mp3',    'soft_laugh.mp3'],
-  excited:    ['female_excited_inhale.mp3','male_excited_inhale.mp3','inhale.mp3'],
+  analytical: ['female_hmm.mp3', 'male_hmm.mp3', null],
+  searching: ['female_inhale.mp3', 'male_inhale.mp3', 'inhale.mp3'],
+  uncertain: ['female_soft_uh.mp3', 'male_soft_uh.mp3', null],
+  emotional: ['female_soft_sigh.mp3', 'male_soft_sigh.mp3', 'deep_sigh.mp3'],
+  amused: ['female_soft_laugh.mp3', 'male_soft_laugh.mp3', 'soft_laugh.mp3'],
+  excited: ['female_excited_inhale.mp3', 'male_excited_inhale.mp3', 'inhale.mp3'],
 };
 
 /** Resolve a thinking intent to the best available audio file for the current gender */
@@ -319,7 +319,7 @@ export function playAudioAsset(
   initAudioClips();
   const clipKey = STYLE_TO_CLIP[style];
   let clip = clipKey ? audioClips[clipKey] : null;
-  
+
   const cleanup = () => {
     if (clip) {
       clip.onended = null;
@@ -340,7 +340,7 @@ export function playAudioAsset(
       case "scoff": verbal = "Pfft"; break;
       case "moan": verbal = "Ahhh"; break;
     }
-    
+
     if (!verbal || typeof window === 'undefined' || !window.speechSynthesis) {
       cleanup();
       return;
@@ -350,20 +350,20 @@ export function playAudioAsset(
     utterance.volume = 0.6; // Softer so it sounds like a filler/breath
     utterance.rate = 1.1;
     utterance.pitch = style === "scoff" ? 1.2 : 0.95;
-    
+
     const lang = localStorage.getItem("aura_lang") || "en-US";
     utterance.lang = lang;
-    
+
     const voices = window.speechSynthesis.getVoices();
     const matching = voices.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]));
     const premium = matching.find((v) => v.name.toLowerCase().includes("google") || v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("premium"));
     if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
-    
+
     utterance.onend = cleanup;
     utterance.onerror = cleanup;
     window.speechSynthesis.speak(utterance);
   };
-  
+
   // If the gender-specific file 404s, try the shared fallback before giving up
   const tryFallback = () => {
     const entry = ASSET_TABLE[clipKey];
@@ -383,17 +383,17 @@ export function playAudioAsset(
     tryFallback();
     return;
   }
-  
+
   // Intelligent Clip Trimming for Moans (Plays random 0.8s - 1.5s segment)
   if (style === "moan") {
     const clipDuration = isNaN(clip.duration) ? 3.0 : clip.duration;
-    const snippetLength = 0.8 + Math.random() * 0.7; 
+    const snippetLength = 0.8 + Math.random() * 0.7;
     const maxStart = Math.max(0, clipDuration - snippetLength);
     clip.currentTime = Math.random() * maxStart;
-    
+
     clip.onended = null;
     clip.onerror = tryFallback;
-    
+
     clip.play().then(() => {
       setTimeout(() => {
         clip!.pause();
@@ -402,7 +402,7 @@ export function playAudioAsset(
     }).catch(tryFallback);
     return;
   }
-  
+
   clip.onended = cleanup;
   clip.onerror = tryFallback;
   clip.play().catch(tryFallback);
@@ -420,26 +420,6 @@ export function inferThinkingIntent(text: string): ThinkingIntent {
   if (/\b(remember|recall|think about|ideas|brainstorm|explore|search|imagine|wonder)\b/i.test(lower)) return "searching";
   if (/\b(maybe|what if|depends|ambiguous|unclear|possibly|not sure|confused)\b/i.test(lower) || text.trim().endsWith("?")) return "uncertain";
   return "searching"; // default
-}
-
-const fillerPhrases = {
-  analytical: ["Hmm...", "Let's see...", "Interesting..."],
-  searching: ["Let's think...", "Okay...", "So..."],
-  uncertain: ["Hmm...", "It depends...", "Possibly..."],
-  emotional: ["Mm...", "I see...", "Yeah..."],
-  amused: ["Heh...", "Haha...", "Oh that's good."],
-  excited: ["Oh!", "Nice!", "That's awesome!"]
-};
-
-let lastFiller = "";
-export function getRandomFiller(intent: ThinkingIntent): string {
-  const options = fillerPhrases[intent];
-  let choice = options[Math.floor(Math.random() * options.length)];
-  if (choice === lastFiller && options.length > 1) {
-    choice = options.find(o => o !== lastFiller) || choice;
-  }
-  lastFiller = choice;
-  return choice;
 }
 
 // ─── Model queue ────────────────────────────────────────────────────
@@ -551,7 +531,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
       if (ctx.state === "suspended") {
-        try { await ctx.resume(); } catch {}
+        try { await ctx.resume(); } catch { }
       }
 
       const src = ctx.createMediaStreamSource(stream);
@@ -622,12 +602,12 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── TTS helpers ──────────────────────────────────────────────────
   const stopSpeech = () => {
     fetchAbortRef.current?.abort();
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+      SpeechCoordinator.getInstance().flush();
+    });
     isSpeakingRef.current = false;
   };
-  
+
   const stopThinkingAudio = useCallback(() => {
     if (activeThinkingAudioRef.current) {
       activeThinkingAudioRef.current.pause();
@@ -655,7 +635,7 @@ export function useOpenRouter(mode: string = "adaptive") {
             });
           }
         }
-      } catch {}
+      } catch { }
       onDone?.();
       return;
     }
@@ -704,7 +684,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       // Each sentence gets a slightly different pitch/rate so the ear
       // never detects a repetitive AI pattern.
       const jitterPitch = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
-      const jitterRate  = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
+      const jitterRate = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
       utterance.pitch = jitterPitch;
       utterance.rate = jitterRate;
       utterance.volume = 1.0;
@@ -763,12 +743,10 @@ export function useOpenRouter(mode: string = "adaptive") {
       onDone?.();
     };
     pushConversationTrace("TTS_READY", { provider: "webspeech" });
-    
-    if (typeof window !== "undefined") {
-      (window as any)._utterances = (window as any)._utterances || [];
-      (window as any)._utterances.push(utterance);
-    }
-    window.speechSynthesis.speak(utterance);
+
+    import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+      SpeechCoordinator.getInstance().registerWebSpeech(utterance);
+    });
   }, [setStatus]);
 
   // NOTE: Sentence queue is drained inline inside processTurn's tryStartTTS.
@@ -780,19 +758,19 @@ export function useOpenRouter(mode: string = "adaptive") {
     adaptiveTurn.registerFalseDetection();
     conversationalPauses.userRespondedDuringWindow();
     stopSpeech();
-    
+
     // ── Music VAD Integration: Pause music when user speaks ──
     import("@/music/MusicManager").then(({ MusicManager }) => {
       MusicManager.getInstance().onUserSpeechStart();
     });
-    
+
     if (spokenTextRef.current.trim().length > 0) {
       const interruptedText = spokenTextRef.current.trim() + " - [Interrupted]";
       addMessages([{ role: "assistant", content: interruptedText }]);
       transcript_.addTurn(interruptedText, false);
       wasInterruptedRef.current = true;
     }
-    
+
     fetchAbortRef.current?.abort();
     if (isSessionActiveRef.current && startSessionRef.current) {
       startSessionRef.current();
@@ -840,11 +818,11 @@ export function useOpenRouter(mode: string = "adaptive") {
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
       lastAudioEndRef.current = 0;
-      
+
       const wasInterrupted = wasInterruptedRef.current;
       spokenTextRef.current = "";
       wasInterruptedRef.current = false;
-      
+
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
@@ -855,7 +833,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       lastTokenTimeRef.current = performance.now();
       const intent = inferThinkingIntent(userText);
       const cueFile = resolveThinkingCue(intent);
-      
+
       if (typeof window !== 'undefined' && cueFile) {
         const audio = new Audio(`/emotion_sounds/${cueFile}`);
         activeThinkingAudioRef.current = audio;
@@ -865,19 +843,13 @@ export function useOpenRouter(mode: string = "adaptive") {
           if (entry && entry[2]) {
             const fallback = new Audio(`/emotion_sounds/${entry[2]}`);
             activeThinkingAudioRef.current = fallback;
-            fallback.play().catch(() => {});
+            fallback.play().catch(() => { });
           }
         });
       }
-      
+
       // ── LATENCY MASKING ──
-      // >250ms: Prepare response state (handled above by setStatus("thinking"))
-      // >750ms: Generate conversational acknowledgement ("Yeah...", "I see...", "Interesting...", "Got it...")
-      thinkingTimeoutsRef.current.push(setTimeout(() => {
-        const acks = ["Yeah...", "I see...", "Interesting...", "Got it..."];
-        const ack = acks[Math.floor(Math.random() * acks.length)];
-        speakChunk(ack, lang, "aside");
-      }, 750));
+      // Latency masking removed to prevent artificial "loading" speech overlapping.
 
       // Record in canonical transcript
       if (!isHiddenPrompt) {
@@ -911,7 +883,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         const { MusicManager } = await import("@/music/MusicManager");
         const manager = MusicManager.getInstance();
         musicContextXML = manager.buildContextInjection();
-      } catch {}
+      } catch { }
 
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
@@ -958,96 +930,96 @@ export function useOpenRouter(mode: string = "adaptive") {
         let ttsStarted = false;
         let streamDone = false;
 
-          let segmentSubQueue: SpeechSegment[] = [];
-          let sentenceIndex = 0;
-          let lastSpokenSentence = "";
+        let segmentSubQueue: SpeechSegment[] = [];
+        let sentenceIndex = 0;
+        let lastSpokenSentence = "";
 
-          const tryStartTTS = () => {
-            if (ttsStarted || sentenceQueueRef.current.length === 0) return;
-            ttsStarted = true;
-            setStatus("speaking");
+        const tryStartTTS = () => {
+          if (ttsStarted || sentenceQueueRef.current.length === 0) return;
+          ttsStarted = true;
+          setStatus("speaking");
 
-            const drainQueue = () => {
-              if (segmentSubQueue.length > 0) {
-                const seg = segmentSubQueue.shift()!;
-                if (AUDIO_ASSET_STYLES.has(seg.style)) {
-                  // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
-                  if (seg.style === "moan" && !boundlessModeActiveRef.current) {
-                    console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
-                    seg.style = "sigh";
-                  }
-                  playAudioAsset(seg.style as any, drainQueue);
-                } else if (!seg.text) {
-                  drainQueue();
-                } else {
-                  speakChunk(seg.text, lang, seg.style, drainQueue);
+          const drainQueue = () => {
+            if (segmentSubQueue.length > 0) {
+              const seg = segmentSubQueue.shift()!;
+              if (AUDIO_ASSET_STYLES.has(seg.style)) {
+                // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
+                if (seg.style === "moan" && !boundlessModeActiveRef.current) {
+                  console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
+                  seg.style = "sigh";
                 }
-                return;
+                playAudioAsset(seg.style as any, drainQueue);
+              } else if (!seg.text) {
+                drainQueue();
+              } else {
+                speakChunk(seg.text, lang, seg.style, drainQueue);
               }
+              return;
+            }
 
-              const rawNext = sentenceQueueRef.current.shift();
-              if (!rawNext) {
-                if (streamDone) {
-                  import("@/music/MusicManager").then(({ MusicManager }) => {
-                    MusicManager.getInstance().onAuraSpeechEnd();
-                  });
-                  isSpeakingRef.current = false;
-                  if (isSessionActiveRef.current && startSessionRef.current) {
-                    startSessionRef.current();
-                  } else {
-                    setStatus("idle");
-                  }
+            const rawNext = sentenceQueueRef.current.shift();
+            if (!rawNext) {
+              if (streamDone) {
+                import("@/music/MusicManager").then(({ MusicManager }) => {
+                  MusicManager.getInstance().onAuraSpeechEnd();
+                });
+                isSpeakingRef.current = false;
+                if (isSessionActiveRef.current && startSessionRef.current) {
+                  startSessionRef.current();
                 } else {
-                  setTimeout(drainQueue, 50);
+                  setStatus("idle");
                 }
-                return;
+              } else {
+                setTimeout(drainQueue, 50);
               }
-              
-              if (lastSpokenSentence) {
-                  const lastAnalysis = behavior.lastAnalysisRef.current;
-                  const ctx = {
-                      currentSentence: lastSpokenSentence,
-                      nextSentence: rawNext,
-                      sentenceIndex: sentenceIndex,
-                      totalSentences: streamDone ? sentenceIndex + 1 : undefined,
-                      isStreamingDone: streamDone,
-                      queueSize: sentenceQueueRef.current.length,
-                      emotionalState: lastAnalysis ? {
-                          tension: lastAnalysis.tension || 0,
-                          trust: lastAnalysis.trust || 0.5,
-                          energy: lastAnalysis.energy || 0.5,
-                          mode: lastAnalysis.mode || "calm"
-                      } : undefined
-                  };
-                  const pause = conversationalPauses.getPause(ctx);
-                  
-                  const doNext = () => {
-                      if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
-                      lastSpokenSentence = rawNext;
-                      sentenceIndex++;
-                      spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
-                      segmentSubQueue = parseSegments(rawNext);
-                      drainQueue();
-                  };
-                  
-                  if (pause.isBreath) {
-                      setTimeout(() => {
-                          playAudioAsset("breath", doNext);
-                      }, pause.durationMs);
-                  } else {
-                      setTimeout(doNext, pause.durationMs);
-                  }
-                  return;
+              return;
+            }
+
+            if (lastSpokenSentence) {
+              const lastAnalysis = behavior.lastAnalysisRef.current;
+              const ctx = {
+                currentSentence: lastSpokenSentence,
+                nextSentence: rawNext,
+                sentenceIndex: sentenceIndex,
+                totalSentences: streamDone ? sentenceIndex + 1 : undefined,
+                isStreamingDone: streamDone,
+                queueSize: sentenceQueueRef.current.length,
+                emotionalState: lastAnalysis ? {
+                  tension: lastAnalysis.tension || 0,
+                  trust: lastAnalysis.trust || 0.5,
+                  energy: lastAnalysis.energy || 0.5,
+                  mode: lastAnalysis.mode || "calm"
+                } : undefined
+              };
+              const pause = conversationalPauses.getPause(ctx);
+
+              const doNext = () => {
+                if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
+                lastSpokenSentence = rawNext;
+                sentenceIndex++;
+                spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
+                segmentSubQueue = parseSegments(rawNext);
+                drainQueue();
+              };
+
+              if (pause.isBreath) {
+                setTimeout(() => {
+                  playAudioAsset("breath", doNext);
+                }, pause.durationMs);
+              } else {
+                setTimeout(doNext, pause.durationMs);
               }
-              
-              lastSpokenSentence = rawNext;
-              sentenceIndex++;
-              spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
-              segmentSubQueue = parseSegments(rawNext);
-              drainQueue();
-            };
+              return;
+            }
+
+            lastSpokenSentence = rawNext;
+            sentenceIndex++;
+            spokenTextRef.current += (spokenTextRef.current ? " " : "") + rawNext;
+            segmentSubQueue = parseSegments(rawNext);
             drainQueue();
           };
+          drainQueue();
+        };
 
         setIsThinking(false);
 
@@ -1072,10 +1044,10 @@ export function useOpenRouter(mode: string = "adaptive") {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
-                
+
                 if (data.event === "metadata") {
                   // Metadata received instantly - can update UI state here if needed
-                } 
+                }
                 else if (data.event === "text_chunk") {
                   lastTokenTimeRef.current = performance.now();
                   if (!firstTokenReceived) {
@@ -1083,12 +1055,12 @@ export function useOpenRouter(mode: string = "adaptive") {
                     stopThinkingAudio();
                     connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                   }
-                  
+
                   const chunkText = data.text;
                   textBuffer += chunkText;
                   fullResponse += chunkText;
                   setWords(fullResponse);
-                  
+
                   // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
                   const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
                   if (toolMatch) {
@@ -1097,21 +1069,21 @@ export function useOpenRouter(mode: string = "adaptive") {
                     } else {
                       // Execute and strip the full JSON block
                       textBuffer = textBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
-                          try {
-                              const data = JSON.parse(match);
-                              if (data.user_query) {
-                                  import("@/music/MusicManager").then(({ MusicManager }) => {
-                                      MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
-                                  });
-                              }
-                          } catch(e) {}
-                          return "";
+                        try {
+                          const data = JSON.parse(match);
+                          if (data.user_query) {
+                            import("@/music/MusicManager").then(({ MusicManager }) => {
+                              MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+                            });
+                          }
+                        } catch (e) { }
+                        return "";
                       });
                       // Clean up lingering markdown ticks
                       textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
                     }
                   }
-                  
+
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {
                     const splitIndex = match.index + match[0].length;
@@ -1137,7 +1109,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           transcript_.addTurn(fullResponse, false);
           return;
         } else {
-           throw new Error("Empty response from stream");
+          throw new Error("Empty response from stream");
         }
       } catch (backendError: any) {
         if (backendError.name === 'AbortError') {
@@ -1270,7 +1242,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           const l4_start = performance.now();
           pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
           pushConversationTrace("LLM_REQUEST", { provider: "openrouter" });
-      
+
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             signal: fetchAbortRef.current.signal,
@@ -1338,7 +1310,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
               const rawNext = sentenceQueueRef.current.shift();
               if (rawNext) orchestrator.queueProtection.reportChunkConsumed();
-              
+
               if (!rawNext) {
                 if (streamDone) {
                   import("@/music/MusicManager").then(({ MusicManager }) => {
@@ -1360,39 +1332,39 @@ export function useOpenRouter(mode: string = "adaptive") {
               }
 
               if (lastSpokenSentence) {
-                  const lastAnalysis = behavior.lastAnalysisRef.current;
-                  const ctx = {
-                      currentSentence: lastSpokenSentence,
-                      nextSentence: rawNext,
-                      sentenceIndex: sentenceIndex,
-                      totalSentences: streamDone ? sentenceIndex + 1 : undefined,
-                      isStreamingDone: streamDone,
-                      queueSize: sentenceQueueRef.current.length,
-                      emotionalState: lastAnalysis ? {
-                          tension: lastAnalysis.tension || 0,
-                          trust: lastAnalysis.trust || 0.5,
-                          energy: lastAnalysis.energy || 0.5,
-                          mode: lastAnalysis.mode || "calm"
-                      } : undefined
-                  };
-                  const pause = conversationalPauses.getPause(ctx);
-                  
-                  const doNext = () => {
-                      if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
-                      lastSpokenSentence = rawNext;
-                      sentenceIndex++;
-                      segmentSubQueue = parseSegments(rawNext);
-                      drainQueue();
-                  };
+                const lastAnalysis = behavior.lastAnalysisRef.current;
+                const ctx = {
+                  currentSentence: lastSpokenSentence,
+                  nextSentence: rawNext,
+                  sentenceIndex: sentenceIndex,
+                  totalSentences: streamDone ? sentenceIndex + 1 : undefined,
+                  isStreamingDone: streamDone,
+                  queueSize: sentenceQueueRef.current.length,
+                  emotionalState: lastAnalysis ? {
+                    tension: lastAnalysis.tension || 0,
+                    trust: lastAnalysis.trust || 0.5,
+                    energy: lastAnalysis.energy || 0.5,
+                    mode: lastAnalysis.mode || "calm"
+                  } : undefined
+                };
+                const pause = conversationalPauses.getPause(ctx);
 
-                  if (pause.isBreath) {
-                      setTimeout(() => {
-                          playAudioAsset("breath", doNext);
-                      }, pause.durationMs);
-                  } else {
-                      setTimeout(doNext, pause.durationMs);
-                  }
-                  return;
+                const doNext = () => {
+                  if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
+                  lastSpokenSentence = rawNext;
+                  sentenceIndex++;
+                  segmentSubQueue = parseSegments(rawNext);
+                  drainQueue();
+                };
+
+                if (pause.isBreath) {
+                  setTimeout(() => {
+                    playAudioAsset("breath", doNext);
+                  }, pause.durationMs);
+                } else {
+                  setTimeout(doNext, pause.durationMs);
+                }
+                return;
               }
 
               lastSpokenSentence = rawNext;
@@ -1432,7 +1404,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 displayString = displayString.replace(/\[SYSTEM DIRECTIVE[\s\S]*?(?:\]|$)/gi, "");
                 displayString = displayString.replace(/\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi, "");
                 displayString = displayString.replace(/\[CRITICAL:[\s\S]*?(?:\]|$)/gi, "");
-                
+
                 const newText = displayString.slice(completeResponse.length);
                 if (!newText) continue;
 
@@ -1551,7 +1523,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         speakChunk(greetingText, lang, "normal", () => {
           if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
         });
-        return; 
+        return;
       } else {
         console.log("[AURA] Warm start greeting triggered.");
         const warmPrompt = "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
@@ -1665,12 +1637,12 @@ export function useOpenRouter(mode: string = "adaptive") {
 
           const backoff = Math.min(200 * Math.pow(2, errorRetryCountRef.current - 1), 2000);
           console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in ${backoff}ms (attempt ${errorRetryCountRef.current})...`);
-          
+
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
               // MOBILE FIX: Resume AudioContext before restarting recognition
               if (audioCtxRef.current?.state === "suspended") {
-                audioCtxRef.current.resume().catch(() => {});
+                audioCtxRef.current.resume().catch(() => { });
               }
               safeRecognitionStart(recognitionRef.current, true);
             }
@@ -1691,7 +1663,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       pushConversationTrace("STT_ENDED");
       // MOBILE FIX: Resume AudioContext if it got suspended during recognition
       if (audioCtxRef.current?.state === "suspended") {
-        audioCtxRef.current.resume().catch(() => {});
+        audioCtxRef.current.resume().catch(() => { });
       }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
         safeRecognitionStart(recognition, true);
@@ -1720,7 +1692,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         }
 
         if (audioCtxRef.current?.state === "suspended") {
-          audioCtxRef.current.resume().catch(() => {});
+          audioCtxRef.current.resume().catch(() => { });
         }
         if (statusRef.current === "listening" && recognitionRef.current) {
           safeRecognitionStart(recognitionRef.current, true);
