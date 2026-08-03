@@ -23,7 +23,7 @@ export class PlaybackController {
     this.audio = new Audio();
     // this.audio.crossOrigin = "anonymous"; // Disabled: Prevents direct playback of YouTube URLs due to lack of ACAO header
     this.audio.preload = "auto";
-    this.audio.playsInline = true; // Mobile iOS fix to prevent fullscreen takeover
+    this.audio.setAttribute("playsinline", "true"); // Mobile iOS fix to prevent fullscreen takeover
 
     // ── Wire native audio events ──
     this.audio.addEventListener("play", () => {

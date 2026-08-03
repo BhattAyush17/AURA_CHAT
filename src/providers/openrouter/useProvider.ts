@@ -499,6 +499,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const isSpeakingRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const lastAudioEndRef = useRef<number>(0);
+  const errorRetryCountRef = useRef<number>(0);
 
   // Activation state — persists across turns, resets on session end
   const boundlessModeActiveRef = useRef(false);
@@ -1577,6 +1578,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       pushConversationTrace("STT_STARTED");
       setStatus("listening");
       setWords("Listening...");
+      errorRetryCountRef.current = 0;
       startTracking(micAnalyserRef.current);
     };
 
@@ -1653,17 +1655,32 @@ export function useOpenRouter(mode: string = "adaptive") {
       if (errorType !== "no-speech") {
         // MOBILE FIX: Retry on transient mobile errors (network, aborted)
         if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
-          console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in 500ms...`);
+          errorRetryCountRef.current += 1;
+          if (errorRetryCountRef.current > 3) {
+            console.error(`[OpenRouter STT] Max retries (3) reached for error "${errorType}". Forcing stop.`);
+            setLastError(`Listening failed: ${errorType}`);
+            setStatus("error");
+            return;
+          }
+
+          const backoff = Math.min(200 * Math.pow(2, errorRetryCountRef.current - 1), 2000);
+          console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in ${backoff}ms (attempt ${errorRetryCountRef.current})...`);
+          
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
+              // MOBILE FIX: Resume AudioContext before restarting recognition
+              if (audioCtxRef.current?.state === "suspended") {
+                audioCtxRef.current.resume().catch(() => {});
+              }
               safeRecognitionStart(recognitionRef.current, true);
             }
-          }, 500);
+          }, backoff);
           return;
         }
         setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
+        errorRetryCountRef.current = 0;
         safeRecognitionStart(recognition, true);
       } else {
         setStatus("idle");
@@ -1689,6 +1706,19 @@ export function useOpenRouter(mode: string = "adaptive") {
     // MOBILE FIX: Recover from tab suspension / screen lock
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && isSessionActiveRef.current) {
+        // MOBILE FIX: Check if hardware mic track was revoked by OS
+        const track = micStreamRef.current?.getTracks()[0];
+        if (track && track.readyState === "ended") {
+          console.warn("[Voice] Hardware mic track ended (likely revoked in background). Restarting audio pipeline.");
+          teardownMicAnalyser();
+          setupMicAnalyser().then(() => {
+            if (statusRef.current === "listening" && recognitionRef.current) {
+              safeRecognitionStart(recognitionRef.current, true);
+            }
+          });
+          return;
+        }
+
         if (audioCtxRef.current?.state === "suspended") {
           audioCtxRef.current.resume().catch(() => {});
         }
@@ -1700,7 +1730,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     document.addEventListener("visibilitychange", handleVisibility);
     (recognitionRef as any).__visCleanup = () =>
       document.removeEventListener("visibilitychange", handleVisibility);
-  }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
+  }, [behavior, prompts, processTurn, setupMicAnalyser, teardownMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {

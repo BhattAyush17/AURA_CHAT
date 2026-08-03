@@ -1,4 +1,4 @@
-import { getCredential } from "./credentials";
+import { getCredential, validateGeminiApiKey } from "./credentials";
 
 /**
  * Returns the Gemini API key.
@@ -31,8 +31,7 @@ export const isValidKey = (key: string | null | undefined, keyType?: string): bo
 
   // Type-specific strict validations
   if (keyType === "aura_gemini_api_key") {
-    // Gemini API keys start with AIzaSy and are exactly 39 characters long
-    return k.startsWith("AIzaSy") && k.length === 39;
+    return validateGeminiApiKey(k);
   }
 
   if (keyType === "openrouter_api_key") {

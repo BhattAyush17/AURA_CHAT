@@ -325,6 +325,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const rollingBufferRef = useRef<Float32Array[]>([]);
   const isRecordingRef = useRef<boolean>(false);
   const recordingStartTimeRef = useRef<number>(0);
+  const errorRetryCountRef = useRef<number>(0);
 
   // Activation state — persists across turns, resets on session end
   const boundlessModeActiveRef = useRef(false);
@@ -1687,6 +1688,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       rollingBufferRef.current = [];
       fallbackTranscriptRef.current = "";
       recordingStartTimeRef.current = Date.now();
+      errorRetryCountRef.current = 0;
       startTracking(micAnalyserRef.current);
       isRecordingRef.current = true;
     };
@@ -1729,7 +1731,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       if (errorType !== "no-speech") {
         // MOBILE FIX: Retry on transient mobile errors (network, aborted)
         if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
-          console.warn(`[Sarvam STT] Transient error "${errorType}", retrying in 200ms...`);
+          errorRetryCountRef.current += 1;
+          if (errorRetryCountRef.current > 3) {
+            console.error(`[Sarvam STT] Max retries (3) reached for error "${errorType}". Forcing stop.`);
+            setLastError(`Listening failed: ${errorType}`);
+            setStatus("error");
+            pcmSamplesRef.current = [];
+            handleStopRecording();
+            return;
+          }
+          
+          const backoff = Math.min(200 * Math.pow(2, errorRetryCountRef.current - 1), 2000);
+          console.warn(`[Sarvam STT] Transient error "${errorType}", retrying in ${backoff}ms (attempt ${errorRetryCountRef.current})...`);
+          
           pcmSamplesRef.current = [];
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
@@ -1739,12 +1753,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               }
               safeRecognitionStart(recognitionRef.current, true);
             }
-          }, 200); // MOBILE: Reduced from 500ms to 200ms for faster recovery
+          }, backoff);
           return;
         }
         setLastError(`Listening failed: ${errorType}`);
         setStatus("error");
       } else if (isSessionActiveRef.current) {
+        errorRetryCountRef.current = 0;
         safeRecognitionStart(recognition, true);
       } else {
         setStatus("idle");
@@ -1772,6 +1787,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     // MOBILE FIX: Recover from tab suspension / screen lock
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && isSessionActiveRef.current) {
+        // MOBILE FIX: Check if hardware mic track was revoked by OS
+        const track = micStreamRef.current?.getTracks()[0];
+        if (track && track.readyState === "ended") {
+          console.warn("[Voice] Hardware mic track ended (likely revoked in background). Restarting audio pipeline.");
+          teardownMicAnalyser();
+          setupMicAnalyser().then(() => {
+            if (statusRef.current === "listening" && recognitionRef.current) {
+              safeRecognitionStart(recognitionRef.current, true);
+            }
+          });
+          return;
+        }
+
         // Resume AudioContext if suspended by OS
         if (audioCtxRef.current?.state === "suspended") {
           audioCtxRef.current.resume().catch(() => {});
@@ -1786,7 +1814,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     // Store cleanup ref for endSession
     (recognitionRef as any).__visCleanup = () =>
       document.removeEventListener("visibilitychange", handleVisibility);
-  }, [behavior, prompts, processTurn, setupMicAnalyser, adaptiveTurn, liveStats]);
+  }, [behavior, prompts, processTurn, setupMicAnalyser, teardownMicAnalyser, adaptiveTurn, liveStats]);
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {

@@ -87,7 +87,7 @@ function KeyInput({
 
     if (!isValidKey(trimmed, credentialKey)) {
       if (credentialKey === "aura_gemini_api_key") {
-        setError("Invalid Gemini API key. Must start with 'AIzaSy' and be 39 characters long.");
+        setError("Invalid Gemini API key.\n\nSupported formats:\n• AQ... (current)\n• AIza... (legacy)\n\nVerify the key was copied correctly from Google AI Studio.");
       } else if (credentialKey === "openrouter_api_key") {
         setError("Invalid OpenRouter API key. Must start with 'sk-or-v1-'.");
       } else if (credentialKey === "sarvam_api_key") {
@@ -151,7 +151,7 @@ function KeyInput({
         </button>
       </div>
       {error && (
-        <p className="text-xs text-red-500 font-semibold mt-1">{error}</p>
+        <p className="text-xs text-red-500 font-semibold mt-1 whitespace-pre-line">{error}</p>
       )}
       {!saved ? (
         <button onClick={handleSave} className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full cursor-pointer">

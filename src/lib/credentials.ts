@@ -14,6 +14,16 @@ export const CREDENTIAL_KEYS = [
 
 export type CredentialKey = (typeof CREDENTIAL_KEYS)[number];
 
+export const GEMINI_API_KEY_PREFIXES = ["AQ", "AIza"];
+
+export function validateGeminiApiKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  const k = key.trim();
+  if (k === "" || k === "undefined" || k === "null") return false;
+  const hasValidPrefix = GEMINI_API_KEY_PREFIXES.some(prefix => k.startsWith(prefix));
+  return hasValidPrefix && k.length >= 30;
+}
+
 /**
  * Store — sessionStorage only, never localStorage.
  * This ensures credentials die with the tab or browser session.
@@ -40,7 +50,7 @@ export function hasUserKey(key: CredentialKey): boolean {
   const k = val.trim();
   if (k === "" || k === "undefined" || k === "null") return false;
   // Type-specific validation (mirrors api.ts isValidKey)
-  if (key === "aura_gemini_api_key") return k.startsWith("AIzaSy") && k.length === 39;
+  if (key === "aura_gemini_api_key") return validateGeminiApiKey(k);
   if (key === "openrouter_api_key") return k.startsWith("sk-or-v1-") && k.length > 30;
   if (key === "sarvam_api_key") return k.startsWith("sk_") && k.length > 20;
   return k.length >= 8;
@@ -70,7 +80,7 @@ export function clearAllCredentials(): void {
  */
 export function hasRequiredCredentials(): boolean {
   const k = getCredential("aura_gemini_api_key");
-  return k.startsWith("AIzaSy") && k.length === 39;
+  return validateGeminiApiKey(k);
 }
 
 /**

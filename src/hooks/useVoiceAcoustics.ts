@@ -53,7 +53,7 @@ export function useVoiceAcoustics() {
           else if (avgRms > 0.25) tone = "High / Loud";
           else if (avgRms > 0.15) tone = "Elevated";
 
-          setLiveStats((prev: { tone: string; intent: string }) => ({ ...prev, tone }));
+          setLiveStats((prev: { tone: string; intent: string; language: string }) => ({ ...prev, tone }));
           lastUiUpdate = now;
         }
       }

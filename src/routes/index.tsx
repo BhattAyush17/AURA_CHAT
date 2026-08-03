@@ -149,7 +149,7 @@ function AuraExperience() {
   const detectedLanguage = 
     activeBrain === "gemini"
       ? (pipeline as any).liveStats?.language || "English"
-      : pipeline.liveStats?.language || "English";
+      : (pipeline.liveStats as any)?.language || "English";
   const brainModel = activeBrain === "gemini" ? "Gemini Live 🎙️" : activeModel || "Unknown";
 
   const handleMicClick = useCallback(async () => {
@@ -222,10 +222,6 @@ function AuraExperience() {
                 const target = e.target.value as "gemini" | "openrouter" | "sarvam";
                 setActiveBrain(target);
                 localStorage.setItem("aura_active_brain", target);
-                // Reset personality if joyfulPassion is not allowed
-                if (target === "gemini" && personality === "joyfulPassion") {
-                  setPersonality("adaptive");
-                }
                 // End active session of the other brain
                 if (status !== "idle") {
                   endSession();
