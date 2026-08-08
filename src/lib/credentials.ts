@@ -7,6 +7,7 @@ export const CREDENTIAL_KEYS = [
   "supabase_access_token",
   "openrouter_api_key",
   "sarvam_api_key",
+  "groq_api_key",
   "cohere_api_key",
   "pinecone_api_key",
   "redis_url",
@@ -20,7 +21,7 @@ export function validateGeminiApiKey(key: string | null | undefined): boolean {
   if (!key) return false;
   const k = key.trim();
   if (k === "" || k === "undefined" || k === "null") return false;
-  const hasValidPrefix = GEMINI_API_KEY_PREFIXES.some(prefix => k.startsWith(prefix));
+  const hasValidPrefix = GEMINI_API_KEY_PREFIXES.some((prefix) => k.startsWith(prefix));
   return hasValidPrefix && k.length >= 30;
 }
 
@@ -53,6 +54,7 @@ export function hasUserKey(key: CredentialKey): boolean {
   if (key === "aura_gemini_api_key") return validateGeminiApiKey(k);
   if (key === "openrouter_api_key") return k.startsWith("sk-or-v1-") && k.length > 30;
   if (key === "sarvam_api_key") return k.startsWith("sk_") && k.length > 20;
+  if (key === "groq_api_key") return k.startsWith("gsk_") && k.length >= 32;
   return k.length >= 8;
 }
 
