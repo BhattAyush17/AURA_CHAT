@@ -10,6 +10,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { RuntimeManager } from "@/runtime/RuntimeManager";
 import { getOpenRouterKey } from "@/lib/api";
 import { resolveUserId } from "@/lib/user-identity";
 import { ContextBudgetManager } from "@/lib/context-budget";
@@ -18,6 +19,10 @@ import { generateSeed } from "@/lib/utils/seed-generator";
 import { hasSupabaseCredentials } from "@/lib/credentials";
 import { saveSyncMeta } from "@/lib/sync-meta";
 import { getCredential } from "@/lib/credentials";
+
+import { SpeechStyleDetector } from "@/runtime/language/SpeechStyleDetector";
+import { TranscriptFormatter } from "@/runtime/language/TranscriptFormatter";
+import { conversationState } from "@/runtime/ConversationStateManager";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
@@ -65,8 +70,8 @@ export function parseSegments(text: string): SpeechSegment[] {
     try {
       const data = JSON.parse(match);
       if (data.user_query) {
-        import("@/music/MusicManager").then(({ MusicManager }) => {
-          MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.processIntent({ type: "play", query: data.user_query });
         });
       }
     } catch (e) { }
@@ -95,64 +100,64 @@ export function parseSegments(text: string): SpeechSegment[] {
     if (actionText.startsWith("PLAY_YOUTUBE:")) {
       const query = actionText.replace("PLAY_YOUTUBE:", "").trim();
       // Route through MusicManager instead of raw CustomEvents
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "play", query });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "play", query });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "STOP_YOUTUBE") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "stop" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "stop" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "PAUSE_MUSIC") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "pause" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "pause" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "RESUME_MUSIC") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "resume" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "resume" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "NEXT_SONG") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "next" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "next" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "PREV_SONG") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "previous" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "previous" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "VOLUME_UP") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "volume_up" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "volume_up" });
       });
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "VOLUME_DOWN") {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "volume_down" });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "volume_down" });
       });
       lastIndex = regex.lastIndex;
       continue;
@@ -161,8 +166,8 @@ export function parseSegments(text: string): SpeechSegment[] {
     if (actionText.startsWith("VOLUME:")) {
       const level = parseFloat(actionText.replace("VOLUME:", "").trim());
       if (!isNaN(level)) {
-        import("@/music/MusicManager").then(({ MusicManager }) => {
-          MusicManager.getInstance().processIntent({ type: "volume", level });
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.processIntent({ type: "volume", level });
         });
       }
       lastIndex = regex.lastIndex;
@@ -171,8 +176,8 @@ export function parseSegments(text: string): SpeechSegment[] {
 
     if (actionText.startsWith("MUSIC_ASSOCIATION:")) {
       const text = actionText.replace("MUSIC_ASSOCIATION:", "").trim();
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "association", text });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "association", text });
       });
       lastIndex = regex.lastIndex;
       continue;
@@ -180,8 +185,8 @@ export function parseSegments(text: string): SpeechSegment[] {
 
     if (actionText.startsWith("MUSIC_EMOTION:")) {
       const text = actionText.replace("MUSIC_EMOTION:", "").trim();
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().processIntent({ type: "emotion", text });
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.processIntent({ type: "emotion", text });
       });
       lastIndex = regex.lastIndex;
       continue;
@@ -456,6 +461,8 @@ export function useOpenRouter(mode: string = "adaptive") {
   const [lastError, setLastError] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [words, setWords] = useState("");
+  const accumulatedTranscriptRef = useRef<string>("");
+  const turnNonceRef = useRef<number>(0);
   const [activeModel, setActiveModel] = useState<string>(FALLBACK_MODELS[0]);
 
   const modeRef = useRef(mode);
@@ -470,6 +477,10 @@ export function useOpenRouter(mode: string = "adaptive") {
   }, []);
   const [sessionDuration, setSessionDuration] = useState(0);
   const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
+
+  const [detectedSpeechStyleLabel, setDetectedSpeechStyleLabel] = useState<string>("Unknown");
+  const speechStyleDetectorRef = useRef(new SpeechStyleDetector());
+  const transcriptFormatterRef = useRef(new TranscriptFormatter());
 
   // Session control
   const isSessionActiveRef = useRef<boolean>(false);
@@ -602,7 +613,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── TTS helpers ──────────────────────────────────────────────────
   const stopSpeech = () => {
     fetchAbortRef.current?.abort();
-    import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+    import("@/audioRuntime/SpeechCoordinator").then(({ SpeechCoordinator }) => {
       SpeechCoordinator.getInstance().flush();
     });
     isSpeakingRef.current = false;
@@ -630,8 +641,8 @@ export function useOpenRouter(mode: string = "adaptive") {
         if (jsonMatch) {
           const data = JSON.parse(jsonMatch[0]);
           if (data.user_query) {
-            import("@/music/MusicManager").then(({ MusicManager }) => {
-              MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+            import("@/music/MusicService").then(({ musicService }) => {
+              musicService.processIntent({ type: "play", query: data.user_query });
             });
           }
         }
@@ -716,11 +727,14 @@ export function useOpenRouter(mode: string = "adaptive") {
         }
       }
       pushConversationTrace("PLAYBACK_START");
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().onAuraSpeechStart();
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.onAuraSpeechStart();
+        if (!isSpeakingRef.current) {
+          isSpeakingRef.current = true;
+          conversationState.requestStartSpeaking();
+          setStatus("speaking");
+        }
       });
-      isSpeakingRef.current = true;
-      setStatus("speaking");
       connectionState.updateState({ active_voice_out: "webspeech" });
     };
     utterance.onend = () => {
@@ -744,7 +758,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     };
     pushConversationTrace("TTS_READY", { provider: "webspeech" });
 
-    import("@/runtime/humanConversation/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+    import("@/audioRuntime/SpeechCoordinator").then(({ SpeechCoordinator }) => {
       SpeechCoordinator.getInstance().registerWebSpeech(utterance);
     });
   }, [setStatus]);
@@ -760,8 +774,8 @@ export function useOpenRouter(mode: string = "adaptive") {
     stopSpeech();
 
     // ── Music VAD Integration: Pause music when user speaks ──
-    import("@/music/MusicManager").then(({ MusicManager }) => {
-      MusicManager.getInstance().onUserSpeechStart();
+    import("@/music/MusicService").then(({ musicService }) => {
+      musicService.onUserSpeechStart();
     });
 
     if (spokenTextRef.current.trim().length > 0) {
@@ -801,6 +815,10 @@ export function useOpenRouter(mode: string = "adaptive") {
    */
   const safeRecognitionStart = (rec: any, isRestart = false) => {
     try {
+      if (!conversationState.requestStartListening()) {
+        console.warn("[OpenRouter STT] Blocked by ConversationStateManager.");
+        return;
+      }
       pushConversationTrace(isRestart ? "STT_RESTART_REQUESTED" : "STT_START_REQUESTED");
       rec.start();
       orchestrator.sttWatchdog.reportListening();
@@ -813,7 +831,12 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
-    async (userText: string, apiKey: string, lang: string, audioContextXML: string = "", isHiddenPrompt: boolean = false) => {
+    async (
+      userText: string,
+      apiKey: string,
+      lang: string,
+      isHiddenPrompt: boolean = false,
+    ) => {
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
@@ -826,7 +849,6 @@ export function useOpenRouter(mode: string = "adaptive") {
       const turnStart = performance.now();
       setIsThinking(true);
       setStatus("thinking");
-      setWords("AURA is perceiving...");
 
       // -- THINKING INTENT ENGINE --
       // Instantly start thinking audio before L3/L4 API fetches
@@ -857,14 +879,35 @@ export function useOpenRouter(mode: string = "adaptive") {
         transcript_.turnCountRef.current += 1;
       }
 
-      // Extract emotional state from the last analysis (if available) for memory retrieval
-      const lastAnalysis = behavior.lastAnalysisRef.current;
+      // Canonical Cognition Phase 1: Behavior Analysis
+      const l2_start = performance.now();
+      const behaviorResult = await behavior.analyzeForTurn(
+        userText,
+        sessionIdRef.current,
+        0, // RMS not available here
+        0,
+        modeRef.current,
+        userIdRef.current,
+        wasInterrupted
+      );
+      if (behaviorResult) {
+        prompts.processAnalysisForL2(behaviorResult);
+      }
+      connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
+
+      // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
+      const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
+        userText,
+        behaviorResult
+      );
+
+      // Extract emotional state for memory retrieval
       const currentEmotionalState: Record<string, number> = {
-        frustration: lastAnalysis?.frustration || 0,
-        playfulness: lastAnalysis?.playfulness || 0,
-        vulnerability: lastAnalysis?.vulnerability || 0,
-        trust: lastAnalysis?.trust || 0,
-        anxiety: lastAnalysis?.anxiety || 0
+        frustration: behaviorResult?.frustration || 0,
+        playfulness: behaviorResult?.playfulness || 0,
+        vulnerability: behaviorResult?.vulnerability || 0,
+        trust: behaviorResult?.trust || 0,
+        anxiety: behaviorResult?.anxiety || 0
       };
 
       // If local mode is active, pull memories to send to backend
@@ -879,16 +922,11 @@ export function useOpenRouter(mode: string = "adaptive") {
       // ── Music Context Injection ──
       // If music is active, inject song context into the conversation
       let musicContextXML = "";
-      try {
-        const { MusicManager } = await import("@/music/MusicManager");
-        const manager = MusicManager.getInstance();
-        musicContextXML = manager.buildContextInjection();
-      } catch { }
 
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: musicContextXML + audioContextXML + userText },
+        { role: "user", content: musicContextXML + userText },
       ];
       if (!isHiddenPrompt) {
         addMessages([{ role: "user", content: userText }]);
@@ -912,7 +950,8 @@ export function useOpenRouter(mode: string = "adaptive") {
             session_id: sessionIdRef.current,
             conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
             client_memories: memoryPayload?.client_memories || [],
-            memory_mode: memoryPayload?.memory_mode || "supabase"
+            memory_mode: memoryPayload?.memory_mode || "supabase",
+            cognitive_block: cognitiveBlock
           })
         });
 
@@ -960,15 +999,16 @@ export function useOpenRouter(mode: string = "adaptive") {
             const rawNext = sentenceQueueRef.current.shift();
             if (!rawNext) {
               if (streamDone) {
-                import("@/music/MusicManager").then(({ MusicManager }) => {
-                  MusicManager.getInstance().onAuraSpeechEnd();
+                import("@/music/MusicService").then(({ musicService }) => {
+                  musicService.onAuraSpeechEnd();
                 });
-                isSpeakingRef.current = false;
-                if (isSessionActiveRef.current && startSessionRef.current) {
-                  startSessionRef.current();
-                } else {
-                  setStatus("idle");
-                }
+                  isSpeakingRef.current = false;
+                  conversationState.reportSpeakingFinished();
+                  if (isSessionActiveRef.current && startSessionRef.current) {
+                    setTimeout(() => startSessionRef.current?.(), 250);
+                  } else {
+                    setStatus("idle");
+                  }
               } else {
                 setTimeout(drainQueue, 50);
               }
@@ -992,6 +1032,31 @@ export function useOpenRouter(mode: string = "adaptive") {
                 } : undefined
               };
               const pause = conversationalPauses.getPause(ctx);
+              
+              const execution = RuntimeManager.getInstance().evaluateDecision(
+                rawNext,
+                lastSpokenSentence,
+                0, // TTFT is not explicitly computed per-sentence here
+                pause.durationMs
+              );
+
+              if (execution) {
+                pause.durationMs = execution.delayMs;
+                if (execution.behavior === "WAIT") {
+                  console.log(`[AURA] Decision layer routed to WAIT. Halting playback.`);
+                  const doNext = () => {
+                    if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
+                    lastSpokenSentence = rawNext;
+                    sentenceIndex++;
+                    segmentSubQueue = parseSegments(rawNext);
+                    drainQueue();
+                  };
+                  setTimeout(doNext, 10);
+                  return;
+                } else if (execution.behavior === "BACKCHANNEL") {
+                  console.log(`[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`);
+                }
+              }
 
               const doNext = () => {
                 if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
@@ -1059,9 +1124,13 @@ export function useOpenRouter(mode: string = "adaptive") {
                   const chunkText = data.text;
                   textBuffer += chunkText;
                   fullResponse += chunkText;
-                  setWords(fullResponse);
+                  // Do not overwrite words to preserve user transcript
 
                   // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
+                  if (textBuffer.includes('{') && !textBuffer.includes('}')) {
+                    continue; // Wait for the chunk with the closing brace
+                  }
+
                   const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
                   if (toolMatch) {
                     if (!textBuffer.includes('}')) {
@@ -1072,8 +1141,8 @@ export function useOpenRouter(mode: string = "adaptive") {
                         try {
                           const data = JSON.parse(match);
                           if (data.user_query) {
-                            import("@/music/MusicManager").then(({ MusicManager }) => {
-                              MusicManager.getInstance().processIntent({ type: "play", query: data.user_query });
+                            import("@/music/MusicService").then(({ musicService }) => {
+                              musicService.processIntent({ type: "play", query: data.user_query });
                             });
                           }
                         } catch (e) { }
@@ -1119,34 +1188,16 @@ export function useOpenRouter(mode: string = "adaptive") {
         console.warn("[Voice Pipeline] Backend /analyze/stream endpoint failed. Falling back to frontend direct LLM.", backendError);
       }
 
-      // Behavioral analysis
-      let behaviorInstructions = "";
-      try {
-        const l2_start = performance.now();
-        const result = await behavior.analyzeForTurn(
-          userText,
-          sessionIdRef.current,
-          0,
-          0,
-          modeRef.current,
-          userIdRef.current,
-          false,
-        );
-        if (result) {
-          prompts.processAnalysisForL2(result);
-          behaviorInstructions = result.behavior_instructions ?? "";
-        }
-        connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
-      } catch { }
-
+      // Behavioral analysis is now performed earlier in the canonical pipeline.
+      // We no longer perform a redundant analyzeForTurn here.
+      
       // Adaptive modulation (local, <1ms)
       let modulationDirective = "";
       try {
-        const result2 = behavior.lastAnalysisRef.current;
         const { directive } = getAdaptiveModulation(
           userText,
           modeRef.current,
-          result2,
+          behaviorResult,
           behavior.lastPresentationRef.current,
         );
         modulationDirective = directive;
@@ -1204,12 +1255,16 @@ export function useOpenRouter(mode: string = "adaptive") {
       }
 
       // ── System prompt: personality-aware identity + live context ──
+      const currentStyle = speechStyleDetectorRef.current.detectStyle(userText);
+      setDetectedSpeechStyleLabel(currentStyle.uiLabel);
+      const ssplBlock = transcriptFormatterRef.current.formatStyleInstruction(currentStyle);
+
       const systemContent = [
         basePrompt,
         liveContext,
-        `[ADAPTIVE MIRRORING]: Analyze the exact language of the user's latest input. CRITICAL RULE: You MUST reply in the EXACT SAME language they used. If they speak pure English, reply in pure English. If they speak pure Hindi (Devanagari), reply in pure Hindi. If they mix them (Hinglish/Roman Hindi), mix them naturally using Romanized script. Never change the language arbitrarily. Also detect their emotional tone and match their energy level exactly in your response. (Base locale fallback: ${lang}).`,
+        ssplBlock,
         ...(wasInterrupted ? ["[SYSTEM NOTE]: The user just interrupted you mid-sentence. Acknowledge the interruption gracefully, listen to what they just said, and adapt your response."] : []),
-        ...(behaviorInstructions ? [`[BEHAVIORAL CONTEXT]: ${behaviorInstructions}`] : []),
+        cognitiveBlock,
         ...(modulationDirective ? [modulationDirective] : []),
       ].join("\n");
 
@@ -1287,7 +1342,10 @@ export function useOpenRouter(mode: string = "adaptive") {
           const tryStartTTS = () => {
             if (ttsStarted || sentenceQueueRef.current.length === 0) return;
             ttsStarted = true;
-            setStatus("speaking");
+            if (statusRef.current !== "speaking") {
+              conversationState.requestStartSpeaking();
+              setStatus("speaking");
+            }
             orchestrator.queueProtection.markPlaybackActive();
 
             const drainQueue = () => {
@@ -1313,8 +1371,8 @@ export function useOpenRouter(mode: string = "adaptive") {
 
               if (!rawNext) {
                 if (streamDone) {
-                  import("@/music/MusicManager").then(({ MusicManager }) => {
-                    MusicManager.getInstance().onAuraSpeechEnd();
+                  import("@/music/MusicService").then(({ musicService }) => {
+                    musicService.onAuraSpeechEnd();
                   });
                   // All spoken
                   isSpeakingRef.current = false;
@@ -1348,6 +1406,30 @@ export function useOpenRouter(mode: string = "adaptive") {
                   } : undefined
                 };
                 const pause = conversationalPauses.getPause(ctx);
+                const execution = RuntimeManager.getInstance().evaluateDecision(
+                  rawNext,
+                  lastSpokenSentence,
+                  0,
+                  pause.durationMs
+                );
+
+                if (execution) {
+                  pause.durationMs = execution.delayMs;
+                  if (execution.action === "WAIT") {
+                    console.log(`[AURA] Decision layer routed to WAIT. Halting playback.`);
+                    const doNext = () => {
+                      if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
+                      lastSpokenSentence = rawNext;
+                      sentenceIndex++;
+                      segmentSubQueue = parseSegments(rawNext);
+                      drainQueue();
+                    };
+                    setTimeout(doNext, 10);
+                    return;
+                  } else if (execution.action === "BACKCHANNEL") {
+                    console.log(`[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`);
+                  }
+                }
 
                 const doNext = () => {
                   if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
@@ -1404,13 +1486,15 @@ export function useOpenRouter(mode: string = "adaptive") {
                 displayString = displayString.replace(/\[SYSTEM DIRECTIVE[\s\S]*?(?:\]|$)/gi, "");
                 displayString = displayString.replace(/\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi, "");
                 displayString = displayString.replace(/\[CRITICAL:[\s\S]*?(?:\]|$)/gi, "");
+                displayString = displayString.replace(/\[SEED[\s\S]*?(?:\]|$)/gi, "");
+                displayString = displayString.replace(/\[NEW USER[\s\S]*?(?:\]|$)/gi, "");
 
                 const newText = displayString.slice(completeResponse.length);
                 if (!newText) continue;
 
                 currentBuffer += newText;
                 completeResponse += newText;
-                setWords(completeResponse);
+                // Do not overwrite words to preserve user transcript
 
                 // Sentence-boundary detection: hand off completed sentences to TTS
                 let match: RegExpExecArray | null;
@@ -1555,8 +1639,10 @@ export function useOpenRouter(mode: string = "adaptive") {
     };
 
     recognition.onspeechstart = () => {
-      import("@/music/MusicManager").then(({ MusicManager }) => {
-        MusicManager.getInstance().onUserSpeechStart();
+      turnNonceRef.current++;
+      conversationState.reportUserSpeaking();
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.onUserSpeechStart();
       });
     };
 
@@ -1577,26 +1663,28 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       pushConversationTrace(isFinal ? "TRANSCRIPT_FINAL" : "TRANSCRIPT_PARTIAL", { length: (isFinal ? finalText : interim).length });
 
-      // Show interim results in real-time so the user sees their speech being recognized
       if (!isFinal) {
-        if (interim) setWords(interim);
+        if (interim) setWords((accumulatedTranscriptRef.current ? accumulatedTranscriptRef.current + " " : "") + interim);
         return;
       }
 
-      const text = finalText;
-      if (!text.trim()) return;
+      turnNonceRef.current++;
+      const localNonce = turnNonceRef.current;
+
+      const newText = finalText.trim();
+      if (!newText) return;
+      
+      accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? " " : "") + newText;
+      const text = accumulatedTranscriptRef.current;
 
       const l1_start = performance.now();
-      const audioContextXML = stopTrackingAndAnalyze(text);
+      stopTrackingAndAnalyze(text);
       connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
       console.log(
         "%c🗣️ USER SAID (OpenRouter WebSpeech): " + text,
         "color: #10b981; font-weight: bold; font-size: 13px;",
       );
-      console.log(
-        "%c🎵 ACOUSTIC CONTEXT: \n" + audioContextXML,
-        "color: #eab308; font-size: 11px;",
-      );
+
       setStatus("thinking");
       setWords(text);
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
@@ -1617,8 +1705,16 @@ export function useOpenRouter(mode: string = "adaptive") {
       );
       adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
       await new Promise((r) => setTimeout(r, adaptiveDelay));
+      
+      if (turnNonceRef.current !== localNonce) {
+        console.log("%c⏸️ Turn cancelled because user resumed speaking.", "color: #f59e0b;");
+        return; // User interrupted / continued speaking
+      }
+      
+      accumulatedTranscriptRef.current = ""; // Reset for next fully completed turn
       adaptiveTurn.markAuraSpeaking();
-      await processTurn(text, key, lang, audioContextXML);
+      conversationState.reportUserFinished();
+      await processTurn(text, key, lang);
     };
 
     recognition.onerror = (event: any) => {
@@ -1837,6 +1933,6 @@ export function useOpenRouter(mode: string = "adaptive") {
     getInputFrequencyData,
     /** Alias for output — OR has no separate output stream; reuse mic during speaking */
     getOutputFrequencyData: getInputFrequencyData,
-    liveStats,
+    liveStats: { ...liveStats, language: detectedSpeechStyleLabel },
   };
 }
