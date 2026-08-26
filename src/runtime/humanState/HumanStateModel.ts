@@ -20,7 +20,43 @@ export class HumanStateModel {
   // Controls how fast a state decays toward neutral (0) in milliseconds.
   private readonly DECAY_HALF_LIFE_MS = 60000;
 
+  // Bounded per-session baseline for utterance-level features.
+  // Never persisted across sessions; used only to interpret current observations
+  // relative to an individual's own typical range (baseline deviation, not raw magnitude).
+  private readonly BASELINE_MIN_OBSERVATIONS = 3;
+  private readonly BASELINE_MAX_HISTORY = 30;
+  private readonly WPM_ACTIVATION_REL_DEV = 0.25;
+  private readonly RMS_ACTIVATION_REL_DEV = 0.5;
+  private wpmHistory: number[] = [];
+  private rmsHistory: number[] = [];
+  private wpmBaseline: number | undefined;
+  private rmsBaseline: number | undefined;
+
   constructor() {}
+
+  private computeMedian(values: number[]): number {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  }
+
+  private trackUtteranceBaselines(wpm: number, rms: number) {
+    if (wpm > 0 && wpm < 1000) {
+      this.wpmHistory.push(wpm);
+      if (this.wpmHistory.length > this.BASELINE_MAX_HISTORY) this.wpmHistory.shift();
+      if (this.wpmHistory.length >= this.BASELINE_MIN_OBSERVATIONS) {
+        this.wpmBaseline = this.computeMedian(this.wpmHistory);
+      }
+    }
+    if (rms >= 0 && Number.isFinite(rms)) {
+      this.rmsHistory.push(rms);
+      if (this.rmsHistory.length > this.BASELINE_MAX_HISTORY) this.rmsHistory.shift();
+      if (this.rmsHistory.length >= this.BASELINE_MIN_OBSERVATIONS) {
+        this.rmsBaseline = this.computeMedian(this.rmsHistory);
+      }
+    }
+  }
 
   /**
    * Updates the HumanState based on new evidence.
@@ -37,27 +73,43 @@ export class HumanStateModel {
     this.applyDecay(now);
 
     const newHypotheses: Map<string, HumanStateHypothesis> = new Map();
+    const updatedTypes = new Set<string>();
+
     // Retain existing hypotheses (they have already been decayed)
     for (const h of this.currentState.affective.hypotheses) {
       newHypotheses.set(h.type, { ...h });
     }
 
-    let valenceEstimate = this.currentState.affective.valence.estimate;
-    let valenceConfidence = this.currentState.affective.valence.confidence;
-    let arousalEstimate = this.currentState.affective.arousal.estimate;
-    let arousalConfidence = this.currentState.affective.arousal.confidence;
-    let tensionEstimate = this.currentState.affective.tension.estimate;
-    let tensionConfidence = this.currentState.affective.tension.confidence;
+    let valenceEstimate = Number.isFinite(this.currentState.affective.valence.estimate)
+      ? this.currentState.affective.valence.estimate
+      : 0;
+    let valenceConfidence = Number.isFinite(this.currentState.affective.valence.confidence)
+      ? this.currentState.affective.valence.confidence
+      : 0;
+    let arousalEstimate = Number.isFinite(this.currentState.affective.arousal.estimate)
+      ? this.currentState.affective.arousal.estimate
+      : 0;
+    let arousalConfidence = Number.isFinite(this.currentState.affective.arousal.confidence)
+      ? this.currentState.affective.arousal.confidence
+      : 0;
+    let tensionEstimate = Number.isFinite(this.currentState.affective.tension.estimate)
+      ? this.currentState.affective.tension.estimate
+      : 0;
+    let tensionConfidence = Number.isFinite(this.currentState.affective.tension.confidence)
+      ? this.currentState.affective.tension.confidence
+      : 0;
 
     // Cross-modal evidence aggregation
     let hasVoiceActivity = false;
     let voiceIntensityIncreasing = false;
     let voiceIntensityDecreasing = false;
+    let voiceHasActivationSignal = false;
 
     // 1. Process Sense Evidence (e.g. Voice)
     for (const evidence of evidenceList) {
       if (evidence.source === "voice") {
-        hasVoiceActivity = (evidence.payload.speechProbability || 0) > 0.3;
+        const speechProb = Number.isFinite(evidence.confidence) ? evidence.confidence : 0;
+        hasVoiceActivity = speechProb > 0.3;
 
         // Analyze temporal trajectory if available
         if (evidence.temporal) {
@@ -71,12 +123,47 @@ export class HumanStateModel {
         // Utterance-final evidence mapping
         if (evidence.payload.utterance) {
           const u = evidence.payload.utterance;
+          const wpm = Number.isFinite(u.wpm) ? u.wpm : 0;
+          const rms = Number.isFinite(u.averageRms) ? u.averageRms : 0;
 
-          if (u.wpm > 160) {
+          // Warm the bounded per-session baseline before interpreting the signal.
+          this.trackUtteranceBaselines(wpm, rms);
+
+          // Elevated/reduced speech rate: prefer relative deviation from this
+          // speaker's own baseline; fall back to absolute thresholds only while
+          // the baseline is still warming (low confidence — never false certainty).
+          let elevatedWpm = false;
+          let reducedWpm = false;
+          if (this.wpmBaseline !== undefined) {
+            const relDev = wpm / Math.max(this.wpmBaseline, 1) - 1;
+            if (relDev >= this.WPM_ACTIVATION_REL_DEV) elevatedWpm = true;
+            else if (relDev <= -this.WPM_ACTIVATION_REL_DEV) reducedWpm = true;
+          } else {
+            if (wpm > 160) elevatedWpm = true;
+            else if (wpm < 100 && wpm > 0) reducedWpm = true;
+          }
+
+          if (elevatedWpm) {
+            voiceHasActivationSignal = true;
+            const type = "possible elevated conversational activation";
+            updatedTypes.add(type);
+            // A baseline-established reading replaces any provisional (baseline-less) claim.
+            if (
+              this.wpmBaseline !== undefined &&
+              newHypotheses
+                .get(type)
+                ?.supportingEvidence.some((s) => s.includes("no established baseline"))
+            ) {
+              newHypotheses.delete(type);
+            }
             this.addHypothesis(newHypotheses, {
-              type: "possible elevated conversational activation",
-              confidence: 0.6,
-              supportingEvidence: [`fast speech rate (${Math.round(u.wpm)} wpm)`],
+              type,
+              confidence: this.wpmBaseline !== undefined ? 0.6 : 0.35,
+              supportingEvidence: [
+                this.wpmBaseline !== undefined
+                  ? `fast speech rate (${Math.round(wpm)} wpm vs baseline ${Math.round(this.wpmBaseline)})`
+                  : `fast speech rate (${Math.round(wpm)} wpm, no established baseline)`,
+              ],
               supportingReferences: [
                 { source: "voice", feature: "utterance.wpm", contribution: "supporting" },
               ],
@@ -85,11 +172,25 @@ export class HumanStateModel {
             });
             arousalEstimate = Math.min(1.0, arousalEstimate + 0.2);
             arousalConfidence = Math.min(1.0, arousalConfidence + 0.1);
-          } else if (u.wpm < 100 && u.wpm > 0) {
+          } else if (reducedWpm) {
+            const type = "possible reduced conversational activation";
+            updatedTypes.add(type);
+            if (
+              this.wpmBaseline !== undefined &&
+              newHypotheses
+                .get(type)
+                ?.supportingEvidence.some((s) => s.includes("no established baseline"))
+            ) {
+              newHypotheses.delete(type);
+            }
             this.addHypothesis(newHypotheses, {
-              type: "possible reduced conversational activation",
-              confidence: 0.5,
-              supportingEvidence: [`slow speech rate (${Math.round(u.wpm)} wpm)`],
+              type,
+              confidence: this.wpmBaseline !== undefined ? 0.5 : 0.3,
+              supportingEvidence: [
+                this.wpmBaseline !== undefined
+                  ? `slow speech rate (${Math.round(wpm)} wpm vs baseline ${Math.round(this.wpmBaseline)})`
+                  : `slow speech rate (${Math.round(wpm)} wpm, no established baseline)`,
+              ],
               supportingReferences: [
                 { source: "voice", feature: "utterance.wpm", contribution: "supporting" },
               ],
@@ -100,11 +201,37 @@ export class HumanStateModel {
             arousalConfidence = Math.min(1.0, arousalConfidence + 0.1);
           }
 
-          if (u.averageRms > 0.15) {
+          let elevatedRms = false;
+          if (rms > 0.12) {
+            if (this.rmsBaseline !== undefined) {
+              if (rms / Math.max(this.rmsBaseline, 1e-6) - 1 >= this.RMS_ACTIVATION_REL_DEV) {
+                elevatedRms = true;
+              }
+            } else if (rms > 0.15) {
+              elevatedRms = true;
+            }
+          }
+
+          if (elevatedRms) {
+            voiceHasActivationSignal = true;
+            const type = "possible vocal activation";
+            updatedTypes.add(type);
+            if (
+              this.rmsBaseline !== undefined &&
+              newHypotheses
+                .get(type)
+                ?.supportingEvidence.some((s) => s.includes("no established baseline"))
+            ) {
+              newHypotheses.delete(type);
+            }
             this.addHypothesis(newHypotheses, {
-              type: "possible vocal activation",
-              confidence: 0.7,
-              supportingEvidence: ["elevated utterance RMS amplitude"],
+              type,
+              confidence: this.rmsBaseline !== undefined ? 0.7 : 0.35,
+              supportingEvidence: [
+                this.rmsBaseline !== undefined
+                  ? `elevated utterance RMS amplitude (${rms.toFixed(3)} vs baseline ${this.rmsBaseline.toFixed(3)})`
+                  : "elevated utterance RMS amplitude (no established baseline)",
+              ],
               supportingReferences: [
                 { source: "voice", feature: "utterance.averageRms", contribution: "supporting" },
               ],
@@ -116,8 +243,10 @@ export class HumanStateModel {
           }
 
           if (u.delivery?.hesitation) {
+            const type = "possible uncertainty";
+            updatedTypes.add(type);
             this.addHypothesis(newHypotheses, {
-              type: "possible uncertainty",
+              type,
               confidence: 0.6,
               supportingEvidence: ["hesitant delivery markers"],
               supportingReferences: [
@@ -135,8 +264,10 @@ export class HumanStateModel {
           }
 
           if (u.delivery?.trailing) {
+            const type = "possible reduced completion confidence";
+            updatedTypes.add(type);
             this.addHypothesis(newHypotheses, {
-              type: "possible reduced completion confidence",
+              type,
               confidence: 0.6,
               supportingEvidence: ["trailing delivery pattern"],
               supportingReferences: [
@@ -152,8 +283,11 @@ export class HumanStateModel {
           }
 
           if (u.delivery?.staccato) {
+            voiceHasActivationSignal = true;
+            const type = "possible increased activation";
+            updatedTypes.add(type);
             this.addHypothesis(newHypotheses, {
-              type: "possible increased activation",
+              type,
               confidence: 0.6,
               supportingEvidence: ["staccato delivery pattern"],
               supportingReferences: [
@@ -171,8 +305,11 @@ export class HumanStateModel {
           }
 
           if (u.delivery?.assertive) {
+            voiceHasActivationSignal = true;
+            const type = "possible increased interaction intensity";
+            updatedTypes.add(type);
             this.addHypothesis(newHypotheses, {
-              type: "possible increased interaction intensity",
+              type,
               confidence: 0.7,
               supportingEvidence: ["assertive delivery markers"],
               supportingReferences: [
@@ -190,8 +327,10 @@ export class HumanStateModel {
           }
 
           if (u.language && u.language !== "English") {
+            const type = `contextual linguistic signal (${u.language})`;
+            updatedTypes.add(type);
             this.addHypothesis(newHypotheses, {
-              type: `contextual linguistic signal (${u.language})`,
+              type,
               confidence: 0.8,
               supportingEvidence: [`language detected as ${u.language}`],
               supportingReferences: [
@@ -207,13 +346,15 @@ export class HumanStateModel {
 
     // 2. Compute Hypotheses based on evidence
     if (voiceIntensityIncreasing) {
-      // Increase arousal hypothesis
+      voiceHasActivationSignal = true;
       arousalEstimate = Math.min(1.0, arousalEstimate + 0.3);
       arousalConfidence = Math.min(1.0, arousalConfidence + 0.2);
 
+      const type = "possible elevated arousal";
+      updatedTypes.add(type);
       this.addHypothesis(newHypotheses, {
-        type: "possible elevated arousal",
-        confidence: 0.6, // Moderate initial confidence
+        type,
+        confidence: 0.6,
         supportingEvidence: ["increased vocal intensity or speech probability"],
         supportingReferences: [
           { source: "voice", feature: "temporal.increasing", contribution: "supporting" },
@@ -227,8 +368,10 @@ export class HumanStateModel {
       arousalEstimate = Math.max(-1.0, arousalEstimate - 0.2);
       arousalConfidence = Math.min(1.0, arousalConfidence + 0.1);
 
+      const type = "possible reduced arousal";
+      updatedTypes.add(type);
       this.addHypothesis(newHypotheses, {
-        type: "possible reduced arousal",
+        type,
         confidence: 0.5,
         supportingEvidence: ["decreasing vocal intensity or speech probability"],
         supportingReferences: [
@@ -240,7 +383,10 @@ export class HumanStateModel {
     }
 
     // 3. Cross-modal contradictions (Linguistic vs Voice)
-    if (transcriptContext?.sentiment !== undefined) {
+    if (
+      transcriptContext?.sentiment !== undefined &&
+      Number.isFinite(transcriptContext.sentiment)
+    ) {
       const isPositive = transcriptContext.sentiment > 0.3;
       const isNegative = transcriptContext.sentiment < -0.3;
       const isNeutral = !isPositive && !isNegative;
@@ -253,10 +399,11 @@ export class HumanStateModel {
         valenceConfidence = Math.min(1.0, valenceConfidence + 0.2);
       }
 
-      // Detect contradiction: Voice increasing (high arousal) + Neutral/Negative text
-      if (voiceIntensityIncreasing && isNeutral) {
+      if ((voiceIntensityIncreasing || voiceHasActivationSignal) && isNeutral) {
+        const type = "uncertain / possible tension";
+        updatedTypes.add(type);
         this.addHypothesis(newHypotheses, {
-          type: "uncertain / possible tension",
+          type,
           confidence: 0.5,
           supportingEvidence: ["increased vocal intensity"],
           supportingReferences: [
@@ -270,8 +417,53 @@ export class HumanStateModel {
 
         tensionEstimate = Math.min(1.0, tensionEstimate + 0.3);
         tensionConfidence = Math.min(1.0, tensionConfidence + 0.2);
+
+        // Explicit contradiction: the neutral linguistic channel opposes the voice
+        // activation claims, so the confidence of those contradicted hypotheses is
+        // reduced relative to a fully-supportive reading.
+        const contradictedTypes = new Set([
+          "possible elevated conversational activation",
+          "possible vocal activation",
+          "possible elevated arousal",
+          "possible increased activation",
+          "possible increased interaction intensity",
+        ]);
+        for (const [hypType, hyp] of newHypotheses) {
+          if (hypType !== type && contradictedTypes.has(hypType)) {
+            hyp.confidence *= 0.6;
+          }
+        }
       }
     }
+
+    // Once a baseline exists, provisional claims made without one are retracted
+    // unless they are re-supported by a baseline-aware observation this turn.
+    if (this.wpmBaseline !== undefined || this.rmsBaseline !== undefined) {
+      for (const [type, hyp] of Array.from(newHypotheses)) {
+        if (
+          !updatedTypes.has(type) &&
+          hyp.supportingEvidence.some((s) => s.includes("no established baseline"))
+        ) {
+          newHypotheses.delete(type);
+        }
+      }
+    }
+
+    // Attenuate hypotheses that received no supporting evidence in this turn
+    for (const [type, hyp] of newHypotheses) {
+      if (!updatedTypes.has(type)) {
+        hyp.confidence *= 0.75;
+      }
+    }
+
+    // If no voice activation signal occurred in this turn, decay arousal estimate back toward 0
+    if (!voiceHasActivationSignal && !voiceIntensityIncreasing) {
+      arousalEstimate *= 0.85;
+      arousalConfidence *= 0.85;
+    }
+
+    // Filter out decayed/low-confidence hypotheses
+    const activeHypotheses = Array.from(newHypotheses.values()).filter((h) => h.confidence > 0.1);
 
     // 4. Update the actual state object safely
     this.currentState = {
@@ -282,7 +474,7 @@ export class HumanStateModel {
         arousal: { estimate: arousalEstimate, confidence: arousalConfidence },
         valence: { estimate: valenceEstimate, confidence: valenceConfidence },
         tension: { estimate: tensionEstimate, confidence: tensionConfidence },
-        hypotheses: Array.from(newHypotheses.values()),
+        hypotheses: activeHypotheses,
       },
       conversational: {
         ...this.currentState.conversational,

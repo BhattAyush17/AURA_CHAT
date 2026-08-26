@@ -145,11 +145,24 @@ export class MemoryGateway {
     if (!this._ready) return [];
 
     if (this._mode === "supabase") {
-      // In Supabase mode, retrieval is handled server-side by the /chat endpoint.
-      // Return empty here — the backend will do its own retrieval.
-      // This is by design: the /chat endpoint always checks chroma_service
-      // when no client_memories are provided.
-      return [];
+      try {
+        const url = new URL(`${ENDPOINTS.base}/api/memory/model/${userId}`);
+        if (query) url.searchParams.append("query", query);
+        
+        const res = await fetch(url.toString());
+        if (!res.ok) return [];
+        const data = await res.json();
+        
+        // The backend now handles relevance ranking, semantic scoring, and the 1600-char budget limit.
+        if (data.results && Array.isArray(data.results)) {
+            return data.results;
+        }
+        
+        return [];
+      } catch (e) {
+        console.warn("[MemoryGateway] Supabase model fetch failed:", e);
+        return [];
+      }
     }
 
     // Mode B: Local browser retrieval
