@@ -5,84 +5,93 @@
  * automatic state synchronization via useSyncExternalStore pattern.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { MusicState, MusicIntentTag } from "./types";
-import { createDefaultMusicState } from "./types";
-import { MusicManager } from "./MusicManager";
+import { useState, useEffect, useCallback } from "react";
+import type { PlaybackStateData, Track } from "./types";
+import { playbackState } from "./PlaybackState";
+import { playbackEngine } from "./PlaybackEngine";
+import { musicEvents } from "./PlaybackEvents";
+import { musicService } from "./MusicService";
 
 export function useMusicPlayer() {
-  const managerRef = useRef<MusicManager | null>(null);
-  const [state, setState] = useState<MusicState>(createDefaultMusicState());
+  const [state, setState] = useState<PlaybackStateData>(playbackState.getState());
 
-  // Initialize manager once
   useEffect(() => {
-    const manager = MusicManager.getInstance();
-    managerRef.current = manager;
-
     // Subscribe to state changes
-    const unsubscribe = manager.subscribe((newState) => {
+    const handleStateChange = (newState: PlaybackStateData) => {
       setState({ ...newState });
-    });
+    };
 
+    musicEvents.on('stateChanged', handleStateChange);
+    
     // Set initial state
-    setState(manager.getState());
+    setState(playbackState.getState());
 
-    return unsubscribe;
+    return () => {
+      musicEvents.off('stateChanged', handleStateChange);
+    };
   }, []);
 
   // ── Actions ───────────────────────────────────────────────────────
 
   const playQuery = useCallback(async (query: string) => {
-    return managerRef.current?.playQuery(query) ?? false;
+    // Note: playbackEngine doesn't directly expose playQuery. 
+    // The ATF or IntentResolver should handle searching and queueing.
+    // We'll leave this as a no-op or pass it to the engine if we implement it.
+    console.warn("playQuery called from UI, should be handled by ATF");
+    return false;
   }, []);
 
-  const pause = useCallback(() => {
-    managerRef.current?.pause("user_requested");
+  const pause = useCallback(async () => {
+    await playbackEngine.pause();
   }, []);
 
-  const resume = useCallback(() => {
-    managerRef.current?.resume();
+  const resume = useCallback(async () => {
+    await playbackEngine.resume();
   }, []);
 
-  const stop = useCallback(() => {
-    managerRef.current?.stop();
+  const stop = useCallback(async () => {
+    await playbackEngine.pause();
   }, []);
 
-  const seek = useCallback((seconds: number) => {
-    managerRef.current?.seek(seconds);
+  const seek = useCallback(async (seconds: number) => {
+    await playbackEngine.seek(seconds * 1000);
   }, []);
 
-  const setVolume = useCallback((level: number) => {
-    managerRef.current?.setVolume(level);
+  const setVolume = useCallback(async (level: number) => {
+    await playbackEngine.setVolume(level);
   }, []);
 
-  const volumeUp = useCallback(() => {
-    managerRef.current?.volumeUp();
-  }, []);
+  const volumeUp = useCallback(async () => {
+    const nextVol = Math.min(100, state.volume + 10);
+    await playbackEngine.setVolume(nextVol);
+  }, [state.volume]);
 
-  const volumeDown = useCallback(() => {
-    managerRef.current?.volumeDown();
-  }, []);
+  const volumeDown = useCallback(async () => {
+    const nextVol = Math.max(0, state.volume - 10);
+    await playbackEngine.setVolume(nextVol);
+  }, [state.volume]);
 
   const next = useCallback(async () => {
-    return managerRef.current?.next() ?? false;
+    await playbackEngine.next();
+    return true;
   }, []);
 
   const previous = useCallback(async () => {
-    return managerRef.current?.previous() ?? false;
+    await playbackEngine.previous();
+    return true;
   }, []);
 
-  const processIntent = useCallback(async (intent: MusicIntentTag) => {
-    await managerRef.current?.processIntent(intent);
+  const processIntent = useCallback(async (intent: any) => {
+    console.warn("processIntent from UI is deprecated. Handled by ATF.");
   }, []);
 
   const togglePlayPause = useCallback(() => {
     if (state.isPlaying) {
       pause();
-    } else if (state.isPaused) {
+    } else {
       resume();
     }
-  }, [state.isPlaying, state.isPaused, pause, resume]);
+  }, [state.isPlaying, pause, resume]);
 
   return {
     // State
@@ -91,8 +100,8 @@ export function useMusicPlayer() {
     isPlaying: state.isPlaying,
     isPaused: state.isPaused,
     currentTrack: state.currentTrack,
-    position: state.position,
-    duration: state.duration,
+    position: state.positionMs / 1000,
+    duration: state.durationMs / 1000,
     volume: state.volume,
     queue: state.queue,
 
@@ -109,8 +118,10 @@ export function useMusicPlayer() {
     previous,
     togglePlayPause,
     processIntent,
-
-    // Manager access (for advanced use)
-    manager: managerRef.current,
+    switchProvider: (id: string) => musicService.switchProvider(id),
+    availableProviders: musicService.getAvailableProviders(),
+    
+    // Engine access
+    engine: playbackEngine
   };
 }

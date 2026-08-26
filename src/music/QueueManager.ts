@@ -1,154 +1,67 @@
-/**
- * AURA Music System — QueueManager
- * 
- * Manages the music queue: add, remove, next, previous, shuffle, repeat.
- */
-
-import type { TrackInfo, RepeatMode } from "./types";
+import { Track } from './types';
+import { musicEvents } from './PlaybackEvents';
 
 export class QueueManager {
-  private _queue: TrackInfo[] = [];
-  private _currentIndex: number = -1;
-  private _repeat: RepeatMode = "none";
-  private _shuffle: boolean = false;
-  private _shuffledIndices: number[] = [];
+  private queue: Track[] = [];
+  private history: Track[] = [];
+  private currentIdx: number = -1;
 
-  get queue(): readonly TrackInfo[] {
-    return this._queue;
+  setQueue(tracks: Track[]) {
+    this.queue = [...tracks];
+    this.currentIdx = 0;
+    musicEvents.emit('queueChanged', this.queue);
   }
 
-  get currentIndex(): number {
-    return this._currentIndex;
-  }
-
-  get repeat(): RepeatMode {
-    return this._repeat;
-  }
-
-  get shuffle(): boolean {
-    return this._shuffle;
-  }
-
-  get currentTrack(): TrackInfo | null {
-    if (this._currentIndex < 0 || this._currentIndex >= this._queue.length) return null;
-    const idx = this._shuffle ? this._shuffledIndices[this._currentIndex] : this._currentIndex;
-    return this._queue[idx] ?? null;
-  }
-
-  get length(): number {
-    return this._queue.length;
-  }
-
-  // ── Mutation ──────────────────────────────────────────────────────
-
-  add(track: TrackInfo): void {
-    this._queue.push(track);
-    this.rebuildShuffleIndices();
-  }
-
-  addMany(tracks: TrackInfo[]): void {
-    this._queue.push(...tracks);
-    this.rebuildShuffleIndices();
-  }
-
-  remove(index: number): void {
-    if (index < 0 || index >= this._queue.length) return;
-    this._queue.splice(index, 1);
-    if (this._currentIndex >= this._queue.length) {
-      this._currentIndex = this._queue.length - 1;
-    }
-    this.rebuildShuffleIndices();
-  }
-
-  clear(): void {
-    this._queue = [];
-    this._currentIndex = -1;
-    this._shuffledIndices = [];
-  }
-
-  setIndex(index: number): void {
-    if (index >= 0 && index < this._queue.length) {
-      this._currentIndex = index;
-    }
-  }
-
-  // ── Navigation ────────────────────────────────────────────────────
-
-  next(): TrackInfo | null {
-    if (this._queue.length === 0) return null;
-
-    if (this._repeat === "one") {
-      // Repeat current track
-      return this.currentTrack;
-    }
-
-    const nextIndex = this._currentIndex + 1;
-
-    if (nextIndex >= this._queue.length) {
-      if (this._repeat === "all") {
-        this._currentIndex = 0;
-        if (this._shuffle) this.rebuildShuffleIndices();
-      } else {
-        return null; // Queue exhausted
-      }
+  addTrack(track: Track, next: boolean = false) {
+    if (next && this.currentIdx >= 0) {
+      this.queue.splice(this.currentIdx + 1, 0, track);
     } else {
-      this._currentIndex = nextIndex;
+      this.queue.push(track);
     }
-
-    return this.currentTrack;
+    musicEvents.emit('queueChanged', this.queue);
   }
 
-  previous(): TrackInfo | null {
-    if (this._queue.length === 0) return null;
-
-    if (this._repeat === "one") {
-      return this.currentTrack;
+  getNext(): Track | null {
+    if (this.currentIdx >= 0 && this.currentIdx < this.queue.length - 1) {
+      this.currentIdx++;
+      return this.queue[this.currentIdx];
     }
-
-    const prevIndex = this._currentIndex - 1;
-
-    if (prevIndex < 0) {
-      if (this._repeat === "all") {
-        this._currentIndex = this._queue.length - 1;
-      } else {
-        this._currentIndex = 0;
-        return this.currentTrack; // Stay at first track
-      }
-    } else {
-      this._currentIndex = prevIndex;
-    }
-
-    return this.currentTrack;
+    return null;
   }
 
-  // ── Mode ──────────────────────────────────────────────────────────
-
-  setRepeat(mode: RepeatMode): void {
-    this._repeat = mode;
-  }
-
-  toggleShuffle(): void {
-    this._shuffle = !this._shuffle;
-    if (this._shuffle) {
-      this.rebuildShuffleIndices();
+  getPrevious(): Track | null {
+    if (this.currentIdx > 0) {
+      this.currentIdx--;
+      return this.queue[this.currentIdx];
     }
+    return null;
   }
 
-  setShuffle(enabled: boolean): void {
-    this._shuffle = enabled;
-    if (enabled) {
-      this.rebuildShuffleIndices();
+  getCurrent(): Track | null {
+    if (this.currentIdx >= 0 && this.currentIdx < this.queue.length) {
+      return this.queue[this.currentIdx];
     }
+    return null;
   }
 
-  // ── Internal ──────────────────────────────────────────────────────
+  clear() {
+    this.queue = [];
+    this.currentIdx = -1;
+    musicEvents.emit('queueChanged', this.queue);
+  }
 
-  private rebuildShuffleIndices(): void {
-    this._shuffledIndices = Array.from({ length: this._queue.length }, (_, i) => i);
-    // Fisher-Yates shuffle
-    for (let i = this._shuffledIndices.length - 1; i > 0; i--) {
+  shuffle() {
+    // Keep current track at currentIdx, shuffle rest
+    const current = this.queue[this.currentIdx];
+    const rest = this.queue.filter((_, i) => i !== this.currentIdx);
+    for (let i = rest.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [this._shuffledIndices[i], this._shuffledIndices[j]] = [this._shuffledIndices[j], this._shuffledIndices[i]];
+      [rest[i], rest[j]] = [rest[j], rest[i]];
     }
+    this.queue = current ? [current, ...rest] : rest;
+    this.currentIdx = current ? 0 : -1;
+    musicEvents.emit('queueChanged', this.queue);
   }
 }
+
+export const queueManager = new QueueManager();
