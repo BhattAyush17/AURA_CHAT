@@ -13,11 +13,7 @@ import { hasLocalSeedOnly, isMemoryWarningDismissed } from "@/lib/sync-meta";
 import { getCurrentUserId } from "@/lib/user-identity";
 import { LatencyMeter } from "@/components/LatencyMeter";
 import { MiniPlayer } from "@/components/MiniPlayer";
-import { SensePanel } from "@/sense/SensePanel";
-import { SenseManager } from "@/sense/SenseManager/SenseManager";
-import { RuntimeDiagnosticsDrawer } from "@/components/diagnostics/RuntimeDiagnosticsDrawer";
 import { ProviderSelector } from "@/components/ProviderSelector";
-import { InitializationPanel } from "@/components/InitializationPanel";
 
 import { MusicPlayer } from "@/music/components/MusicPlayer";
 import { musicService } from "@/music/MusicService";
@@ -51,22 +47,7 @@ function AuraExperience() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
-  const [showSensePanel, setShowSensePanel] = useState(false);
-  const [showDiagnosticsDrawer, setShowDiagnosticsDrawer] = useState(() => {
-    if (typeof window === "undefined") return false;
-    // Desktop default: check localStorage; Mobile default: always closed
-    if (window.innerWidth < 768) return false;
-    return localStorage.getItem("aura_diagnostics_drawer_open") === "true";
-  });
-  const [isSenseActive, setIsSenseActive] = useState(false);
   const [memoryWarning, setMemoryWarning] = useState<string | null>(null);
-
-  // Sync drawer state to localStorage on Desktop
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth >= 768) {
-      localStorage.setItem("aura_diagnostics_drawer_open", String(showDiagnosticsDrawer));
-    }
-  }, [showDiagnosticsDrawer]);
 
   useEffect(() => {
     // Initialize Music Subsystem
@@ -110,20 +91,6 @@ function AuraExperience() {
       if (savedBrain === "sarvam") setSelectedVoice("Priya");
     }
     setHasOpenRouterKey(!!getOpenRouterKey());
-
-    // Check sense status periodically for soft glow
-    const senseManager = SenseManager.getInstance();
-    senseManager.initialize().then(() => {
-      const active = senseManager.getAllEntries().some((e) => e.sense?.health());
-      setIsSenseActive(active);
-    });
-
-    const interval = setInterval(() => {
-      const active = senseManager.getAllEntries().some((e) => e.sense?.health());
-      setIsSenseActive(active);
-    }, 2000);
-
-    return () => clearInterval(interval);
   }, []);
 
   // Reset to a sensible default voice when switching brains
@@ -324,24 +291,6 @@ function AuraExperience() {
               </button>
             )}
 
-            {/* ⚡ Sense Button */}
-            <button
-              onClick={() => setShowSensePanel((v) => !v)}
-              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
-                showSensePanel
-                  ? "text-white opacity-100"
-                  : isSenseActive
-                    ? "text-amber-300"
-                    : "text-white/50"
-              }`}
-              title="Sense"
-            >
-              <Zap className="h-4.5 w-4.5" strokeWidth={1.5} />
-              {isSenseActive && (
-                <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
-              )}
-            </button>
-
             {/* • Conversation status (Ready vs Key missing) */}
             <div
               className={`h-1.5 w-1.5 rounded-full transition-all duration-250 ${
@@ -351,31 +300,6 @@ function AuraExperience() {
               }`}
               title={!needsSettings ? "Ready" : "API Key Required"}
             />
-
-            {/* Heartbeat ECG (Runtime Diagnostics Developer Toggle) */}
-            <button
-              onClick={() => setShowDiagnosticsDrawer((v) => !v)}
-              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
-                showDiagnosticsDrawer ? "text-white opacity-100" : "text-white/50"
-              }`}
-              title="Runtime Diagnostics"
-            >
-              <HeartbeatIcon className="h-4.5 w-4.5" />
-              
-              {/* Active state indicator */}
-              {showDiagnosticsDrawer && (
-                <span className="absolute -top-[1px] -right-[1px] h-1 w-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
-              )}
-
-              {/* Recording / Active Voice session pulse */}
-              {status !== "idle" && status !== "error" && (
-                <motion.span
-                  animate={{ scale: [1, 1.4, 1], opacity: [0.8, 0, 0.8] }}
-                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-                  className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-400"
-                />
-              )}
-            </button>
 
             {/* ⚙ Settings */}
             <button
@@ -388,19 +312,6 @@ function AuraExperience() {
                 <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-500" />
               )}
             </button>
-
-            {/* Sense Panel */}
-            <SensePanel
-              isOpen={showSensePanel}
-              onClose={() => setShowSensePanel(false)}
-            />
-
-            {/* Runtime Diagnostics Drawer / Bottom Sheet */}
-            <RuntimeDiagnosticsDrawer
-              isOpen={showDiagnosticsDrawer}
-              onClose={() => setShowDiagnosticsDrawer(false)}
-              activeBrain={activeBrain}
-            />
           </div>
         </header>
 
@@ -496,23 +407,7 @@ function AuraExperience() {
             {status === "error" && (!readinessSnapshot || readinessSnapshot.overall !== "failed") && (lastError || "error")}
           </div>
 
-          {/* Initialization Panel — shown during Gemini connecting/error with readiness data */}
-          <AnimatePresence>
-            {activeBrain === "gemini" && readinessSnapshot && readinessSnapshot.overall !== "idle" && readinessSnapshot.overall !== "ready" && (
-              <motion.div
-                className="mt-6 w-full flex justify-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <InitializationPanel
-                  snapshot={readinessSnapshot}
-                  onRetry={handleAudioReset}
-                  onSettings={() => setShowStorageModal(true)}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+
 
           {(status === "listening" || status === "speaking" || status === "thinking") && (
             <div className="mt-8 w-full max-w-md">
