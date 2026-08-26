@@ -1,49 +1,76 @@
+/**
+ * AudioWorkletProcessor for capturing PCM data.
+ * Features an adaptive noise gate and efficient memory management.
+ */
 class PcmCaptureProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this.buffer = [];
-    this.BUFFER_SIZE = 1024;
+    
+    // Configuration via processorOptions, with sensible defaults
+    this.bufferSize = options?.processorOptions?.bufferSize || 1024;
+    this.calibrationLimit = options?.processorOptions?.calibrationLimit || 200; // Tuned for Hindi phonology
+    this.gateMultiplier = options?.processorOptions?.gateMultiplier || 1.8;     // Lowered for Hindi speech patterns
+    this.noiseFloorAlpha = options?.processorOptions?.noiseFloorAlpha || 0.005;
+
+    // State
     this.noiseFloor = 0.02;
     this.calibrationFrames = 0;
-    this.CALIBRATION_LIMIT = 200; // tuned for Hindi phonology
-    this.GATE_MULTIPLIER = 1.8; // lowered for Hindi speech patterns
+    
+    // Efficient memory management: Pre-allocate typed array to avoid garbage collection
+    this.buffer = new Float32Array(this.bufferSize);
+    this.bufferOffset = 0;
   }
 
-  process(inputs) {
-    const input = inputs[0][0];
-    if (!input) return true;
-
-    // Calculate RMS energy
+  /**
+   * Calculates the Root Mean Square (RMS) energy of the audio chunk.
+   * @param {Float32Array} channelData 
+   * @returns {number}
+   */
+  calculateRMS(channelData) {
     let sum = 0;
-    for (let i = 0; i < input.length; i++) {
-      sum += input[i] * input[i];
+    for (let i = 0; i < channelData.length; i++) {
+      sum += channelData[i] * channelData[i];
     }
-    const rms = Math.sqrt(sum / input.length);
+    return Math.sqrt(sum / channelData.length);
+  }
 
-    // Calibration phase — learn noise floor in first 3 seconds
-    if (this.calibrationFrames < this.CALIBRATION_LIMIT) {
-      this.noiseFloor =
-        (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (!input || !input[0]) return true;
+
+    const channelData = input[0];
+    const rms = this.calculateRMS(channelData);
+
+    // Calibration phase — learn noise floor in the initial frames
+    if (this.calibrationFrames < this.calibrationLimit) {
+      this.noiseFloor = (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
       this.calibrationFrames++;
       return true;
     }
 
     // Slowly adapt noise floor to changing environment
-    this.noiseFloor = this.noiseFloor * 0.995 + rms * 0.005;
+    this.noiseFloor = this.noiseFloor * (1 - this.noiseFloorAlpha) + rms * this.noiseFloorAlpha;
 
     // Gate — skip chunk if below threshold
-    const threshold = this.noiseFloor * this.GATE_MULTIPLIER;
+    const threshold = this.noiseFloor * this.gateMultiplier;
     if (rms < threshold) return true;
 
-    // Buffer the input
-    for (let i = 0; i < input.length; i++) {
-      this.buffer.push(input[i]);
-    }
+    // Buffer the input sequentially
+    for (let i = 0; i < channelData.length; i++) {
+      this.buffer[this.bufferOffset++] = channelData[i];
 
-    // Send when buffer reaches target size
-    if (this.buffer.length >= this.BUFFER_SIZE) {
-      const chunk = new Float32Array(this.buffer.splice(0, this.BUFFER_SIZE));
-      this.port.postMessage({ pcmData: chunk.buffer, rms: rms }, [chunk.buffer]);
+      // Send chunk when buffer reaches target size
+      if (this.bufferOffset >= this.bufferSize) {
+        // Create a copy of the buffer to transfer ownership
+        const chunk = new Float32Array(this.buffer);
+        
+        this.port.postMessage(
+          { pcmData: chunk.buffer, rms: rms }, 
+          [chunk.buffer]
+        );
+        
+        this.bufferOffset = 0;
+      }
     }
 
     return true;

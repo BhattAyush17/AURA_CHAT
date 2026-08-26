@@ -53,6 +53,8 @@ export function MiniPlayer() {
     previous,
     seek,
     setVolume,
+    availableProviders,
+    switchProvider
   } = useMusicPlayer();
 
   const [expanded, setExpanded] = useState(true);
@@ -153,6 +155,27 @@ export function MiniPlayer() {
                 {isPlaying && <div className="mini-player-now-playing-dot" />}
               </div>
               <div className="mini-player-header-actions">
+                <select 
+                  className="mini-player-provider-select" 
+                  value={state.providerId || ""}
+                  onChange={(e) => switchProvider(e.target.value)}
+                  aria-label="Switch music provider"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '9px',
+                    marginRight: '8px',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {availableProviders.map(p => (
+                    <option key={p.id} value={p.id} style={{ background: '#111', color: '#fff' }}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   onClick={() => setExpanded(false)}
                   className="mini-player-btn-ghost"
@@ -172,10 +195,10 @@ export function MiniPlayer() {
 
             {/* Track Info */}
             <div className="mini-player-track-info">
-              {currentTrack?.thumbnail && (
+              {currentTrack?.albumArt && (
                 <div className="mini-player-thumbnail">
                   <img
-                    src={currentTrack.thumbnail}
+                    src={currentTrack.albumArt}
                     alt={currentTrack.title}
                     className="mini-player-thumbnail-img"
                   />

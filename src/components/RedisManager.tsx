@@ -13,11 +13,11 @@ export function RedisManager() {
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.VITE_REDIS_URL as string) || "",
-        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.VITE_GEMINI_API_KEY as string) || "",
-        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.VITE_OPENROUTER_API_KEY as string) || "",
-        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.VITE_COHERE_API_KEY as string) || "",
-        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.VITE_PINECONE_API_KEY as string) || "",
+        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.DEV ? (import.meta.env.VITE_REDIS_URL as string) : "") || "",
+        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "") || "",
+        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "") || "",
+        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_COHERE_API_KEY as string) : "") || "",
+        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_PINECONE_API_KEY as string) : "") || "",
       };
 
       const baseUrl = ENDPOINTS.analyze.replace('/api/analyze', '');
@@ -35,11 +35,11 @@ export function RedisManager() {
   const deleteSession = async (sessionId: string) => {
     try {
       const headers: Record<string, string> = {
-        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.VITE_REDIS_URL as string) || "",
-        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.VITE_GEMINI_API_KEY as string) || "",
-        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.VITE_OPENROUTER_API_KEY as string) || "",
-        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.VITE_COHERE_API_KEY as string) || "",
-        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.VITE_PINECONE_API_KEY as string) || "",
+        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.DEV ? (import.meta.env.VITE_REDIS_URL as string) : "") || "",
+        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "") || "",
+        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "") || "",
+        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_COHERE_API_KEY as string) : "") || "",
+        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_PINECONE_API_KEY as string) : "") || "",
       };
       const baseUrl = ENDPOINTS.analyze.replace('/api/analyze', '');
       const res = await fetch(`${baseUrl}/api/redis/session/${sessionId}`, { 
@@ -55,11 +55,11 @@ export function RedisManager() {
   const clearStream = async () => {
     try {
       const headers: Record<string, string> = {
-        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.VITE_REDIS_URL as string) || "",
-        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.VITE_GEMINI_API_KEY as string) || "",
-        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.VITE_OPENROUTER_API_KEY as string) || "",
-        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.VITE_COHERE_API_KEY as string) || "",
-        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.VITE_PINECONE_API_KEY as string) || "",
+        "X-Redis-Url": getCredential("redis_url") || (import.meta.env.DEV ? (import.meta.env.VITE_REDIS_URL as string) : "") || "",
+        "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "") || "",
+        "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "") || "",
+        "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_COHERE_API_KEY as string) : "") || "",
+        "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_PINECONE_API_KEY as string) : "") || "",
       };
       const baseUrl = ENDPOINTS.analyze.replace('/api/analyze', '');
       const res = await fetch(`${baseUrl}/api/redis/stream`, { 

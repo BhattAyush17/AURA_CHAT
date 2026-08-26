@@ -26,6 +26,7 @@ interface LatencyMetrics {
   geminiGenStart: number | null;
   tokenThroughput: number | null;
   turnTokens: number | null;
+  interruptionStopMs: number | null;
 }
 
 interface LatencyMeterProps {
@@ -35,10 +36,7 @@ interface LatencyMeterProps {
 
 // ─── Provider display config ────────────────────────────────────────
 
-const PROVIDER_META: Record<
-  string,
-  { label: string; color: string; icon: string }
-> = {
+const PROVIDER_META: Record<string, { label: string; color: string; icon: string }> = {
   gemini: { label: "Gemini Live", color: "#4285F4", icon: "🎙️" },
   openrouter: { label: "OpenRouter", color: "#F97316", icon: "🚀" },
   sarvam: { label: "Sarvam AI", color: "#10B981", icon: "🇮🇳" },
@@ -77,7 +75,15 @@ function Row({
   pulse?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 4 }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 16,
+        marginBottom: 4,
+      }}
+    >
       <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>{label}</span>
       <span
         style={{
@@ -96,7 +102,16 @@ function Row({
 
 function Section({ title }: { title: string }) {
   return (
-    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9, letterSpacing: "0.05em", marginBottom: 5, marginTop: 8, textTransform: "uppercase" as const }}>
+    <div
+      style={{
+        color: "rgba(255,255,255,0.3)",
+        fontSize: 9,
+        letterSpacing: "0.05em",
+        marginBottom: 5,
+        marginTop: 8,
+        textTransform: "uppercase" as const,
+      }}
+    >
       {title}
     </div>
   );
@@ -124,7 +139,15 @@ function StatusDot({ active, color }: { active: boolean; color: string }) {
 
 function KeyBadge({ label, present }: { label: string; present: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 3 }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: 10,
+        color: "rgba(255,255,255,0.5)",
+        marginBottom: 3,
+      }}
+    >
       <span>{label}</span>
       <span style={{ color: present ? "#1D9E75" : "#E24B4A", fontWeight: 600 }}>
         {present ? "✓" : "✗"}
@@ -137,16 +160,30 @@ function KeyBadge({ label, present }: { label: string; present: boolean }) {
 
 export function LatencyMeter({ visible = false, activeBrain = "gemini" }: LatencyMeterProps) {
   const [metrics, setMetrics] = useState<LatencyMetrics>({
-    geminiConnect: null, firstToken: null, roundTrip: null, audioChunkInterval: null,
-    backendAnalysis: null, memoryLayer: "live", geminiSetup: null, geminiGenStart: null,
-    tokenThroughput: null, turnTokens: null,
+    geminiConnect: null,
+    firstToken: null,
+    roundTrip: null,
+    audioChunkInterval: null,
+    backendAnalysis: null,
+    memoryLayer: "live",
+    geminiSetup: null,
+    geminiGenStart: null,
+    tokenThroughput: null,
+    turnTokens: null,
+    interruptionStopMs: null,
   });
   const [csLatencies, setCsLatencies] = useState<ConnectionState["latencies"]>({});
   const [csState, setCsState] = useState<Partial<ConnectionState>>({});
   const [orStats, setOrStats] = useState<any>(null);
-  const [expanded, setExpanded] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
-  const [isClosed, setIsClosed] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [expanded, setExpanded] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true,
+  );
+  const [isClosed, setIsClosed] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -191,7 +228,9 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
     if (activeBrain !== "gemini") {
       const key = getOpenRouterKey();
       if (key) {
-        fetch("https://openrouter.ai/api/v1/auth/key", { headers: { Authorization: `Bearer ${key}` } })
+        fetch("https://openrouter.ai/api/v1/auth/key", {
+          headers: { Authorization: `Bearer ${key}` },
+        })
           .then((r) => r.json())
           .then((d) => d?.data && setOrStats(d.data))
           .catch(() => {});
@@ -250,11 +289,18 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
           alignItems: "center",
           gap: 6,
           transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
+          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
         }}
       >
         <StatusDot active={true} color={meta.color} />
-        <span style={{ color: meta.color, fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const }}>
+        <span
+          style={{
+            color: meta.color,
+            fontSize: 9,
+            fontWeight: 700,
+            textTransform: "uppercase" as const,
+          }}
+        >
           Stats
         </span>
       </div>
@@ -263,7 +309,7 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
         style={{
           position: "fixed",
           bottom: isMobile ? (isClosed ? "-100%" : 0) : 16,
-          right: isMobile ? 0 : (isClosed ? -350 : 16),
+          right: isMobile ? 0 : isClosed ? -350 : 16,
           width: isMobile ? "100%" : "auto",
           background: "rgba(0,0,0,0.85)",
           backdropFilter: "blur(16px)",
@@ -280,52 +326,82 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
           borderBottom: isMobile ? "none" : `1px solid ${meta.color}33`,
           transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
           cursor: "default",
-          opacity: isMobile ? 1 : (isClosed ? 0 : 1),
+          opacity: isMobile ? 1 : isClosed ? 0 : 1,
           pointerEvents: isClosed ? "none" : "auto",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
+          boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
         }}
       >
         {/* ── Header ── */}
         <div
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: expanded ? 8 : 0 }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: expanded ? 8 : 0,
+          }}
         >
-          <div 
+          <div
             style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", flex: 1 }}
             onClick={() => setExpanded(!expanded)}
           >
             <StatusDot active={true} color={meta.color} />
-            <span style={{ color: meta.color, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase" as const, fontWeight: 700 }}>
+            <span
+              style={{
+                color: meta.color,
+                fontSize: 9,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase" as const,
+                fontWeight: 700,
+              }}
+            >
               {meta.label} {meta.icon}
             </span>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 8, transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", display: "inline-block" }}>
+            <span
+              style={{
+                color: "rgba(255,255,255,0.3)",
+                fontSize: 8,
+                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s",
+                display: "inline-block",
+              }}
+            >
               ▼
             </span>
           </div>
 
           <div
             onClick={(e) => {
-               e.stopPropagation();
-               setIsClosed(true);
+              e.stopPropagation();
+              setIsClosed(true);
             }}
             style={{
-               cursor: "pointer",
-               padding: "4px",
-               marginLeft: "8px",
-               color: "rgba(255,255,255,0.5)",
-               display: "flex",
-               alignItems: "center",
-               justifyContent: "center",
-               borderRadius: "50%",
-               background: "rgba(255,255,255,0.1)",
-               transition: "background 0.2s"
+              cursor: "pointer",
+              padding: "4px",
+              marginLeft: "8px",
+              color: "rgba(255,255,255,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.1)",
+              transition: "background 0.2s",
             }}
-            onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
-            onMouseOut={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+            onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
           >
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-             </svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </div>
         </div>
 
@@ -340,38 +416,98 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
             {activeBrain === "gemini" ? (
               <>
                 <Section title="Latency" />
-                <Row label="WS connect" value={fmt(metrics.geminiConnect)} color={valColor(metrics.geminiConnect, 1500, 3000)} />
-                <Row label="Setup" value={fmt(metrics.geminiSetup)} color={valColor(metrics.geminiSetup, 500, 1000)} />
-                <Row label="First token" value={fmt(metrics.firstToken)} color={valColor(metrics.firstToken, 800, 1500)} pulse={metrics.firstToken == null} />
-                <Row label="Round trip" value={fmt(metrics.roundTrip)} color={valColor(metrics.roundTrip, 1000, 2000)} />
-                <Row label="Audio chunk" value={fmt(metrics.audioChunkInterval)} color={valColor(metrics.audioChunkInterval, 50, 100)} />
-                <Row label="Backend" value={fmt(metrics.backendAnalysis)} color={valColor(metrics.backendAnalysis, 200, 500)} />
-                <Row label="Throughput" value={fmt(metrics.tokenThroughput, " tok/s")} color={valColor(metrics.tokenThroughput, 30, 15, true)} />
+                <Row
+                  label="WS connect"
+                  value={fmt(metrics.geminiConnect)}
+                  color={valColor(metrics.geminiConnect, 1500, 3000)}
+                />
+                <Row
+                  label="Setup"
+                  value={fmt(metrics.geminiSetup)}
+                  color={valColor(metrics.geminiSetup, 500, 1000)}
+                />
+                <Row
+                  label="First token"
+                  value={fmt(metrics.firstToken)}
+                  color={valColor(metrics.firstToken, 800, 1500)}
+                  pulse={metrics.firstToken == null}
+                />
+                <Row
+                  label="Round trip"
+                  value={fmt(metrics.roundTrip)}
+                  color={valColor(metrics.roundTrip, 1000, 2000)}
+                />
+                <Row
+                  label="Audio chunk"
+                  value={fmt(metrics.audioChunkInterval)}
+                  color={valColor(metrics.audioChunkInterval, 50, 100)}
+                />
+                <Row
+                  label="Backend"
+                  value={fmt(metrics.backendAnalysis)}
+                  color={valColor(metrics.backendAnalysis, 200, 500)}
+                />
+                <Row
+                  label="Throughput"
+                  value={fmt(metrics.tokenThroughput, " tok/s")}
+                  color={valColor(metrics.tokenThroughput, 30, 15, true)}
+                />
 
                 <Divider />
                 <Section title="Pipeline" />
                 <Row label="STT" value="WebSocket (native)" />
-                <Row label="LLM" value="Gemini 2.5 Flash" />
+                <Row label="LLM" value="Gemini 3.1 Flash Live" />
                 <Row label="TTS" value="WebSocket (native)" />
                 <Row label="VAD" value="Server-side auto" />
               </>
             ) : (
               <>
                 <Section title="Latency" />
-                <Row label="L1 Sensing" value={fmt(csLatencies.l1_sensing_ms)} color={valColor(csLatencies.l1_sensing_ms, 100, 300)} />
-                <Row label="L2 Behavior" value={fmt(csLatencies.l2_behavior_ms)} color={valColor(csLatencies.l2_behavior_ms, 200, 500)} />
-                <Row label="L3 Memory" value={fmt(csLatencies.l3_memory_ms)} color={valColor(csLatencies.l3_memory_ms, 150, 400)} />
-                <Row label="L4 LLM" value={fmt(csLatencies.l4_llm_ms)} color={valColor(csLatencies.l4_llm_ms, 1000, 2500)} pulse={csLatencies.l4_llm_ms == null} />
+                <Row
+                  label="L1 Sensing"
+                  value={fmt(csLatencies.l1_sensing_ms)}
+                  color={valColor(csLatencies.l1_sensing_ms, 100, 300)}
+                />
+                <Row
+                  label="L2 Behavior"
+                  value={fmt(csLatencies.l2_behavior_ms)}
+                  color={valColor(csLatencies.l2_behavior_ms, 200, 500)}
+                />
+                <Row
+                  label="L3 Memory"
+                  value={fmt(csLatencies.l3_memory_ms)}
+                  color={valColor(csLatencies.l3_memory_ms, 150, 400)}
+                />
+                <Row
+                  label="L4 LLM"
+                  value={fmt(csLatencies.l4_llm_ms)}
+                  color={valColor(csLatencies.l4_llm_ms, 1000, 2500)}
+                  pulse={csLatencies.l4_llm_ms == null}
+                />
                 {activeBrain === "sarvam" && (
-                  <Row label="L5 TTS" value={fmt(csLatencies.tts_ms)} color={valColor(csLatencies.tts_ms, 500, 1200)} />
+                  <Row
+                    label="L5 TTS"
+                    value={fmt(csLatencies.tts_ms)}
+                    color={valColor(csLatencies.tts_ms, 500, 1200)}
+                  />
                 )}
-                <Row label="Total" value={fmt(csLatencies.total_ms)} color={valColor(csLatencies.total_ms, 2000, 4000)} />
+                <Row
+                  label="Total"
+                  value={fmt(csLatencies.total_ms)}
+                  color={valColor(csLatencies.total_ms, 2000, 4000)}
+                />
 
                 <Divider />
                 <Section title="Pipeline" />
-                <Row label="STT" value={activeBrain === "sarvam" ? "Sarvam saaras:v2" : "Browser WebSpeech"} />
+                <Row
+                  label="STT"
+                  value={activeBrain === "sarvam" ? "Sarvam saaras:v2" : "Browser WebSpeech"}
+                />
                 <Row label="LLM" value={csState.active_llm || "Llama 3.3 70B"} />
-                <Row label="TTS" value={activeBrain === "sarvam" ? "Sarvam bulbul:v3" : "Browser WebSpeech"} />
+                <Row
+                  label="TTS"
+                  value={activeBrain === "sarvam" ? "Sarvam bulbul:v3" : "Browser WebSpeech"}
+                />
                 <Row label="Barge-in" value="RMS > 0.018" />
                 <Row label="Failover" value="5-model cascade" />
               </>

@@ -1,3 +1,5 @@
+import type { ReadinessSnapshot } from "@/providers/gemini-next/SessionReadinessManager";
+
 export type UIStatus =
   | "idle"
   | "listening"
@@ -38,4 +40,22 @@ export interface IVoicePipeline {
   activeModel?: string;
   auraState?: any;
   liveStats?: { tone: string; intent: string };
+  languageState?: {
+    preferredLanguage: string;
+    detectedLanguage: string | null;
+    secondaryLanguage: string | null;
+    classification: "SINGLE_LANGUAGE" | "MIXED_LANGUAGE" | "UNCERTAIN";
+    responseLanguage: string;
+    speechProfile?: {
+      language: string;
+      variant: string;
+      confidence: number | null;
+      source: string;
+    };
+    interpretedTranscript?: string;
+  };
+
+  // Gemini readiness tracking
+  readinessSnapshot?: ReadinessSnapshot | null;
 }
+

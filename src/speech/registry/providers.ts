@@ -158,6 +158,6 @@ export const PROVIDER_DESCRIPTORS: readonly ProviderDescriptor[] = [
     endpointControl: EndpointControl.None,
     latencyClass: LatencyClass.L1,
     costClass: CostClass.C3,
-    transportMode: TransportMode.WebRtc,
+    transportMode: TransportMode.WebSocket,
   },
 ];

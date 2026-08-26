@@ -9,6 +9,7 @@ export async function generateSpeech(
   text: string,
   speaker: string = "priya",
   pace: number = 1.1,
+  conversationLangCode?: "hi-IN" | "en-IN",
 ): Promise<string | null> {
   const key = getSarvamKey();
   if (!key) {
@@ -20,8 +21,11 @@ export async function generateSpeech(
   const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
+    // Phase 8: the Executive's conversation register wins over the static
+    // voice setting — the spoken response matches the user's language.
     const langCode =
-      localStorage.getItem("aura_voice_language")?.split("-")[0] === "hi" ? "hi-IN" : "en-IN";
+      conversationLangCode ??
+      (localStorage.getItem("aura_voice_language")?.split("-")[0] === "hi" ? "hi-IN" : "en-IN");
 
     const payload = {
       text: text,

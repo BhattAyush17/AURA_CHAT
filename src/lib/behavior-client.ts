@@ -65,7 +65,7 @@ export async function analyzeBehavior(
   mode?: string,
   apiKey?: string,
   userId?: string,
-  wasInterrupted: boolean = false,
+  wasInterrupted: boolean = false
 ): Promise<BehaviorAnalysis | null> {
   try {
     const controller = new AbortController();
@@ -75,17 +75,15 @@ export async function analyzeBehavior(
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.VITE_OPENROUTER_API_KEY as string) || "",
-      "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.VITE_GEMINI_API_KEY as string) || "",
-      "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.VITE_COHERE_API_KEY as string) || "",
-      "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.VITE_PINECONE_API_KEY as string) || "",
-      "X-Redis-Url": getCredential("redis_url") || (import.meta.env.VITE_REDIS_URL as string) || "",
+      "X-OpenRouter-Key": getCredential("openrouter_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "") || "",
+      "X-Gemini-Key": getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "") || "",
+      "X-Cohere-Key": getCredential("cohere_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_COHERE_API_KEY as string) : "") || "",
+      "X-Pinecone-Key": getCredential("pinecone_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_PINECONE_API_KEY as string) : "") || "",
+      "X-Redis-Url": getCredential("redis_url") || (import.meta.env.DEV ? (import.meta.env.VITE_REDIS_URL as string) : "") || "",
     };
     if (apiKey) {
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
-    // X-Internal-Key removed — it was a VITE_ variable, visible in the JS bundle.
-    // The backend now validates the Origin header instead.
 
     const backendStart = performance.now();
     const response = await fetch(ENDPOINTS.analyze, {
@@ -98,7 +96,7 @@ export async function analyzeBehavior(
         audio_rms: audioRms,
         pause_ms: pauseMs,
         ideology_hint: ideologyHint,
-        was_interrupted: wasInterrupted,
+        was_interrupted: wasInterrupted
       }),
       signal: controller.signal,
     });
@@ -255,3 +253,44 @@ export function logSpeculativeResult(hit: boolean): void {
     );
   } catch {}
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ASYNC OBSERVATION BUFFERING (Phase 12: Music Telemetry)
+// ═══════════════════════════════════════════════════════════════════
+
+export interface Observation {
+  topic: string;
+  content: string;
+  source: string;
+  confidence: number;
+  status: string;
+}
+
+const _observationBuffer: Observation[] = [];
+
+export function bufferObservation(obs: Observation) {
+  _observationBuffer.push(obs);
+  // Keep buffer bounded
+  if (_observationBuffer.length > 50) {
+    _observationBuffer.shift();
+  }
+}
+
+export function consumeObservationBuffer(): Observation[] {
+  const obs = [..._observationBuffer];
+  _observationBuffer.length = 0;
+  return obs;
+}
+
+export function bufferMusicEvent(event: string, artist: string, track: string) {
+  if (!artist && !track) return;
+  const stateStr = event === "track_started" ? "started listening to" : "is listening to";
+  bufferObservation({
+    topic: "music",
+    content: `User ${stateStr} ${track} by ${artist}`,
+    source: "music_behavior",
+    confidence: 0.8,
+    status: "OBSERVATION"
+  });
+}
+

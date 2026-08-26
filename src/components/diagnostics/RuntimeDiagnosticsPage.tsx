@@ -16,11 +16,6 @@ import {
   type FailureFingerprint,
   type LatencyBreakdown,
 } from "./runtimeTraceEngine";
-import { runSttStressTest, type StressTestResult } from "./sttStressTest";
-import {
-  runFullMobileLifecycleTests,
-  type MobileLifecycleReport,
-} from "./mobileLifecycleTests";
 import { SpeechRecognitionProbe, type ProbeResult } from "./speechRecognitionProbe";
 import { ConversationTelemetryPanel } from "./ConversationTelemetryPanel";
 import "./runtimeDiagnostics.css";
@@ -199,12 +194,6 @@ export function RuntimeDiagnosticsPage() {
   const [speechProbe] = useState(() => new SpeechRecognitionProbe());
   const [speechProbeResult, setSpeechProbeResult] = useState<ProbeResult>(speechProbe.getResult());
 
-  // Test states
-  const [sttTestRunning, setSttTestRunning] = useState(false);
-  const [sttTestResult, setSttTestResult] = useState<StressTestResult | null>(null);
-  const [mobileTestRunning, setMobileTestRunning] = useState(false);
-  const [mobileTestResult, setMobileTestResult] = useState<MobileLifecycleReport | null>(null);
-
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to real-time events
@@ -247,36 +236,6 @@ export function RuntimeDiagnosticsPage() {
       runtimeTrace.stopPassiveMonitors();
     };
   }, [speechProbe]);
-
-  // ─── STT Stress Test ───────────────────────────────────────────
-
-  const handleSttStressTest = useCallback(async () => {
-    setSttTestRunning(true);
-    setSttTestResult(null);
-    try {
-      const result = await runSttStressTest(30);
-      setSttTestResult(result);
-    } catch (err) {
-      console.error("[Runtime Diag] STT stress test crashed:", err);
-    } finally {
-      setSttTestRunning(false);
-    }
-  }, []);
-
-  // ─── Mobile Lifecycle Tests ───────────────────────────────────
-
-  const handleMobileTests = useCallback(async () => {
-    setMobileTestRunning(true);
-    setMobileTestResult(null);
-    try {
-      const result = await runFullMobileLifecycleTests();
-      setMobileTestResult(result);
-    } catch (err) {
-      console.error("[Runtime Diag] Mobile lifecycle tests crashed:", err);
-    } finally {
-      setMobileTestRunning(false);
-    }
-  }, []);
 
   // ─── Actions ──────────────────────────────────────────────────
 
@@ -414,110 +373,7 @@ export function RuntimeDiagnosticsPage() {
           {/* Speech Probe */}
           <SpeechProbeCard probe={speechProbe} result={speechProbeResult} />
 
-          {/* STT Stress Test */}
-          <div className="rtd-test-card" id="rtd-stt-stress-test">
-            <div className="rtd-test-card__header">
-              <span className="rtd-test-card__title">STT Stress Test</span>
-              {sttTestResult && (
-                <span
-                  className={`rtd-test-card__status ${
-                    sttTestResult.failures === 0
-                      ? "rtd-test-card__status--pass"
-                      : "rtd-test-card__status--fail"
-                  }`}
-                >
-                  {sttTestResult.failures === 0 ? "PASS" : "FAIL"}
-                </span>
-              )}
-            </div>
-            <div className="rtd-test-card__body">
-              {sttTestResult ? (
-                <>
-                  <TestField label="Attempts" value={sttTestResult.attempts} />
-                  <TestField label="Success" value={sttTestResult.success} />
-                  <TestField label="Failures" value={sttTestResult.failures} />
-                  <TestField label="Total Time" value={`${sttTestResult.durationMs}ms`} />
-                  <TestField label="Avg Cycle" value={`${sttTestResult.avgCycleMs}ms`} />
-                  {sttTestResult.failureReasons.length > 0 && (
-                    <div className="rtd-test-card__details">
-                      {sttTestResult.failureReasons.slice(0, 5).join("\n")}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="rtd-test-card__details">
-                  Runs 30 consecutive start/stop cycles on an independent SpeechRecognition instance.
-                </div>
-              )}
-              <button
-                className="rtd-btn rtd-btn--secondary"
-                onClick={handleSttStressTest}
-                disabled={sttTestRunning}
-                id="rtd-btn-stt-stress"
-                style={{ marginTop: 8 }}
-              >
-                {sttTestRunning ? (
-                  <><span className="rtd-btn-spinner" /> Running…</>
-                ) : (
-                  "Run STT Stress Test"
-                )}
-              </button>
-            </div>
-          </div>
 
-          {/* Mobile Lifecycle Tests */}
-          <div className="rtd-test-card" id="rtd-mobile-lifecycle-tests">
-            <div className="rtd-test-card__header">
-              <span className="rtd-test-card__title">Mobile Lifecycle</span>
-              {mobileTestResult && (
-                <span
-                  className={`rtd-test-card__status ${
-                    mobileTestResult.backgroundRecovery.audioContextRestored &&
-                    mobileTestResult.screenLockRecovery.sessionRecovered
-                      ? "rtd-test-card__status--pass"
-                      : "rtd-test-card__status--fail"
-                  }`}
-                >
-                  {mobileTestResult.backgroundRecovery.audioContextRestored &&
-                  mobileTestResult.screenLockRecovery.sessionRecovered
-                    ? "PASS"
-                    : "FAIL"}
-                </span>
-              )}
-            </div>
-            <div className="rtd-test-card__body">
-              {mobileTestResult ? (
-                <>
-                  <TestField label="Audio Restored" value={mobileTestResult.backgroundRecovery.audioContextRestored} />
-                  <TestField label="STT Recovered" value={mobileTestResult.backgroundRecovery.sttRecovered} />
-                  <TestField label="Session Recovered" value={mobileTestResult.screenLockRecovery.sessionRecovered} />
-                  <TestField label="Socket Recovered" value={mobileTestResult.networkSwitch.socketRecovered} />
-                  <TestField label="Recovery Time" value={
-                    mobileTestResult.networkSwitch.recoveryTimeMs > 0
-                      ? `${mobileTestResult.networkSwitch.recoveryTimeMs}ms`
-                      : "N/A"
-                  } />
-                </>
-              ) : (
-                <div className="rtd-test-card__details">
-                  Tests background recovery, screen lock recovery, and network switching.
-                </div>
-              )}
-              <button
-                className="rtd-btn rtd-btn--secondary"
-                onClick={handleMobileTests}
-                disabled={mobileTestRunning}
-                id="rtd-btn-mobile-lifecycle"
-                style={{ marginTop: 8 }}
-              >
-                {mobileTestRunning ? (
-                  <><span className="rtd-btn-spinner" /> Testing…</>
-                ) : (
-                  "Run Mobile Lifecycle Tests"
-                )}
-              </button>
-            </div>
-          </div>
         </div>
       </section>
 

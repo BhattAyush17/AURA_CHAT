@@ -10,7 +10,7 @@ export const pushConversationTrace = (event: string, details?: any) => {
   if (!(window as any)[traceKey]) (window as any)[traceKey] = [];
   const trace = (window as any)[traceKey] as AuraTraceEvent[];
   trace.push({ timestamp: new Date().toISOString(), event, details });
-  if (trace.length > 200) trace.shift();
+  if (trace.length > 100) trace.shift();
 };
 
 export const getConversationTrace = (): AuraTraceEvent[] => {

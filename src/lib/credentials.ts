@@ -62,6 +62,24 @@ export function hasUserKey(key: CredentialKey): boolean {
  * Wipe all credentials at once.
  * Called after a confirmed successful data save.
  */
+export function clearProviderCredentials(): void {
+  const providerKeys: CredentialKey[] = [
+    "aura_gemini_api_key",
+    "openrouter_api_key",
+    "sarvam_api_key",
+    "groq_api_key",
+    "cohere_api_key"
+  ];
+  providerKeys.forEach((key) => {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+  });
+}
+
+/**
+ * Wipe all credentials at once.
+ * Called after a confirmed successful data save.
+ */
 export function clearAllCredentials(): void {
   CREDENTIAL_KEYS.forEach((key) => {
     sessionStorage.removeItem(key);
@@ -81,7 +99,7 @@ export function clearAllCredentials(): void {
  * NOTE: Inline check avoids circular import with api.ts.
  */
 export function hasRequiredCredentials(): boolean {
-  const k = getCredential("aura_gemini_api_key");
+  const k = getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string ?? '') : '');
   return validateGeminiApiKey(k);
 }
 

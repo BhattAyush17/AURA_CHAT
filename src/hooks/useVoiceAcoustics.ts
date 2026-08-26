@@ -57,7 +57,7 @@ export function useVoiceAcoustics() {
   const speechStartTimeRef = useRef<number>(0);
   const totalRmsRef = useRef<number>(0);
   const rmsSamplesRef = useRef<number>(0);
-  const animationFrameRef = useRef<number>(0);
+  const lastUiUpdateRef = useRef<number>(0);
 
   const [liveStats, setLiveStats] = useState({
     tone: "Normal",
@@ -117,7 +117,7 @@ export function useVoiceAcoustics() {
 
   /** Worklet feed (vad-processor.js PCM_DATA perception fields). */
   const applyWorkletPerception = useCallback(
-    (p: { probability: number; noiseFloor: number; silenceMs: number }) => {
+    (p: { probability: number; noiseFloor: number; silenceMs: number; rms?: number }) => {
       const s = listeningStateRef.current;
       const prob = p.probability;
       const speechDetected = nextSpeechDetected(s.speechDetected, prob);
@@ -130,6 +130,27 @@ export function useVoiceAcoustics() {
         detectionSource: sileroReadyRef.current ? "silero" : "worklet-stats",
         dominantSpeechDetected: prob >= PROB_DOMINANT_SPEECH,
       });
+
+      if (p.rms !== undefined && p.rms > 0.002) {
+        totalRmsRef.current += p.rms;
+        rmsSamplesRef.current++;
+
+        const now = Date.now();
+        if (now - lastUiUpdateRef.current > 500) {
+          const avgRms = totalRmsRef.current / rmsSamplesRef.current;
+          let tone = "Normal";
+          if (avgRms < 0.02) tone = "Whispering";
+          else if (avgRms < 0.05) tone = "Low";
+          else if (avgRms > 0.25) tone = "High / Loud";
+          else if (avgRms > 0.15) tone = "Elevated";
+
+          setLiveStats((prev: { tone: string; intent: string; language: string }) => ({
+            ...prev,
+            tone,
+          }));
+          lastUiUpdateRef.current = now;
+        }
+      }
     },
     [mergeListeningState],
   );
@@ -231,93 +252,17 @@ export function useVoiceAcoustics() {
 
   // ── Existing acoustic tracking (unchanged contract) ────────────────
 
-  const startTracking = useCallback(
-    (analyser: AnalyserNode | null) => {
-      if (!analyser) return;
-      speechStartTimeRef.current = Date.now();
-      totalRmsRef.current = 0;
-      rmsSamplesRef.current = 0;
-
-      const buf = new Float32Array(analyser.fftSize);
-
-      // Throttling for UI updates to avoid 60fps React re-renders
-      let lastUiUpdate = Date.now();
-
-      const track = () => {
-        analyser.getFloatTimeDomainData(buf);
-        let rms = 0;
-        for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
-        rms = Math.sqrt(rms / buf.length);
-
-        // Phase 7.2: main-stats tier — noise floor + smoothed probability.
-        // Only used when no richer tier is feeding (detectionSource stays
-        // "rms"/"main-stats" until the worklet or Silero feed arrives).
-        if (calibFramesRef.current < NOISE_CALIBRATION_FRAMES) {
-          noiseFloorRef.current = calibrateNoise(
-            noiseFloorRef.current,
-            rms,
-            calibFramesRef.current,
-          );
-          calibFramesRef.current++;
-        } else {
-          noiseFloorRef.current = emaNoise(noiseFloorRef.current, rms);
-        }
-        emaRmsRef.current = emaRmsRef.current === 0 ? rms : emaRmsRef.current * 0.8 + rms * 0.2;
-        const prob = speechProbability(emaRmsRef.current, noiseFloorRef.current);
-        const s = listeningStateRef.current;
-        const speechDetected = nextSpeechDetected(s.speechDetected, prob);
-        if (speechDetected) lastSpeechAtRef.current = performance.now();
-        if (s.detectionSource === "rms" || s.detectionSource === "main-stats") {
-          listeningStateRef.current = {
-            ...s,
-            speechProbability: prob,
-            noiseLevel: noiseLevelDb(noiseFloorRef.current),
-            speechDetected,
-            realSilence: speechDetected
-              ? 0
-              : Math.max(0, performance.now() - lastSpeechAtRef.current),
-            vadConfidence: vadConfidence(prob),
-            detectionSource:
-              calibFramesRef.current < NOISE_CALIBRATION_FRAMES ? "rms" : "main-stats",
-            dominantSpeechDetected: prob >= PROB_DOMINANT_SPEECH,
-          };
-          emitPerception();
-        }
-
-        // Only record samples where there is actual sound (above noise floor)
-        if (rms > 0.002) {
-          totalRmsRef.current += rms;
-          rmsSamplesRef.current++;
-
-          // Update UI every 500ms
-          const now = Date.now();
-          if (now - lastUiUpdate > 500) {
-            const avgRms = totalRmsRef.current / rmsSamplesRef.current;
-            let tone = "Normal";
-            if (avgRms < 0.02) tone = "Whispering";
-            else if (avgRms < 0.05) tone = "Low";
-            else if (avgRms > 0.25) tone = "High / Loud";
-            else if (avgRms > 0.15) tone = "Elevated";
-
-            setLiveStats((prev: { tone: string; intent: string; language: string }) => ({
-              ...prev,
-              tone,
-            }));
-            lastUiUpdate = now;
-          }
-        }
-
-        animationFrameRef.current = requestAnimationFrame(track);
-      };
-      track();
-    },
-    [emitPerception],
-  );
+  const startTracking = useCallback(() => {
+    speechStartTimeRef.current = Date.now();
+    totalRmsRef.current = 0;
+    rmsSamplesRef.current = 0;
+    lastUiUpdateRef.current = Date.now();
+    
+    // The actual worklet updates will arrive via applyWorkletPerception,
+    // which completely replaces the old requestAnimationFrame polling loop.
+  }, []);
 
   const stopTrackingAndAnalyze = useCallback((text: string): void => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
 
     const durationSeconds = (Date.now() - speechStartTimeRef.current) / 1000;
     const wordCount = text.trim().split(/\s+/).length;
