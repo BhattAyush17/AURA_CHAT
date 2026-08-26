@@ -203,6 +203,137 @@ function defaultProfile(): SpeechProfile {
   };
 }
 
+// ─── Pure decision core (extracted for validation — the hook is a thin wrapper) ──
+
+export interface TurnConfidenceCoreInput {
+  profile: SpeechProfile;
+  threshold: number;
+  silenceMs: number;
+  text: string;
+  emotionalIntensity?: number;
+  contextSignals?: { tension?: number; trust?: number; personality?: string };
+}
+
+export interface TurnConfidenceCoreResult {
+  result: TurnConfidenceResult;
+  mode: ConversationMode;
+  metrics: { sem: number; think: number; emo: number };
+}
+
+export function calculateTurnConfidenceCore(p: TurnConfidenceCoreInput): TurnConfidenceCoreResult {
+  const { profile, threshold, silenceMs, text, emotionalIntensity = 0, contextSignals } = p;
+  const wordCount = text.trim().split(/\s+/).length;
+
+  // 1. Classify conversation mode
+  const mode = classifyMode(text, wordCount, emotionalIntensity, profile.storytelling_score);
+
+  // 2. Compute local lightweight heuristics
+  const semCompletion = getSemanticCompletionScore(text);
+  const thinkingConf = getThinkingConfidence(text);
+  const emoBonus = getEmotionPauseBonus(text);
+
+  // 3. Dynamic Patience Model
+  let patienceMultiplier = 1.0;
+
+  // If user frequently pauses while thinking: Increase patience
+  if (profile.thinking_pause_score > 0.6) patienceMultiplier += 0.3;
+  // If user frequently uses fillers: Increase patience
+  if (thinkingConf > 0.3) patienceMultiplier += 0.5;
+  // If user speaks in long reflective sentences: Increase patience
+  if (wordCount > 15 || mode === "reflective" || mode === "storytelling") patienceMultiplier += 0.4;
+  // If user speaks rapidly and cleanly: Decrease patience slightly
+  if (profile.speaking_rate > 150 && thinkingConf < 0.2 && wordCount < 10) {
+    patienceMultiplier -= 0.2;
+  }
+
+  // Effective wait target
+  let effectiveWait = profile.comfort_pause_ms * PATIENCE_MAP[mode] * patienceMultiplier;
+
+  if (emotionalIntensity > 0.5) {
+    effectiveWait *= 1.0 + (emotionalIntensity - 0.5) * 0.6;
+  }
+  if (profile.interruption_rate > 0.1) {
+    effectiveWait *= 1.0 + profile.interruption_rate * 0.5;
+  }
+
+  // Add emotional recovery silence
+  effectiveWait += emoBonus;
+  effectiveWait = Math.min(effectiveWait, 4000);
+
+  // 4. Floor Ownership Rules
+  let floorOwnership: FloorOwnership = "UNCERTAIN";
+
+  if (silenceMs < 300) {
+    floorOwnership = "ACTIVE";
+  } else if (
+    thinkingConf >= 0.5 ||
+    ELONGATED_RE.test(text) ||
+    INCOMPLETE_RE.test(text) ||
+    SELF_CORRECT_RE.test(text) ||
+    TRAILING_FILLER_RE.test(text)
+  ) {
+    floorOwnership = "THINKING";
+  }
+
+  // 5. Evaluate Yield
+  const ratio = effectiveWait > 0 ? silenceMs / effectiveWait : 1.0;
+
+  if (floorOwnership !== "ACTIVE" && floorOwnership !== "THINKING") {
+    if (ratio >= 1.0) {
+      floorOwnership = "YIELDED";
+    } else if (semCompletion >= 0.8 && ratio >= 0.8) {
+      floorOwnership = "YIELDED";
+    }
+  }
+
+  // Hard override: If silence is huge, assume yielded even if thinking
+  if (silenceMs > Math.max(effectiveWait * 1.5, 5000)) {
+    floorOwnership = "YIELDED";
+  }
+
+  const shouldRespond = floorOwnership === "YIELDED";
+  const confidence = Math.max(0, Math.min(1, ratio));
+
+  // Threshold adjustment per mode (mostly logic metadata now)
+  let effThreshold = threshold;
+  if (mode === "command") {
+    effThreshold = Math.max(0.8, threshold - 0.1);
+  } else if (mode === "emotional" || mode === "reflective") {
+    effThreshold = Math.min(0.98, threshold + 0.02);
+  }
+
+  // Response delay (Personality Timing Bias + Jitter)
+  const baseDelay = DELAY_MAP[mode];
+  const patienceScale = 1.0 + (profile.response_patience - 0.5) * 0.4;
+  let delay = baseDelay * patienceScale;
+
+  if (emotionalIntensity > 0.5) delay += (emotionalIntensity - 0.5) * 300;
+
+  const personality = contextSignals?.personality || "assistant";
+  const bias = PERSONALITY_BIAS[personality] || 0;
+  delay += bias;
+
+  // Small jitter instead of huge random range
+  delay = Math.max(10, Math.min(800, jitter(delay, 0.1)));
+
+  return {
+    result: {
+      confidence: Math.round(confidence * 10000) / 10000,
+      shouldRespond,
+      floorOwnership,
+      silenceMs,
+      effectiveThreshold: Math.round(effThreshold * 10000) / 10000,
+      conversationMode: mode,
+      responseDelay: Math.round(delay),
+      semanticCompletion: semCompletion,
+      thinkingConfidence: thinkingConf,
+      emotionBonus: emoBonus,
+    },
+    mode,
+    metrics: { sem: semCompletion, think: thinkingConf, emo: emoBonus },
+  };
+}
+
 // ─── The Hook ───────────────────────────────────────────────────────
 
 export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
@@ -238,106 +369,18 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
       emotionalIntensity = 0,
       contextSignals?: { tension?: number; trust?: number; personality?: string },
     ): TurnConfidenceResult => {
-      const profile = profileRef.current;
-      const wordCount = text.trim().split(/\s+/).length;
-
-      // 1. Classify conversation mode
-      const mode = classifyMode(text, wordCount, emotionalIntensity, profile.storytelling_score);
-      lastModeRef.current = mode;
-
-      // 2. Compute local lightweight heuristics
-      const semCompletion = getSemanticCompletionScore(text);
-      const thinkingConf = getThinkingConfidence(text);
-      const emoBonus = getEmotionPauseBonus(text);
-      
-      lastMetricsRef.current = { sem: semCompletion, think: thinkingConf, emo: emoBonus };
-
-      // 3. Dynamic Patience Model
-      let patienceMultiplier = 1.0;
-      
-      // If user frequently pauses while thinking: Increase patience
-      if (profile.thinking_pause_score > 0.6) patienceMultiplier += 0.3;
-      // If user frequently uses fillers: Increase patience
-      if (thinkingConf > 0.3) patienceMultiplier += 0.5;
-      // If user speaks in long reflective sentences: Increase patience
-      if (wordCount > 15 || mode === "reflective" || mode === "storytelling") patienceMultiplier += 0.4;
-      // If user speaks rapidly and cleanly: Decrease patience slightly
-      if (profile.speaking_rate > 150 && thinkingConf < 0.2 && wordCount < 10) patienceMultiplier -= 0.2;
-
-      // Effective wait target
-      let effectiveWait = profile.comfort_pause_ms * PATIENCE_MAP[mode] * patienceMultiplier;
-
-      if (emotionalIntensity > 0.5) {
-        effectiveWait *= 1.0 + (emotionalIntensity - 0.5) * 0.6;
-      }
-      if (profile.interruption_rate > 0.1) {
-        effectiveWait *= 1.0 + profile.interruption_rate * 0.5;
-      }
-      
-      // Add emotional recovery silence
-      effectiveWait += emoBonus;
-      effectiveWait = Math.min(effectiveWait, 4000); 
-
-      // 4. Floor Ownership Rules
-      let floorOwnership: FloorOwnership = "UNCERTAIN";
-      
-      if (silenceMs < 300) {
-        floorOwnership = "ACTIVE";
-      } else if (thinkingConf >= 0.5 || ELONGATED_RE.test(text) || INCOMPLETE_RE.test(text) || SELF_CORRECT_RE.test(text) || TRAILING_FILLER_RE.test(text)) {
-        floorOwnership = "THINKING";
-      }
-
-      // 5. Evaluate Yield
-      const ratio = effectiveWait > 0 ? silenceMs / effectiveWait : 1.0;
-      
-      if (floorOwnership !== "ACTIVE" && floorOwnership !== "THINKING") {
-         if (ratio >= 1.0) {
-           floorOwnership = "YIELDED";
-         } else if (semCompletion >= 0.8 && ratio >= 0.8) {
-           floorOwnership = "YIELDED";
-         }
-      }
-      
-      // Hard override: If silence is huge, assume yielded even if thinking
-      if (silenceMs > Math.max(effectiveWait * 1.5, 5000)) {
-        floorOwnership = "YIELDED";
-      }
-
-      const shouldRespond = floorOwnership === "YIELDED";
-      const confidence = Math.max(0, Math.min(1, ratio));
-
-      // Threshold adjustment per mode (mostly logic metadata now)
-      let effThreshold = threshold;
-      if (mode === "command") effThreshold = Math.max(0.80, threshold - 0.10);
-      else if (mode === "emotional" || mode === "reflective")
-        effThreshold = Math.min(0.98, threshold + 0.02);
-
-      // Response delay (Personality Timing Bias + Jitter)
-      const baseDelay = DELAY_MAP[mode];
-      const patienceScale = 1.0 + (profile.response_patience - 0.5) * 0.4;
-      let delay = baseDelay * patienceScale;
-      
-      if (emotionalIntensity > 0.5) delay += (emotionalIntensity - 0.5) * 300;
-      
-      const personality = contextSignals?.personality || "assistant";
-      const bias = PERSONALITY_BIAS[personality] || 0;
-      delay += bias;
-
-      // Small jitter instead of huge random range
-      delay = Math.max(10, Math.min(800, jitter(delay, 0.1)));
-
-      return {
-        confidence: Math.round(confidence * 10000) / 10000,
-        shouldRespond,
-        floorOwnership,
+      const { result, mode, metrics } = calculateTurnConfidenceCore({
+        profile: profileRef.current,
+        threshold,
         silenceMs,
-        effectiveThreshold: Math.round(effThreshold * 10000) / 10000,
-        conversationMode: mode,
-        responseDelay: Math.round(delay),
-        semanticCompletion: semCompletion,
-        thinkingConfidence: thinkingConf,
-        emotionBonus: emoBonus
-      };
+        text,
+        emotionalIntensity,
+        contextSignals,
+      });
+
+      lastModeRef.current = mode;
+      lastMetricsRef.current = metrics;
+      return result;
     },
     [threshold],
   );
