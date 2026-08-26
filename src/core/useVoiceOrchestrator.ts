@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useGeminiLive as useLive } from "@/providers/gemini/useLive";
+import { useMemo, useEffect, useRef } from "react";
+import { useLive } from "@/providers/gemini/useLiveNext";
 import { useOpenRouter } from "@/providers/openrouter/useProvider";
 import { useSarvam } from "@/providers/sarvam/useSarvam";
 import { IVoicePipeline } from "./IVoicePipeline";
@@ -30,6 +30,13 @@ export function useVoiceOrchestrator(
   mode: string = "adaptive",
   voice: string = "Zephyr",
 ): IVoicePipeline {
+  // Initialize the unified Adaptive Runtime precisely once when the Orchestrator mounts.
+  useEffect(() => {
+    import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
+      RuntimeManager.getInstance().initialize();
+    });
+  }, []);
+
   // ── Only the ACTIVE provider's hook runs with real arguments. ──
   // Inactive hooks receive a sentinel that tells them to skip all
   // resource-heavy initialization (mic, AudioContext, brain sub-hooks).
@@ -89,6 +96,7 @@ export function useVoiceOrchestrator(
       isSpeaking: gemini.isSpeaking,
       isActiveVoice: gemini.isActiveVoice,
       lastError: gemini.lastError,
+      words: gemini.words,
       warning: gemini.warning,
       showSettingsModal: gemini.showSettingsModal,
       setShowSettingsModal: gemini.setShowSettingsModal,
@@ -101,8 +109,70 @@ export function useVoiceOrchestrator(
       getInputFrequencyData: gemini.getInputFrequencyData,
       getOutputFrequencyData: gemini.getOutputFrequencyData,
       auraState: gemini.auraState,
+      readinessSnapshot: gemini.readinessSnapshot,
     };
   }, [provider, gemini, openrouter, sarvam, geminiActive, openrouterActive, sarvamActive]);
 
-  return activePipeline;
+  const pipelineRef = useRef<IVoicePipeline>(activePipeline);
+  useEffect(() => {
+    pipelineRef.current = activePipeline;
+  }, [activePipeline]);
+
+  const wrappedPipeline: IVoicePipeline = useMemo(() => {
+    return {
+      ...activePipeline,
+      startSession: async () => {
+        await activePipeline.startSession();
+        import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
+          RuntimeManager.getInstance().getLifecycleManager().startSession(
+            (text) => console.log("[AURA Idle Warning]", text),
+            () => pipelineRef.current.endSession(),
+            () => ({
+              isSpeaking: pipelineRef.current.isSpeaking,
+              isThinking: pipelineRef.current.isThinking,
+              isActiveVoice: pipelineRef.current.isActiveVoice
+            })
+          );
+        });
+      },
+      endSession: () => {
+        activePipeline.endSession();
+        import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
+          RuntimeManager.getInstance().getLifecycleManager().dispose();
+        });
+      }
+    };
+  }, [activePipeline.startSession, activePipeline.endSession]);
+
+  const previousProviderRef = useRef(provider);
+  const previousVoiceRef = useRef(voice);
+  const wasActiveRef = useRef(false);
+
+  useEffect(() => {
+    const isActive = activePipeline.status !== "idle" && activePipeline.status !== "error";
+    const providerChanged = previousProviderRef.current !== provider;
+    const voiceChanged = previousVoiceRef.current !== voice;
+
+    if (providerChanged || voiceChanged) {
+      if (wasActiveRef.current) {
+        console.log(`[AURA] Seamless handoff: ${providerChanged ? 'provider' : 'voice'} changed while active`);
+        wrappedPipeline.endSession();
+        
+        // Wait briefly for teardown, then automatically start the new session
+        setTimeout(() => {
+          wrappedPipeline.startSession();
+        }, 500);
+      }
+      previousProviderRef.current = provider;
+      previousVoiceRef.current = voice;
+    }
+    
+    if (isActive) {
+      wasActiveRef.current = true;
+    } else if (!providerChanged && !voiceChanged) {
+      wasActiveRef.current = false;
+    }
+  }, [provider, voice, activePipeline.status, wrappedPipeline]);
+
+  return wrappedPipeline;
 }

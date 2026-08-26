@@ -178,7 +178,7 @@ export function useBehaviorInjection(): BehaviorInjectionAPI {
             personality || "adaptive",
             result,
             lastPresentationRef.current,
-            experienceMode
+            experienceMode,
           );
           lastPresentationRef.current = presentation;
           lastModulationRef.current = directive;

@@ -10,6 +10,7 @@ const LEGAL_TRANSITIONS: Record<WSState, WSState[]> = {
 };
 
 export function transition(from: WSState, to: WSState): WSState {
+  if (from === to) return to;
   if (!LEGAL_TRANSITIONS[from].includes(to)) {
     throw new Error(`Illegal WS transition: ${from} → ${to}`);
   }

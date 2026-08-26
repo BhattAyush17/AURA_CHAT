@@ -19,7 +19,7 @@ export interface TranscriptManagerAPI {
   /** Ref: same data, for use in callbacks without stale closures */
   transcriptRef: React.MutableRefObject<TranscriptEntry[]>;
   /** Add a turn (user or model) */
-  addTurn: (text: string, userInitiated: boolean) => void;
+  addTurn: (text: string, userInitiated: boolean, interpretedText?: string) => void;
   /** Session highlights for thread injection */
   sessionHighlightsRef: React.MutableRefObject<string[]>;
   /** Turn counter for this session */
@@ -34,8 +34,8 @@ export function useTranscriptManager(): TranscriptManagerAPI {
   const sessionHighlightsRef = useRef<string[]>([]);
   const turnCountRef = useRef<number>(0);
 
-  const addTurn = useCallback((text: string, userInitiated: boolean) => {
-    const turn: TranscriptEntry = { text, user_initiated: userInitiated, timestamp: Date.now() };
+  const addTurn = useCallback((text: string, userInitiated: boolean, interpretedText?: string) => {
+    const turn: TranscriptEntry = { text, interpreted_text: interpretedText, user_initiated: userInitiated, timestamp: Date.now() };
     transcriptRef.current = [...transcriptRef.current, turn];
     sessionStorage.setItem("aura_transcript_backup", JSON.stringify(transcriptRef.current));
     setTranscript((prev) => {

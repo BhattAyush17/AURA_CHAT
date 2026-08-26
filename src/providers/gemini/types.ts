@@ -32,6 +32,7 @@ export const WORKLET_PATH = "./pcm-capture-processor.js";
 
 export interface TranscriptEntry {
   text: string;
+  interpreted_text?: string;
   user_initiated: boolean;
   timestamp: number;
 }
@@ -45,15 +46,14 @@ export interface AuraAnalysis {
 }
 
 // ─── Connection ─────────────────────────────────────────────────────
+// Gemini 3.x Live upgrade (2026-08-08):
+//   gemini-2.0-flash-exp / gemini-2.5-flash / gemini-2.0-flash were deprecated
+//   (2.x Live shutdown Dec 2025). gemini-3.1-flash-live-preview is the only
+//   currently supported general conversational Live model (preview).
+//   gemini-3.5-live-translate-preview is translation-only and is NOT a
+//   general-purpose conversation model.
+export const LIVE_MODELS = ["models/gemini-3.1-flash-live-preview"] as const;
 
-export const LIVE_MODELS = [
-  "models/gemini-2.0-flash-exp",
-  "models/gemini-2.5-flash",
-  "models/gemini-2.0-flash",
-] as const;
-
-export const MAX_RECONNECT_ATTEMPTS = 3;
-export const RECONNECT_DELAY_MS = 1500;
 export const MAX_QUEUE = 50;
 
 // ─── Tab heartbeat ──────────────────────────────────────────────────
