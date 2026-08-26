@@ -14,6 +14,8 @@ import { getCurrentUserId } from "@/lib/user-identity";
 import { LatencyMeter } from "@/components/LatencyMeter";
 import { MiniPlayer } from "@/components/MiniPlayer";
 import { ProviderSelector } from "@/components/ProviderSelector";
+import { SensePanel } from "@/sense/SensePanel";
+import { RuntimeDiagnosticsDrawer } from "@/components/diagnostics/RuntimeDiagnosticsDrawer";
 
 import { MusicPlayer } from "@/music/components/MusicPlayer";
 import { musicService } from "@/music/MusicService";
@@ -48,6 +50,9 @@ function AuraExperience() {
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [memoryWarning, setMemoryWarning] = useState<string | null>(null);
+  const [showSensePanel, setShowSensePanel] = useState(false);
+  const [isSenseActive, setIsSenseActive] = useState(false);
+  const [showDiagnosticsDrawer, setShowDiagnosticsDrawer] = useState(false);
 
   useEffect(() => {
     // Initialize Music Subsystem
@@ -291,6 +296,24 @@ function AuraExperience() {
               </button>
             )}
 
+            {/* ⚡ Sense Button */}
+            <button
+              onClick={() => setShowSensePanel((v) => !v)}
+              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
+                showSensePanel
+                  ? "text-white opacity-100"
+                  : isSenseActive
+                    ? "text-amber-300"
+                    : "text-white/50"
+              }`}
+              title="Sense"
+            >
+              <Zap className="h-4.5 w-4.5" strokeWidth={1.5} />
+              {isSenseActive && (
+                <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
+              )}
+            </button>
+
             {/* • Conversation status (Ready vs Key missing) */}
             <div
               className={`h-1.5 w-1.5 rounded-full transition-all duration-250 ${
@@ -300,6 +323,31 @@ function AuraExperience() {
               }`}
               title={!needsSettings ? "Ready" : "API Key Required"}
             />
+
+            {/* Heartbeat ECG (Runtime Diagnostics Developer Toggle) */}
+            <button
+              onClick={() => setShowDiagnosticsDrawer((v) => !v)}
+              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
+                showDiagnosticsDrawer ? "text-white opacity-100" : "text-white/50"
+              }`}
+              title="Runtime Diagnostics"
+            >
+              <HeartbeatIcon className="h-4.5 w-4.5" />
+
+              {/* Active state indicator */}
+              {showDiagnosticsDrawer && (
+                <span className="absolute -top-[1px] -right-[1px] h-1 w-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
+              )}
+
+              {/* Recording / Active Voice session pulse */}
+              {status !== "idle" && status !== "error" && (
+                <motion.span
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.8, 0, 0.8] }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                  className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-400"
+                />
+              )}
+            </button>
 
             {/* ⚙ Settings */}
             <button
@@ -312,6 +360,19 @@ function AuraExperience() {
                 <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-500" />
               )}
             </button>
+
+            {/* Sense Panel */}
+            <SensePanel
+              isOpen={showSensePanel}
+              onClose={() => setShowSensePanel(false)}
+            />
+
+            {/* Runtime Diagnostics Drawer / Bottom Sheet */}
+            <RuntimeDiagnosticsDrawer
+              isOpen={showDiagnosticsDrawer}
+              onClose={() => setShowDiagnosticsDrawer(false)}
+              activeBrain={activeBrain}
+            />
           </div>
         </header>
 
