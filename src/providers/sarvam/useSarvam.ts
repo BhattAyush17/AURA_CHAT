@@ -9,7 +9,7 @@
  *   5. Model priority — Gemini 2.0 Flash Lite at top of failover queue
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { getOpenRouterKey } from "@/lib/api";
 import { resolveUserId } from "@/lib/user-identity";
 import { getStorageManager } from "@/lib/storage/manager";
@@ -21,6 +21,7 @@ import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
 import { useTranscriptManager } from "../gemini/useTranscript";
 import { SpeechStyleDetector } from "@/runtime/language/SpeechStyleDetector";
+import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator";
 import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import {
   JoyfulPassionSystemPrompt,
@@ -41,10 +42,8 @@ import { useConversationalPauses } from "@/shared/useConversationalPauses";
 import { conversationState } from "@/runtime/ConversationStateManager";
 import { RuntimeManager } from "@/runtime/RuntimeManager";
 import { buildModelQueue, MODEL_OPENROUTER_IDS } from "@/executive/ModelProfile";
-import {
-  ttsLanguageCode,
-  type LanguageState,
-} from "@/executive/LanguageState";
+import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
+import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
 
 // ─── Paralinguistic Interceptor & Audio Controller ──────────────────
 const stripEmojis = (text: string) =>
@@ -307,10 +306,29 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
 // ─── Hook ───────────────────────────────────────────────────────────
 import { pushConversationTrace } from "../../core/telemetry";
 import { useResilience } from "@/resilience";
-import {
-  emptySessionStats,
-  type SessionStats,
-} from "../../runtime/validation/ConversationFrictionReport";
+export interface SessionStats {
+  turns: number;
+  interruptions: number;
+  heldThoughts: number;
+  abortedStreams: number;
+  backchannels: number;
+  proactiveTriggers: number;
+  clarifies: number;
+  hesitations: number;
+  deadAirMs: number[];
+}
+
+export const emptySessionStats = (): SessionStats => ({
+  turns: 0,
+  interruptions: 0,
+  heldThoughts: 0,
+  abortedStreams: 0,
+  backchannels: 0,
+  proactiveTriggers: 0,
+  clarifies: 0,
+  hesitations: 0,
+  deadAirMs: [],
+});
 
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
@@ -413,33 +431,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const lastTokenTsRef = useRef<number>(0); // last LLM token (silence protection)
   const lastTtsActivityRef = useRef<number>(0); // last TTS playback activity
   const sttConfidenceRef = useRef<number>(0.9); // per-turn STT confidence proxy
-  const prevPlanRef = useRef<Readonly<ExecutionPlan> | null>(null);
+
   const prevTurnInterruptedRef = useRef<boolean>(false);
   const lastResponseLenRef = useRef<number>(30);
   const confirmFrameRef = useRef<number>(0); // barge-in confirmation probe loop
 
   // ── Phase 8: canonical conversation register (Executive-owned) ───
-  const conversationLanguageRef = useRef<LanguageState>({
-    dominant: "UNKNOWN",
-    secondary: "NONE",
-    confidence: 0,
-    stability: 0,
-    establishedAtTurn: 0,
-    transitionReason: null,
-    confidenceReasons: [],
-    momentumWindow: 0,
-  });
-
-  // ── Phase 8.1: canonical conversation register (Executive-owned) ──
-  const conversationRegisterRef = useRef<RegisterState>({
-    register: "NEUTRAL",
-    confidence: 0,
-    stability: 0,
-    establishedTurn: 0,
-    transitionReason: null,
-    confidenceReasons: [],
-    momentumWindow: 0,
-  });
+  const languageManager = globalLanguageManager;
 
   // ── Phase 7.1: human-feel state ─────────────────────────────────
   const heldPcmRef = useRef<Float32Array[]>([]); // interrupted speech pre-roll
@@ -483,178 +481,61 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const bargeInFrameRef = useRef<number>(0);
 
   const setupMicAnalyser = useCallback(async () => {
-    if (micAnalyserRef.current) return; // already open
-
-    // ── Phase 7.2: graceful constraint degradation ──────────────────
-    // Request the full processing set (AEC/NS/AGC/mono/16k), but NEVER
-    // fail mic acquisition because a browser refuses one constraint.
-    // getSupportedConstraints() tells us what exists; a getUserMedia
-    // rejection retries with progressively weaker constraints.
-    const supported = (navigator.mediaDevices as any).getSupportedConstraints?.() ?? {};
-    const full: MediaTrackConstraints = {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      sampleRate: 16000,
-      channelCount: 1,
-    };
-    const clean = (constraints: MediaTrackConstraints): MediaTrackConstraints => {
-      const out: Record<string, unknown> = {};
-      (Object.keys(constraints) as (keyof MediaTrackConstraints)[]).forEach((k) => {
-        if (supported[k] !== false && constraints[k] !== undefined) out[k] = constraints[k];
-      });
-      return out as MediaTrackConstraints;
-    };
-    const fallbackSteps: MediaTrackConstraints[] = [
-      { echoCancellation: true, noiseSuppression: true },
-      { echoCancellation: true },
-      {},
-    ];
-
-    let stream: MediaStream | null = null;
-    for (let step = 0; step < 1 + fallbackSteps.length; step++) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: step === 0 ? clean(full) : fallbackSteps[step - 1],
-        });
-        break;
-      } catch (err) {
-        if (step === fallbackSteps.length) {
-          console.warn("[Voice] Mic acquisition failed across all constraint levels:", err);
-          return;
-        }
-        console.warn(
-          `[Voice] getUserMedia rejected constraints (step ${step + 1}), retrying with weaker set:`,
-          err,
-        );
-      }
-    }
-    if (!stream) return;
-
+    if ((scriptProcessorRef as any).current) return;
+    
     try {
-      // Report which processing stages actually engaged on this device.
-      const engaged: string[] = [];
-      const settings = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
-      if (settings.echoCancellation) engaged.push("aec");
-      if (settings.noiseSuppression) engaged.push("ns");
-      if (settings.autoGainControl) engaged.push("agc");
-      setProcessingEnabled(engaged.length > 0);
-      console.log(
-        `[Voice] Mic acquired (${settings.sampleRate ?? "?"}Hz, ${settings.channelCount ?? "?"}ch) — processing: ${
-          engaged.length ? engaged.join("+") : "browser-managed"
-        }`,
-      );
-      micStreamRef.current = stream;
-      const ctx = new AudioContext({ sampleRate: 16000 });
-      audioCtxRef.current = ctx;
-
-      // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
-      if (ctx.state === "suspended") {
-        try {
-          await ctx.resume();
-        } catch {}
-      }
-      // MOBILE FIX: Android Chrome requires a user gesture to unlock AudioContext.
-      // Listen for the first touch/click to force-resume if still suspended.
-      const unlockAudio = () => {
-        if (audioCtxRef.current?.state === "suspended") {
-          audioCtxRef.current.resume().catch(() => {});
-        }
-        document.removeEventListener("touchstart", unlockAudio);
-        document.removeEventListener("click", unlockAudio);
-      };
-      document.addEventListener("touchstart", unlockAudio, { once: true });
-      document.addEventListener("click", unlockAudio, { once: true });
-
-      const src = ctx.createMediaStreamSource(stream);
-
-      // High-pass filter (removes low rumble/hum/AC fan)
-      const highPass = ctx.createBiquadFilter();
-      highPass.type = "highpass";
-      highPass.frequency.value = 80;
-
-      // Low-pass filter (removes high frequency noise like typing)
-      const lowPass = ctx.createBiquadFilter();
-      lowPass.type = "lowpass";
-      lowPass.frequency.value = 8000;
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-
-      // Chain the filters: Source -> HPF -> LPF -> Analyser
-      src.connect(highPass).connect(lowPass).connect(analyser);
-
-      try {
-        await ctx.audioWorklet.addModule("/vad-processor.js");
-        const vadNode = new AudioWorkletNode(ctx, "vad-processor");
-
-        vadNode.port.onmessage = (event) => {
-          const msg = event.data;
-          if (msg.type === "PCM_DATA") {
-            // Phase 7.2: canonical activity = speech probability from the
-            // worklet (statistical tier). Legacy RMS stays only for the
-            // ScriptProcessor fallback, which carries no probability.
-            if (msg.probability !== undefined ? msg.probability >= 0.5 : frameRms(msg.pcm) > 0.02) {
-              lastAudioActivityRef.current = performance.now();
-            }
-            if (msg.probability !== undefined) {
-              applyWorkletPerception({
-                probability: msg.probability,
-                noiseFloor: msg.noiseFloor,
-                silenceMs: msg.silenceMs ?? 0,
-              });
-            }
-            if (isRecordingRef.current) {
-              pcmSamplesRef.current.push(msg.pcm);
-            } else {
-              rollingBufferRef.current.push(msg.pcm);
-              if (rollingBufferRef.current.length > 20) {
-                rollingBufferRef.current.shift();
-              }
-            }
-            // Phase 7.2: forward to the Silero tier (2048 → 4 × 512 @16k).
-            if (msg.pcm.length === 2048) {
-              for (let i = 0; i < 4; i++) {
-                feedSileroFrame(msg.pcm.slice(i * 512, (i + 1) * 512));
-              }
-            }
-          } else if (msg.type === "BARGE_IN_DETECTED") {
-            if ((bargeInFrameRef as any).currentInterrupt) {
-              (bargeInFrameRef as any).currentInterrupt(msg.rms);
-            }
+      const coordinator = MicrophoneCoordinator.getInstance();
+      await coordinator.acquireMicrophone();
+      
+      const onMicData = (msg: any) => {
+        if (msg.type === "PCM_DATA" && msg.lease) {
+          const pcmCopy = new Float32Array(msg.lease.data);
+          msg.lease.release();
+          
+          if (msg.probability !== undefined ? msg.probability >= 0.5 : frameRms(pcmCopy) > 0.02) {
+            lastAudioActivityRef.current = performance.now();
           }
-        };
-
-        analyser.connect(vadNode);
-        vadNode.connect(ctx.destination);
-        scriptProcessorRef.current = vadNode as any;
-      } catch (err) {
-        console.warn("[Voice] AudioWorklet failed, using legacy ScriptProcessor", err);
-        const sp = ctx.createScriptProcessor(4096, 1, 1);
-        sp.onaudioprocess = (e) => {
-          const input = e.inputBuffer.getChannelData(0);
-          if (frameRms(input) > 0.02) lastAudioActivityRef.current = performance.now();
-          const clone = new Float32Array(input);
+          if (msg.probability !== undefined) {
+            applyWorkletPerception({
+              probability: msg.probability,
+              noiseFloor: msg.noiseFloor,
+              silenceMs: msg.silenceMs ?? 0,
+              rms: msg.rms,
+            });
+          }
           if (isRecordingRef.current) {
-            pcmSamplesRef.current.push(clone);
+            pcmSamplesRef.current.push(pcmCopy);
           } else {
-            rollingBufferRef.current.push(clone);
+            rollingBufferRef.current.push(pcmCopy);
             if (rollingBufferRef.current.length > 20) {
-              // Keep ~1.5s of pre-buffer
               rollingBufferRef.current.shift();
             }
           }
-        };
-        analyser.connect(sp);
-        sp.connect(ctx.destination);
-        scriptProcessorRef.current = sp;
-      }
+          if (pcmCopy.length === 2048) {
+            for (let i = 0; i < 4; i++) {
+              feedSileroFrame(pcmCopy.slice(i * 512, (i + 1) * 512));
+            }
+          }
+        } else if (msg.type === "BARGE_IN_DETECTED") {
+          if ((bargeInFrameRef as any).currentInterrupt) {
+            (bargeInFrameRef as any).currentInterrupt(msg.rms);
+          }
+        }
+      };
 
-      micAnalyserRef.current = analyser;
-    } catch {
-      console.warn("[OpenRouter Voice] Could not open mic analyser.");
+      coordinator.subscribeToStream(onMicData);
+      
+      scriptProcessorRef.current = {
+        disconnect: () => {
+          coordinator.unsubscribeFromStream(onMicData);
+        }
+      } as any;
+      
+      startTracking();
+    } catch (err) {
+      console.warn("[Voice] Audio processing setup failed:", err);
     }
-  }, []);
+  }, [applyWorkletPerception, feedSileroFrame, startTracking]);
 
   const teardownMicAnalyser = useCallback(() => {
     cancelAnimationFrame(bargeInFrameRef.current);
@@ -662,20 +543,15 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     cancelAnimationFrame(backchannelFrameRef.current);
     terminateSileroVad();
     resetListeningState();
-    micStreamRef.current?.getTracks().forEach((t) => t.stop());
-    micStreamRef.current = null;
-    audioCtxRef.current?.close();
-    audioCtxRef.current = null;
-    micAnalyserRef.current = null;
+    if (scriptProcessorRef.current) {
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
+    }
   }, [terminateSileroVad, resetListeningState]);
 
   /** Expose raw frequency data to the Waveform component */
   const getInputFrequencyData = useCallback((): Uint8Array => {
-    const analyser = micAnalyserRef.current;
-    if (!analyser) return new Uint8Array(32);
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    return data;
+    return MicrophoneCoordinator.getInstance().getInputFrequencyData();
   }, []);
 
   // Brain sub-hooks (independently initialised)
@@ -849,11 +725,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Phase 10 (WP6): the Executive's speech plan is the primary source;
       // the emotion snapshot is only a fallback when no plan exists.
       let targetPace = 1.0; // Default
-      const planPace = prevPlanRef.current?.speechBehavior.speechSpeed;
       const lastAnalysis = behavior.lastAnalysisRef.current;
-      if (planPace && planPace > 0) {
-        targetPace = Math.min(1.2, Math.max(0.7, planPace));
-      } else if (lastAnalysis) {
+      if (lastAnalysis) {
         const emotion = lastAnalysis.emotional_state;
         if (emotion === "playfulness" || emotion === "joy") {
           targetPace = 1.1; // Excited / Laughing
@@ -876,7 +749,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         text,
         currentSpeaker,
         targetPace,
-        ttsLanguageCode(conversationLanguageRef.current) ?? undefined,
+        languageManager.getState().responseLanguage as "en-IN" | "hi-IN" | undefined,
       );
       connectionState.updateLatency({ tts_ms: performance.now() - tts_start });
 
@@ -1219,7 +1092,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         0,
         modeRef.current,
         userIdRef.current,
-        wasInterrupted
+        wasPreviousTurnInterrupted
       );
       if (behaviorResult) {
         prompts.processAnalysisForL2(behaviorResult);
@@ -1242,14 +1115,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         anxiety: behaviorResult?.anxiety || 0
       };
 
-      // Pull memories to send to backend
-      const memoryPayload = await memoryGateway.buildClientMemoriesPayload(
-        userText,
-        userIdRef.current,
-        currentEmotionalState
-      );
-      connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
-      const enforcedMemories = memoryPayload?.client_memories ?? [];
+      // Memory retrieval is now handled centrally by RuntimeManager
 
       // Held-thought context: what the user said while interrupting, if any.
       const heldText =
@@ -1288,8 +1154,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               role: m.role,
               content: m.content,
             })),
-            client_memories: enforcedMemories,
-            memory_mode: memoryPayload?.memory_mode || "supabase",
+            client_memories: [], // Delegated to Centralized Cognitive Architecture
+            memory_mode: "supabase",
             cognitive_block: cognitiveBlock
           }),
         });
@@ -1411,7 +1277,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             bSentenceIndex++;
             // Phase 10 (WP6): the plan's lead-in beat becomes a real pause
             // before the first spoken sentence. Values ≤0 or missing → no delay.
-            const leadInMs = Math.max(0, prevPlanRef.current?.speechBehavior.pauseBeforeMs ?? 0);
+            const leadInMs = 0;
             if (leadInMs > 0 && !streamDone) {
               setTimeout(
                 () => {
@@ -2006,26 +1872,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       ensureSileroVad();
       // Phase 8: a new session re-establishes language from the first
       // meaningful user message.
-      conversationLanguageRef.current = {
-        dominant: "UNKNOWN",
-        secondary: "NONE",
-        confidence: 0,
-        stability: 0,
-        establishedAtTurn: 0,
-        transitionReason: null,
-        confidenceReasons: [],
-        momentumWindow: 0,
-      };
+      languageManager.resetBuffer();
 
-      conversationRegisterRef.current = {
-        register: "NEUTRAL",
-        confidence: 0,
-        stability: 0,
-        establishedTurn: 0,
-        transitionReason: null,
-        confidenceReasons: [],
-        momentumWindow: 0,
-      };
 
       if (isUserInitiated) {
         if (messagesRef.current.length === 0) {
@@ -2041,7 +1889,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           console.log("[AURA] Warm start greeting triggered.");
           const warmPrompt =
             "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
-          processTurn(warmPrompt, key, lang, undefined, true);
+          processTurn(warmPrompt, key, lang, true);
           return;
         }
       }
@@ -2374,7 +2222,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         backchannelThisEpisodeRef.current = false;
         recordingStartTimeRef.current = Date.now();
         errorRetryCountRef.current = 0;
-        startTracking(micAnalyserRef.current);
+        startTracking();
         isRecordingRef.current = true;
         startBackchannelMonitor();
       };
@@ -2590,11 +2438,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     const s = sessionStatsRef.current;
     const deadAir = s.deadAirMs;
     const avgDead = deadAir.length
-      ? Math.round(deadAir.reduce((a, b) => a + b, 0) / deadAir.length)
+      ? Math.round(deadAir.reduce((a: number, b: number) => a + b, 0) / deadAir.length)
       : 0;
     const maxDead = deadAir.length ? Math.max(...deadAir) : 0;
     const ls = getListeningState();
-    const langState = conversationLanguageRef.current;
+    const langState = languageManager.getState();
     const friction =
       s.turns > 0
         ? s.turns / (s.turns + s.interruptions + s.abortedStreams + deadAir.length + s.clarifies)
@@ -2606,7 +2454,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         `clarifies: ${s.clarifies} | aborted streams: ${s.abortedStreams}\n` +
         `dead-air: ${deadAir.length} spans, avg ${avgDead}ms, max ${maxDead}ms\n` +
         `friction score (1 = flawless): ${friction.toFixed(2)}\n` +
-        `conversation language: ${langState.dominant}${langState.secondary !== "NONE" ? ` (${langState.secondary})` : ""} conf=${langState.confidence.toFixed(2)} stability=${langState.stability.toFixed(2)} since turn ${langState.establishedAtTurn}\n` +
+        `conversation language: ${langState.responseLanguage}\n` +
         `perception: source=${ls.detectionSource} processing=${ls.processingEnabled ? "on" : "off"} noise=${ls.noiseLevel.toFixed(0)}dBFS`,
       "color: #8b5cf6; font-weight: bold;",
     );
@@ -2707,7 +2555,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             data.inject_text,
             key,
             localStorage.getItem("aura_voice_language") || "hi-IN",
-            undefined,
             true,
           );
         }

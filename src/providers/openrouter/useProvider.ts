@@ -9,7 +9,7 @@
  *   5. Model priority — Gemini 2.0 Flash Lite at top of failover queue
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { RuntimeManager } from "@/runtime/RuntimeManager";
 import { getOpenRouterKey } from "@/lib/api";
 import { resolveUserId } from "@/lib/user-identity";
@@ -20,8 +20,9 @@ import { hasSupabaseCredentials } from "@/lib/credentials";
 import { saveSyncMeta } from "@/lib/sync-meta";
 import { getCredential } from "@/lib/credentials";
 
-import { SpeechStyleDetector } from "@/runtime/language/SpeechStyleDetector";
-import { TranscriptFormatter } from "@/runtime/language/TranscriptFormatter";
+import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
+import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
+import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator";
 import { conversationState } from "@/runtime/ConversationStateManager";
 import { useBehaviorInjection } from "../gemini/useBehaviorInjection";
 import { usePromptOrchestrator } from "../gemini/usePromptOrchestrator";
@@ -478,9 +479,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   const [sessionDuration, setSessionDuration] = useState(0);
   const { startTracking, stopTrackingAndAnalyze, liveStats } = useVoiceAcoustics();
 
-  const [detectedSpeechStyleLabel, setDetectedSpeechStyleLabel] = useState<string>("Unknown");
-  const speechStyleDetectorRef = useRef(new SpeechStyleDetector());
-  const transcriptFormatterRef = useRef(new TranscriptFormatter());
+  const languageManager = globalLanguageManager;
 
   // Session control
   const isSessionActiveRef = useRef<boolean>(false);
@@ -519,71 +518,31 @@ export function useOpenRouter(mode: string = "adaptive") {
   const spokenTextRef = useRef<string>("");
   const wasInterruptedRef = useRef<boolean>(false);
 
+  const micAnalyserRef = useMemo<React.MutableRefObject<AnalyserNode | null>>(() => ({
+    get current() {
+      return MicrophoneCoordinator.getInstance().getAnalyser();
+    },
+    set current(_) { }
+  }), []);
+
   // ── Real waveform: microphone AudioAnalyser ──────────────────────
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const micAnalyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-
   const setupMicAnalyser = useCallback(async () => {
-    if (micAnalyserRef.current) return; // already open
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000,
-          channelCount: 1,
-        },
-      });
-      micStreamRef.current = stream;
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
-
-      // MOBILE FIX: Auto-resume suspended AudioContext (iOS/Android policy)
-      if (ctx.state === "suspended") {
-        try { await ctx.resume(); } catch { }
-      }
-
-      const src = ctx.createMediaStreamSource(stream);
-
-      // High-pass filter (removes low rumble/hum/AC fan)
-      const highPass = ctx.createBiquadFilter();
-      highPass.type = "highpass";
-      highPass.frequency.value = 80;
-
-      // Low-pass filter (removes high frequency noise like typing)
-      const lowPass = ctx.createBiquadFilter();
-      lowPass.type = "lowpass";
-      lowPass.frequency.value = 8000;
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-
-      // Chain the filters: Source -> HPF -> LPF -> Analyser
-      src.connect(highPass).connect(lowPass).connect(analyser);
-
-      micAnalyserRef.current = analyser;
+      const coordinator = MicrophoneCoordinator.getInstance();
+      await coordinator.acquireMicrophone();
     } catch {
-      console.warn("[OpenRouter Voice] Could not open mic analyser.");
+      console.warn("[OpenRouter Voice] Could not open mic via Coordinator.");
     }
   }, []);
 
   const teardownMicAnalyser = useCallback(() => {
-    micStreamRef.current?.getTracks().forEach((t) => t.stop());
-    micStreamRef.current = null;
-    audioCtxRef.current?.close();
-    audioCtxRef.current = null;
-    micAnalyserRef.current = null;
+    // Teardown is managed globally by MicrophoneCoordinator if needed,
+    // but providers just stop listening to the subscription.
   }, []);
 
   /** Expose raw frequency data to the Waveform component */
   const getInputFrequencyData = useCallback((): Uint8Array => {
-    const analyser = micAnalyserRef.current;
-    if (!analyser) return new Uint8Array(32);
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    return data;
+    return MicrophoneCoordinator.getInstance().getInputFrequencyData();
   }, []);
 
   // Brain sub-hooks (independently initialised — skip when inactive)
@@ -910,15 +869,6 @@ export function useOpenRouter(mode: string = "adaptive") {
         anxiety: behaviorResult?.anxiety || 0
       };
 
-      // If local mode is active, pull memories to send to backend
-      const l3_start = performance.now();
-      const memoryPayload = await memoryGateway.buildClientMemoriesPayload(
-        userText,
-        userIdRef.current,
-        currentEmotionalState
-      );
-      connectionState.updateLatency({ l3_memory_ms: performance.now() - l3_start });
-
       // ── Music Context Injection ──
       // If music is active, inject song context into the conversation
       let musicContextXML = "";
@@ -949,8 +899,8 @@ export function useOpenRouter(mode: string = "adaptive") {
             user_id: userIdRef.current,
             session_id: sessionIdRef.current,
             conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
-            client_memories: memoryPayload?.client_memories || [],
-            memory_mode: memoryPayload?.memory_mode || "supabase",
+            client_memories: [], // Delegated to Centralized Cognitive Architecture
+            memory_mode: "supabase",
             cognitive_block: cognitiveBlock
           })
         });
@@ -1002,13 +952,13 @@ export function useOpenRouter(mode: string = "adaptive") {
                 import("@/music/MusicService").then(({ musicService }) => {
                   musicService.onAuraSpeechEnd();
                 });
-                  isSpeakingRef.current = false;
-                  conversationState.reportSpeakingFinished();
-                  if (isSessionActiveRef.current && startSessionRef.current) {
-                    setTimeout(() => startSessionRef.current?.(), 250);
-                  } else {
-                    setStatus("idle");
-                  }
+                isSpeakingRef.current = false;
+                conversationState.reportSpeakingFinished();
+                if (isSessionActiveRef.current && startSessionRef.current) {
+                  setTimeout(() => startSessionRef.current?.(), 250);
+                } else {
+                  setStatus("idle");
+                }
               } else {
                 setTimeout(drainQueue, 50);
               }
@@ -1032,7 +982,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 } : undefined
               };
               const pause = conversationalPauses.getPause(ctx);
-              
+
               const execution = RuntimeManager.getInstance().evaluateDecision(
                 rawNext,
                 lastSpokenSentence,
@@ -1042,7 +992,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
               if (execution) {
                 pause.durationMs = execution.delayMs;
-                if (execution.behavior === "WAIT") {
+                if (execution.action === "WAIT") {
                   console.log(`[AURA] Decision layer routed to WAIT. Halting playback.`);
                   const doNext = () => {
                     if (sentenceQueueRef.current.length === 0 && streamDone && !rawNext) return;
@@ -1053,7 +1003,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                   };
                   setTimeout(doNext, 10);
                   return;
-                } else if (execution.behavior === "BACKCHANNEL") {
+                } else if (execution.action === "BACKCHANNEL") {
                   console.log(`[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`);
                 }
               }
@@ -1190,7 +1140,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       // Behavioral analysis is now performed earlier in the canonical pipeline.
       // We no longer perform a redundant analyzeForTurn here.
-      
+
       // Adaptive modulation (local, <1ms)
       let modulationDirective = "";
       try {
@@ -1255,9 +1205,21 @@ export function useOpenRouter(mode: string = "adaptive") {
       }
 
       // ── System prompt: personality-aware identity + live context ──
-      const currentStyle = speechStyleDetectorRef.current.detectStyle(userText);
-      setDetectedSpeechStyleLabel(currentStyle.uiLabel);
-      const ssplBlock = transcriptFormatterRef.current.formatStyleInstruction(currentStyle);
+      const langState = languageManager.getState();
+      
+      const ssplBlock = `
+[SPEECH STYLE PRESERVATION LAYER]
+The user is speaking in the following natural style:
+- Detected Language: ${langState.detectedLanguage || langState.preferredLanguage}
+- Secondary Language: ${langState.secondaryLanguage || "None"}
+- Response Language: ${langState.responseLanguage}
+
+CRITICAL RULES:
+1. NEVER normalize everything into one language.
+2. Mirror the exact style. If they speak Pure Hindi, answer in Pure Hindi. If they use Hinglish, respond with the same mixture.
+3. If they use English words inside Hindi (or vice versa), do the same. Never artificially translate borrowed words.
+4. Adapt smoothly if the user gradually shifts their language.
+[/SPEECH STYLE PRESERVATION LAYER]\n`;
 
       const systemContent = [
         basePrompt,
@@ -1282,6 +1244,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       let completeResponse = "";
       let rawCompleteResponse = "";
       let success = false;
+      let lastApiError: any = null;
       const attempted: string[] = [];
 
       for (const modelToTry of modelQueue) {
@@ -1320,7 +1283,10 @@ export function useOpenRouter(mode: string = "adaptive") {
 
           if (!response.ok || !response.body) {
             const errData = await response.json().catch(() => ({}));
-            throw new Error(errData?.error?.message || `HTTP ${response.status}`);
+            const errMsg = errData?.error?.message || `HTTP ${response.status}`;
+            const error = new Error(errMsg) as any;
+            error.status = response.status;
+            throw error;
           }
 
           // ── SSE streaming reader ────────────────────────────────────
@@ -1530,11 +1496,37 @@ export function useOpenRouter(mode: string = "adaptive") {
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
           pushConversationTrace("LLM_ERROR", { error: e.message });
+          lastApiError = e;
+          
+          if (e.status === 401 || e.status === 402 || e.status === 403) {
+            break; // Short-circuit fallback loop on fatal account errors
+          }
         }
       }
 
       if (!success) {
-        setLastError(`All models failed. Attempted: ${attempted.join(", ")}`);
+        let errorMsg = `All models failed. Attempted: ${attempted.join(", ")}`;
+        if (lastApiError) {
+          const status = lastApiError.status;
+          const rawMsg = lastApiError.message || "Unknown error";
+          
+          if (status === 401) {
+            errorMsg = `OpenRouter couldn't authenticate the request.\n\n401 — ${rawMsg}`;
+          } else if (status === 402) {
+            errorMsg = `OpenRouter couldn't process the request because of an account or credit issue.\n\n402 — ${rawMsg}`;
+          } else if (status === 403) {
+            errorMsg = `OpenRouter doesn't have permission to use this request.\n\n403 — ${rawMsg}`;
+          } else if (status === 404) {
+            errorMsg = `The selected AI model is currently unavailable.\n\n404 — ${rawMsg}`;
+          } else if (status === 429) {
+            errorMsg = `OpenRouter is temporarily rate-limited.\n\n429 — ${rawMsg}`;
+          } else if (status >= 500) {
+            errorMsg = `The AI provider is temporarily unavailable.\n\n${status} — ${rawMsg}`;
+          } else if (lastApiError.name === "TypeError" || rawMsg.includes("fetch")) {
+            errorMsg = `The AI service couldn't be reached.\n\n${rawMsg}`;
+          }
+        }
+        setLastError(errorMsg);
         setStatus("error");
       }
 
@@ -1543,21 +1535,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
 
-        // Store local memory from this interaction (if local mode is active)
-        if (memoryGateway.mode === "local") {
-          const lastAnalysis = behavior.lastAnalysisRef.current;
-          const currentEmotionalState: Record<string, number> = {
-            frustration: lastAnalysis?.frustration || 0,
-            playfulness: lastAnalysis?.playfulness || 0,
-            vulnerability: lastAnalysis?.vulnerability || 0,
-            trust: lastAnalysis?.trust || 0,
-            anxiety: lastAnalysis?.anxiety || 0
-          };
-
-          // We combine the turn context
-          const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
-          memoryGateway.storeMemory(turnContext, userIdRef.current, currentEmotionalState);
-        }
+        // Memory storage is now handled centrally by RuntimeManager
       }
 
       const turnTotal = performance.now() - turnStart;
@@ -1611,7 +1589,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       } else {
         console.log("[AURA] Warm start greeting triggered.");
         const warmPrompt = "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
-        processTurn(warmPrompt, key, lang, undefined, true);
+        processTurn(warmPrompt, key, lang, true);
         return;
       }
     }
@@ -1628,14 +1606,14 @@ export function useOpenRouter(mode: string = "adaptive") {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = lang;
+    recognition.lang = languageManager.getState().responseLanguage || "hi-IN";
 
     recognition.onstart = () => {
       pushConversationTrace("STT_STARTED");
       setStatus("listening");
       setWords("Listening...");
       errorRetryCountRef.current = 0;
-      startTracking(micAnalyserRef.current);
+      startTracking();
     };
 
     recognition.onspeechstart = () => {
@@ -1673,7 +1651,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       const newText = finalText.trim();
       if (!newText) return;
-      
+
       accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? " " : "") + newText;
       const text = accumulatedTranscriptRef.current;
 
@@ -1687,6 +1665,17 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       setStatus("thinking");
       setWords(text);
+      
+      const lastFewTurns = transcript_.transcriptRef.current.slice(-3).map(t => t.text).join(" ");
+      const wordsContext = lastFewTurns.split(/\s+/).filter(w => w.length > 2);
+      languageManager.setRecentContext(wordsContext);
+      
+      languageManager.observe({
+        text,
+        source: "transcription",
+        timestamp: Date.now()
+      });
+      
       behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
 
       // Adaptive turn detection: compute personalized response delay
@@ -1705,13 +1694,14 @@ export function useOpenRouter(mode: string = "adaptive") {
       );
       adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
       await new Promise((r) => setTimeout(r, adaptiveDelay));
-      
+
       if (turnNonceRef.current !== localNonce) {
         console.log("%c⏸️ Turn cancelled because user resumed speaking.", "color: #f59e0b;");
         return; // User interrupted / continued speaking
       }
-      
+
       accumulatedTranscriptRef.current = ""; // Reset for next fully completed turn
+      languageManager.resetBuffer();
       adaptiveTurn.markAuraSpeaking();
       conversationState.reportUserFinished();
       await processTurn(text, key, lang);
@@ -1737,8 +1727,8 @@ export function useOpenRouter(mode: string = "adaptive") {
           setTimeout(() => {
             if (isSessionActiveRef.current && recognitionRef.current) {
               // MOBILE FIX: Resume AudioContext before restarting recognition
-              if (audioCtxRef.current?.state === "suspended") {
-                audioCtxRef.current.resume().catch(() => { });
+              if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+                MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
               }
               safeRecognitionStart(recognitionRef.current, true);
             }
@@ -1758,8 +1748,8 @@ export function useOpenRouter(mode: string = "adaptive") {
     recognition.onend = () => {
       pushConversationTrace("STT_ENDED");
       // MOBILE FIX: Resume AudioContext if it got suspended during recognition
-      if (audioCtxRef.current?.state === "suspended") {
-        audioCtxRef.current.resume().catch(() => { });
+      if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+        MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
       }
       if (isSessionActiveRef.current && statusRef.current === "listening") {
         safeRecognitionStart(recognition, true);
@@ -1774,8 +1764,7 @@ export function useOpenRouter(mode: string = "adaptive") {
     // MOBILE FIX: Recover from tab suspension / screen lock
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && isSessionActiveRef.current) {
-        // MOBILE FIX: Check if hardware mic track was revoked by OS
-        const track = micStreamRef.current?.getTracks()[0];
+        const track = MicrophoneCoordinator.getInstance().getStream()?.getTracks()[0];
         if (track && track.readyState === "ended") {
           console.warn("[Voice] Hardware mic track ended (likely revoked in background). Restarting audio pipeline.");
           teardownMicAnalyser();
@@ -1787,8 +1776,8 @@ export function useOpenRouter(mode: string = "adaptive") {
           return;
         }
 
-        if (audioCtxRef.current?.state === "suspended") {
-          audioCtxRef.current.resume().catch(() => { });
+        if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+          MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
         }
         if (statusRef.current === "listening" && recognitionRef.current) {
           safeRecognitionStart(recognitionRef.current, true);
@@ -1881,10 +1870,11 @@ export function useOpenRouter(mode: string = "adaptive") {
     if (isInactive) return;
     orchestrator.wireAudioCallbacks({
       onResumeContext: async () => {
-        if (!audioCtxRef.current) return false;
+        // We assume MicrophoneCoordinator retains context unless explicitly destroyed.
+        if (typeof window === "undefined") return false;
         try {
-          await audioCtxRef.current.resume();
-          return audioCtxRef.current.state === "running";
+          await MicrophoneCoordinator.getInstance().resumeAudioContext();
+          return MicrophoneCoordinator.getInstance().isAudioContextAlive();
         } catch {
           return false;
         }
@@ -1907,7 +1897,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       getLastActivityTs: () => lastAudioEndRef.current || 0,
       getLastTokenTs: () => lastTokenTimeRef.current || 0,
       speakFiller: (text) => speakChunk(text, "en-US", "aside"),
-      isAudioContextAlive: () => audioCtxRef.current?.state === "running",
+      isAudioContextAlive: () => MicrophoneCoordinator.getInstance().isAudioContextAlive(),
       triggerSTTRecovery: () => {
         stopRecognition();
         if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
@@ -1933,6 +1923,6 @@ export function useOpenRouter(mode: string = "adaptive") {
     getInputFrequencyData,
     /** Alias for output — OR has no separate output stream; reuse mic during speaking */
     getOutputFrequencyData: getInputFrequencyData,
-    liveStats: { ...liveStats, language: detectedSpeechStyleLabel },
+    liveStats: { ...liveStats, language: languageManager.getState().responseLanguage },
   };
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Square, Settings, X, Check, Eye, EyeOff, ChevronDown, RotateCcw } from "lucide-react";
+import { Mic, Square, Settings, X, Check, Eye, EyeOff, ChevronDown, RotateCcw, Zap } from "lucide-react";
 import { Waveform } from "@/components/Waveform";
 import { useVoiceOrchestrator } from "@/core/useVoiceOrchestrator";
 import { PersonalityMode, PersonalitySelector } from "@/components/PersonalitySelector";
@@ -13,10 +13,32 @@ import { hasLocalSeedOnly, isMemoryWarningDismissed } from "@/lib/sync-meta";
 import { getCurrentUserId } from "@/lib/user-identity";
 import { LatencyMeter } from "@/components/LatencyMeter";
 import { MiniPlayer } from "@/components/MiniPlayer";
+import { SensePanel } from "@/sense/SensePanel";
+import { SenseManager } from "@/sense/SenseManager/SenseManager";
+import { RuntimeDiagnosticsDrawer } from "@/components/diagnostics/RuntimeDiagnosticsDrawer";
+import { ProviderSelector } from "@/components/ProviderSelector";
+import { InitializationPanel } from "@/components/InitializationPanel";
+
+import { MusicPlayer } from "@/music/components/MusicPlayer";
+import { musicService } from "@/music/MusicService";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
+
+const HeartbeatIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M2 12h4l2-6 3 13 3-16 2 12 1-5h5" />
+  </svg>
+);
 
 function Index() {
   return <AuraExperience />;
@@ -29,7 +51,27 @@ function AuraExperience() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [showStorageModal, setShowStorageModal] = useState(false);
+  const [showSensePanel, setShowSensePanel] = useState(false);
+  const [showDiagnosticsDrawer, setShowDiagnosticsDrawer] = useState(() => {
+    if (typeof window === "undefined") return false;
+    // Desktop default: check localStorage; Mobile default: always closed
+    if (window.innerWidth < 768) return false;
+    return localStorage.getItem("aura_diagnostics_drawer_open") === "true";
+  });
+  const [isSenseActive, setIsSenseActive] = useState(false);
   const [memoryWarning, setMemoryWarning] = useState<string | null>(null);
+
+  // Sync drawer state to localStorage on Desktop
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      localStorage.setItem("aura_diagnostics_drawer_open", String(showDiagnosticsDrawer));
+    }
+  }, [showDiagnosticsDrawer]);
+
+  useEffect(() => {
+    // Initialize Music Subsystem
+    musicService.initialize().catch(console.error);
+  }, []);
 
 
   // Settings modal indicator state
@@ -43,13 +85,13 @@ function AuraExperience() {
   // R07 FIX: Sarvam requires BOTH OpenRouter key (LLM) and Sarvam key (STT/TTS)
   const needsSettings =
     activeBrain === "gemini"
-      ? !hasUserKey("aura_gemini_api_key")
+      ? !hasRequiredCredentials()
       : activeBrain === "sarvam"
         ? !hasUserKey("openrouter_api_key") || !hasUserKey("sarvam_api_key")
         : !hasUserKey("openrouter_api_key");
 
   const hasActiveBrainCredentials = useCallback(() => {
-    if (activeBrain === "gemini") return hasUserKey("aura_gemini_api_key");
+    if (activeBrain === "gemini") return hasRequiredCredentials();
     if (activeBrain === "sarvam") return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
     return hasUserKey("openrouter_api_key");
   }, [activeBrain]);
@@ -69,7 +111,19 @@ function AuraExperience() {
     }
     setHasOpenRouterKey(!!getOpenRouterKey());
 
-    return () => {};
+    // Check sense status periodically for soft glow
+    const senseManager = SenseManager.getInstance();
+    senseManager.initialize().then(() => {
+      const active = senseManager.getAllEntries().some((e) => e.sense?.health());
+      setIsSenseActive(active);
+    });
+
+    const interval = setInterval(() => {
+      const active = senseManager.getAllEntries().some((e) => e.sense?.health());
+      setIsSenseActive(active);
+    }, 2000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Reset to a sensible default voice when switching brains
@@ -132,6 +186,7 @@ function AuraExperience() {
     activeModel,
     isActiveVoice,
     updateConfig,
+    readinessSnapshot,
   } = pipeline;
 
   const tone =
@@ -146,11 +201,32 @@ function AuraExperience() {
       : isThinking
         ? "Mapping..."
         : pipeline.liveStats?.intent || "Steady";
-  const detectedLanguage = 
-    activeBrain === "gemini"
-      ? (pipeline as any).liveStats?.language || "English"
-      : (pipeline.liveStats as any)?.language || "English";
+  const detectedLanguage = pipeline.languageState
+    ? pipeline.languageState.classification === "MIXED_LANGUAGE" && pipeline.languageState.secondaryLanguage
+      ? `${pipeline.languageState.detectedLanguage} + ${pipeline.languageState.secondaryLanguage}`
+      : pipeline.languageState.detectedLanguage || pipeline.languageState.preferredLanguage
+    : "English";
   const brainModel = activeBrain === "gemini" ? "Gemini Live 🎙️" : activeModel || "Unknown";
+
+  const getDerivedState = () => {
+    if (status === "reconnecting") return "Reconnecting…";
+    if (status === "error") return "Unavailable";
+    if (status === "idle") return "Ready";
+    if (isSpeaking) return "Responding";
+    if (isThinking) return "Thinking";
+    if (status === "listening") return "Listening";
+    if (status === "connecting") return "Connecting";
+    return "Ready";
+  };
+
+  const getVoiceStatus = () => {
+    if (status === "reconnecting") return { label: "Reconnecting…", icon: "↻" };
+    if (status === "error") return { label: "Voice unavailable", icon: "⚠" };
+    if (status === "idle") return { label: "Ready", icon: "✓" };
+    if (status === "listening" && !isSpeaking && !isThinking) return { label: "Listening", icon: "◌" };
+    if (isThinking) return { label: "Processing", icon: "◌" };
+    return { label: "Voice active", icon: "●" };
+  };
 
   const handleMicClick = useCallback(async () => {
     if (!hasActiveBrainCredentials()) {
@@ -216,10 +292,9 @@ function AuraExperience() {
         {/* Header */}
         <header className="flex w-full items-center justify-between py-6">
           <div className="flex items-center">
-            <select
-              value={activeBrain}
-              onChange={(e) => {
-                const target = e.target.value as "gemini" | "openrouter" | "sarvam";
+            <ProviderSelector
+              activeBrain={activeBrain}
+              onChange={(target) => {
                 setActiveBrain(target);
                 localStorage.setItem("aura_active_brain", target);
                 // End active session of the other brain
@@ -227,49 +302,105 @@ function AuraExperience() {
                   endSession();
                 }
               }}
-              className="bg-transparent border border-border/30 text-[9px] uppercase tracking-[0.2em] font-black text-muted-foreground hover:text-foreground hover:border-foreground/50 rounded px-2 py-1 outline-none transition-all duration-200 cursor-pointer"
-            >
-              <option value="gemini" className="bg-background text-foreground">
-                Gemini Live 🎙️
-              </option>
-              <option value="openrouter" className="bg-background text-foreground">
-                OpenRouter 🚀
-              </option>
-              <option value="sarvam" className="bg-background text-foreground">
-                Sarvam AI 🇮🇳
-              </option>
-            </select>
+              status={status}
+              endSession={endSession}
+            />
           </div>
           <h1 className="text-2xl font-black uppercase tracking-[0.25em] text-foreground">
             AURA CHAT
           </h1>
-          <div className="flex items-center gap-3">
+          {/* Right nav controls styled as a clean borderless system status bar */}
+          <div className="relative flex items-center gap-5 text-white/60">
             {(status === "listening" ||
               status === "speaking" ||
               status === "thinking" ||
               status === "error") && (
               <button
                 onClick={handleAudioReset}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-all duration-200"
+                className="flex h-5 w-5 items-center justify-center text-white/50 hover:text-white transition-opacity duration-120 hover:opacity-85 cursor-pointer"
                 title="Reset Mic & Connection"
               >
                 <RotateCcw className="h-4 w-4" strokeWidth={1.5} />
               </button>
             )}
-            <div
-              className={`h-2 w-2 rounded-full transition-all duration-300 ${!needsSettings ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"}`}
-              title={!needsSettings ? "Ready to Chat" : "API Key Required"}
-            />
+
+            {/* ⚡ Sense Button */}
             <button
-              onClick={() => setShowStorageModal(true)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-all duration-200"
-              title="Settings"
+              onClick={() => setShowSensePanel((v) => !v)}
+              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
+                showSensePanel
+                  ? "text-white opacity-100"
+                  : isSenseActive
+                    ? "text-amber-300"
+                    : "text-white/50"
+              }`}
+              title="Sense"
             >
-              <Settings className="h-4 w-4" strokeWidth={1.5} />
-              {needsSettings && (
-                <span className="absolute top-[10px] right-[10px] h-1.5 w-1.5 rounded-full bg-foreground" />
+              <Zap className="h-4.5 w-4.5" strokeWidth={1.5} />
+              {isSenseActive && (
+                <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
               )}
             </button>
+
+            {/* • Conversation status (Ready vs Key missing) */}
+            <div
+              className={`h-1.5 w-1.5 rounded-full transition-all duration-250 ${
+                !needsSettings
+                  ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"
+                  : "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]"
+              }`}
+              title={!needsSettings ? "Ready" : "API Key Required"}
+            />
+
+            {/* Heartbeat ECG (Runtime Diagnostics Developer Toggle) */}
+            <button
+              onClick={() => setShowDiagnosticsDrawer((v) => !v)}
+              className={`relative flex h-5 w-5 items-center justify-center transition-all duration-120 hover:text-white cursor-pointer ${
+                showDiagnosticsDrawer ? "text-white opacity-100" : "text-white/50"
+              }`}
+              title="Runtime Diagnostics"
+            >
+              <HeartbeatIcon className="h-4.5 w-4.5" />
+              
+              {/* Active state indicator */}
+              {showDiagnosticsDrawer && (
+                <span className="absolute -top-[1px] -right-[1px] h-1 w-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]" />
+              )}
+
+              {/* Recording / Active Voice session pulse */}
+              {status !== "idle" && status !== "error" && (
+                <motion.span
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.8, 0, 0.8] }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+                  className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-400"
+                />
+              )}
+            </button>
+
+            {/* ⚙ Settings */}
+            <button
+              onClick={() => setShowStorageModal(true)}
+              className="relative flex h-5 w-5 items-center justify-center text-white/50 hover:text-white transition-all duration-120 cursor-pointer"
+              title="Settings"
+            >
+              <Settings className="h-4.5 w-4.5" strokeWidth={1.5} />
+              {needsSettings && (
+                <span className="absolute -top-[1px] -right-[1px] h-1.5 w-1.5 rounded-full bg-red-500" />
+              )}
+            </button>
+
+            {/* Sense Panel */}
+            <SensePanel
+              isOpen={showSensePanel}
+              onClose={() => setShowSensePanel(false)}
+            />
+
+            {/* Runtime Diagnostics Drawer / Bottom Sheet */}
+            <RuntimeDiagnosticsDrawer
+              isOpen={showDiagnosticsDrawer}
+              onClose={() => setShowDiagnosticsDrawer(false)}
+              activeBrain={activeBrain}
+            />
           </div>
         </header>
 
@@ -356,10 +487,32 @@ function AuraExperience() {
 
           <div className="mt-6 flex h-6 items-center justify-center text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             {status === "idle" && "tap mic to begin"}
-            {status === "connecting" && "connecting…"}
+            {status === "connecting" && !readinessSnapshot && "connecting…"}
+            {status === "connecting" && readinessSnapshot && "preparing your voice connection…"}
+            {status === "reconnecting" && "reconnecting…"}
             {(status === "listening" || status === "speaking" || status === "thinking") &&
               (isSpeaking ? "aura is speaking" : isThinking ? "aura is thinking…" : "listening")}
+            {status === "error" && readinessSnapshot?.overall === "failed" && "initialization failed"}
+            {status === "error" && (!readinessSnapshot || readinessSnapshot.overall !== "failed") && (lastError || "error")}
           </div>
+
+          {/* Initialization Panel — shown during Gemini connecting/error with readiness data */}
+          <AnimatePresence>
+            {activeBrain === "gemini" && readinessSnapshot && readinessSnapshot.overall !== "idle" && readinessSnapshot.overall !== "ready" && (
+              <motion.div
+                className="mt-6 w-full flex justify-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <InitializationPanel
+                  snapshot={readinessSnapshot}
+                  onRetry={handleAudioReset}
+                  onSettings={() => setShowStorageModal(true)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {(status === "listening" || status === "speaking" || status === "thinking") && (
             <div className="mt-8 w-full max-w-md">
@@ -455,60 +608,65 @@ function AuraExperience() {
           </section>
         )}
 
-        {/* Integrated Internal Analysis (Thinking Box) */}
+        {/* Minimal Conversation Telemetry Card */}
         <AnimatePresence mode="wait">
-          {(isThinking || words) && (
+          {status !== "idle" && status !== "connecting" && (
             <motion.section
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
               className="mt-8 w-full max-w-lg"
             >
-              <div className="flex flex-col gap-4 rounded-[1.5rem] border border-border/50 p-6 text-left bg-muted/5 backdrop-blur-sm relative overflow-hidden">
-                {isThinking && !isSpeaking && (
-                  <motion.div
-                    className="absolute inset-0 bg-foreground/[0.02]"
-                    animate={{ opacity: [0.3, 0.6, 0.3] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                )}
-
-                <div className="flex flex-col gap-1">
+              <div className="flex flex-col rounded-[1.5rem] border border-border/50 p-6 text-left bg-muted/5 backdrop-blur-sm relative overflow-hidden transition-all duration-300">
+                {/* User Transcript */}
+                <div className="flex flex-col gap-1 mb-4">
                   <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
-                    {isThinking && !isSpeaking ? "AURA IS PERCEIVING..." : "USER TRANSCRIPT"}
+                    USER TRANSCRIPT
                   </span>
-                  <span className="text-sm italic text-foreground leading-relaxed min-h-[1.25rem]">
-                    {words ? `"${words}"` : isThinking ? "Processing input..." : "..."}
+                  <span className="text-sm italic text-foreground leading-relaxed min-h-[1.25rem] transition-opacity duration-300">
+                    {words ? `"${words}"` : "Listening…"}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 border-t border-border/20 pt-4 mt-2">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
-                      LANGUAGE
+                {pipeline.languageState?.interpretedTranscript && 
+                 pipeline.languageState.interpretedTranscript !== words && (
+                  <div className="flex flex-col gap-1 mb-4">
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-cyan-500/60 font-semibold">
+                      INTERPRETED
                     </span>
-                    <span className="text-xs text-foreground/80 font-medium">{detectedLanguage}</span>
+                    <span className="text-sm italic text-cyan-400/90 leading-relaxed min-h-[1.25rem]">
+                      {`"${pipeline.languageState.interpretedTranscript}"`}
+                    </span>
+                  </div>
+                )}
+
+                <div className="h-[1px] w-full bg-border/20 mb-4" />
+
+                {/* Metadata Row */}
+                <div className="grid grid-cols-4 gap-4 mb-5">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">LANGUAGE</span>
+                    <span className="text-xs text-foreground/80 font-medium">{detectedLanguage || "English"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
-                      DETECTED TONE
-                    </span>
-                    <span className="text-xs text-foreground/80 font-medium">{tone}</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">TONE</span>
+                    <span className="text-xs text-foreground/80 font-medium">{tone || "—"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
-                      INTENT
-                    </span>
-                    <span className="text-xs text-foreground/70 line-clamp-1">{intent}</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">INTENT</span>
+                    <span className="text-xs text-foreground/70 line-clamp-1">{intent || "—"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
-                      ACTIVE BRAIN
-                    </span>
-                    <span
-                      className="text-xs text-foreground/70 font-semibold truncate"
-                      title={brainModel}
-                    >
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">STATE</span>
+                    <span className="text-xs text-foreground/70 font-medium transition-opacity">{getDerivedState()}</span>
+                  </div>
+                </div>
+
+                {/* Footer Row */}
+                <div className="flex justify-between items-end">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">ACTIVE BRAIN</span>
+                    <span className="text-xs text-foreground/70 font-semibold truncate" title={brainModel}>
                       {activeBrain === "gemini"
                         ? "Gemini Live 🎙️"
                         : activeBrain === "sarvam"
@@ -518,14 +676,23 @@ function AuraExperience() {
                             : brainModel.replace(":free", "").split("/").pop()}
                     </span>
                   </div>
+                  <div className="text-[10px] text-muted-foreground/80 flex items-center gap-1.5 uppercase tracking-widest">
+                    <span className={status === "reconnecting" || status === "error" ? "animate-pulse" : ""}>
+                      {getVoiceStatus().icon}
+                    </span>
+                    {getVoiceStatus().label}
+                  </div>
                 </div>
               </div>
             </motion.section>
           )}
         </AnimatePresence>
 
-        {/* Music Mini Player */}
+        {/* Music Mini Player (Legacy, if applicable) */}
         <MiniPlayer />
+        
+        {/* New Native Music Player */}
+        <MusicPlayer />
 
         {/* Error */}
         <AnimatePresence>
@@ -632,7 +799,7 @@ function AuraExperience() {
                 exit={{ opacity: 0 }}
                 className="mt-6 max-w-md rounded-2xl border border-foreground bg-foreground px-5 py-3 text-center text-sm text-background relative flex items-center justify-between gap-4"
               >
-                <div className="text-left font-medium">{errText}</div>
+                <div className="text-left font-medium whitespace-pre-wrap">{errText}</div>
                 <button
                   onClick={() => {
                     setErrorDismissed(true);
@@ -645,9 +812,11 @@ function AuraExperience() {
             ))}
         </AnimatePresence>
 
-        <footer className="mt-12 pb-8 text-center text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60">
-          built for soothing and mindful conversations
-        </footer>
+        {status === "idle" && (
+          <footer className="mt-12 pb-8 text-center text-[10px] uppercase tracking-[0.3em] text-muted-foreground/60">
+            built for soothing and mindful conversations
+          </footer>
+        )}
       </div>
 
       <LatencyMeter

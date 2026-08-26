@@ -44,11 +44,13 @@ function KeyInput({
   // Check if this key has a valid env-provided value (for runtime use only, NOT for UI display)
   const hasEnvFallback = () => {
     let envVal: string | null = null;
-    if (credentialKey === "aura_gemini_api_key") envVal = import.meta.env.VITE_GEMINI_API_KEY;
-    else if (credentialKey === "openrouter_api_key") envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
-    else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
-    else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
-    else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
+    if (import.meta.env.DEV) {
+      if (credentialKey === "aura_gemini_api_key") envVal = import.meta.env.VITE_GEMINI_API_KEY;
+      else if (credentialKey === "openrouter_api_key") envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
+      else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
+      else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
+      else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
+    }
     return isValidKey(envVal, credentialKey);
   };
 
@@ -261,7 +263,11 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       {/* Pipeline selector tabs */}
       <div className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => setSelectedPipeline("gemini")}
+          onClick={() => {
+            setSelectedPipeline("gemini");
+            setCredential("sarvam_api_key", "");
+            setCredential("openrouter_api_key", "");
+          }}
           className={`p-4 rounded-lg border-2 text-left transition-all duration-200 ${
             selectedPipeline === "gemini"
               ? "border-foreground bg-foreground/5"
@@ -283,7 +289,10 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
         </button>
 
         <button
-          onClick={() => setSelectedPipeline("sarvam")}
+          onClick={() => {
+            setSelectedPipeline("sarvam");
+            setCredential("aura_gemini_api_key", "");
+          }}
           className={`p-4 rounded-lg border-2 text-left transition-all duration-200 ${
             selectedPipeline === "sarvam"
               ? "border-foreground bg-foreground/5"
@@ -348,6 +357,27 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               <option value="ja-JP">Japanese</option>
             </select>
           </div>
+
+          {/* Speech / Accent */}
+          <div className="border-t border-border/40 pt-4 space-y-2">
+            <label className="text-sm font-semibold text-foreground block">🗣️ Speech / Accent (Optional)</label>
+            <p className="text-xs text-muted-foreground">Helps interpret ambiguous transcriptions based on your accent.</p>
+            <select
+              defaultValue={localStorage.getItem("aura_speech_accent") || "Automatic"}
+              onChange={(e) => {
+                localStorage.setItem("aura_speech_accent", e.target.value);
+                // Force a reload so the orchestrator re-initializes with the new preference
+                window.location.reload();
+              }}
+              className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:border-foreground"
+            >
+              <option value="Automatic">Automatic (Default)</option>
+              <option value="en-US">US English</option>
+              <option value="en-IN">Indian English</option>
+              <option value="en-GB">British English</option>
+              <option value="en-AU">Australian English</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -385,6 +415,26 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               <option value="es-ES">Spanish</option>
               <option value="fr-FR">French</option>
               <option value="de-DE">German</option>
+            </select>
+          </div>
+
+          {/* Speech / Accent */}
+          <div className="border-t border-border/40 pt-4 space-y-2">
+            <label className="text-sm font-semibold text-foreground block">🗣️ Speech / Accent (Optional)</label>
+            <p className="text-xs text-muted-foreground">Helps interpret ambiguous transcriptions based on your accent.</p>
+            <select
+              defaultValue={localStorage.getItem("aura_speech_accent") || "Automatic"}
+              onChange={(e) => {
+                localStorage.setItem("aura_speech_accent", e.target.value);
+                window.location.reload();
+              }}
+              className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm focus:outline-none focus:border-foreground"
+            >
+              <option value="Automatic">Automatic (Default)</option>
+              <option value="en-US">US English</option>
+              <option value="en-IN">Indian English</option>
+              <option value="en-GB">British English</option>
+              <option value="en-AU">Australian English</option>
             </select>
           </div>
         </div>
@@ -449,7 +499,7 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               credentialKey="redis_url"
               icon="⚡"
             />
-            {getCredential("redis_url") || import.meta.env.VITE_REDIS_URL ? (
+            {getCredential("redis_url") || (import.meta.env.DEV ? import.meta.env.VITE_REDIS_URL : "") ? (
               <div className="mt-4 pt-4 border-t border-border/50">
                 <button
                   onClick={() => setShowRedisManager(!showRedisManager)}
