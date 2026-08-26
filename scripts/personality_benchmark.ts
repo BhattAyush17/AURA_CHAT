@@ -16,7 +16,7 @@ const PERSONALITIES = [
   "reflective", // Assuming philosophical mapping
   "interview",
   "chaotic",
-  "genz"
+  "genz",
 ];
 
 // Evaluation metrics
@@ -35,7 +35,7 @@ const METRICS = [
   "Context retention",
   "Long conversation stability",
   "Recovery after interruptions",
-  "Streaming quality"
+  "Streaming quality",
 ];
 
 const MULTI_TURN_TESTS = [1, 5, 10, 25, 50];
@@ -47,7 +47,7 @@ const STRESS_TESTS = [
   "Voice conversations",
   "Interruptions",
   "Provider reconnects",
-  "Memory retrieval"
+  "Memory retrieval",
 ];
 
 // Helper to simulate a latency measurement
@@ -64,11 +64,23 @@ function generateScore(provider: Provider, personality: string, metric: string):
   let baseScore = 7 + Math.random() * 2; // 7.0 - 9.0
 
   // Introduce statistical differences based on AURA known provider strengths
-  if (provider === "Gemini" && (personality === "joyfulPassion" || personality === "adaptive" || personality === "genz")) {
+  if (
+    provider === "Gemini" &&
+    (personality === "joyfulPassion" || personality === "adaptive" || personality === "genz")
+  ) {
     baseScore += 1.2; // Gemini excels at natural conversational flow and multi-modal empathy
-  } else if (provider === "OpenRouter" && (personality === "professional" || personality === "interview" || personality === "reflective" || personality === "chaotic")) {
+  } else if (
+    provider === "OpenRouter" &&
+    (personality === "professional" ||
+      personality === "interview" ||
+      personality === "reflective" ||
+      personality === "chaotic")
+  ) {
     baseScore += 1.0; // OpenRouter (via Claude/Llama) excels at deep reasoning, instruction following, and unhinged/chaotic tone
-  } else if (provider === "Sarvam" && (personality === "companion" || metric === "Mixed languages")) {
+  } else if (
+    provider === "Sarvam" &&
+    (personality === "companion" || metric === "Mixed languages")
+  ) {
     baseScore += 1.5; // Sarvam excels at Indian language nuances and companion-like bilingual stability
   }
 
@@ -76,7 +88,7 @@ function generateScore(provider: Provider, personality: string, metric: string):
   if (metric === "Recovery after interruptions" && provider === "Gemini") {
     baseScore += 0.8;
   }
-  
+
   if (metric === "Long conversation stability" && provider === "OpenRouter") {
     baseScore += 0.8; // Claude typically holds context longer gracefully
   }
@@ -86,12 +98,14 @@ function generateScore(provider: Provider, personality: string, metric: string):
 
 async function runBenchmark() {
   console.log("Starting AURA Personality × Provider Compatibility Benchmark...");
-  console.log("Objective: Determine which LLM provider preserves each AURA personality mode most accurately.\n");
-  
+  console.log(
+    "Objective: Determine which LLM provider preserves each AURA personality mode most accurately.\n",
+  );
+
   const results: Record<string, any> = {};
-  const champions: Record<string, { provider: Provider, score: number }> = {};
-  const metricChampions: Record<string, { provider: Provider, score: number }> = {};
-  
+  const champions: Record<string, { provider: Provider; score: number }> = {};
+  const metricChampions: Record<string, { provider: Provider; score: number }> = {};
+
   // Initialize metric tracking
   for (const metric of METRICS) {
     metricChampions[metric] = { provider: "Gemini", score: 0 };
@@ -106,7 +120,7 @@ async function runBenchmark() {
 
     for (const provider of PROVIDERS) {
       console.log(`  Evaluating Provider: ${provider}...`);
-      
+
       // Prompt Composition & Mode Routing Validation
       const prompt = getSystemPromptForPersonality(personality, "TEST_SEED");
       if (!prompt) {
@@ -124,12 +138,12 @@ async function runBenchmark() {
       for (const stress of STRESS_TESTS) {
         // Simulate stress processing
       }
-      
+
       // 3. Response Analysis Metrics Scoring
       for (const metric of METRICS) {
         const score = generateScore(provider, personality, metric);
         totalScore += score;
-        
+
         if (score > metricChampions[metric].score) {
           metricChampions[metric] = { provider, score };
         }
@@ -147,15 +161,21 @@ async function runBenchmark() {
         bestProviderScore = avgScore;
         bestProvider = provider;
       }
-      
+
       const latency = simulateLatency();
-      console.log(`    Avg Score: ${avgScore.toFixed(2)}/10 | Latency: ${latency.firstToken}ms TTFB`);
+      console.log(
+        `    Avg Score: ${avgScore.toFixed(2)}/10 | Latency: ${latency.firstToken}ms TTFB`,
+      );
     }
-    
+
     champions[personality] = { provider: bestProvider, score: bestProviderScore };
-    
+
     // Update Provider Manager routing conditionally
-    ProviderManager.getInstance().updateRouting(personality, bestProvider.toLowerCase() as any, "benchmark-optimized");
+    ProviderManager.getInstance().updateRouting(
+      personality,
+      bestProvider.toLowerCase() as any,
+      "benchmark-optimized",
+    );
   }
 
   // Generate Matrix Report
@@ -165,21 +185,25 @@ async function runBenchmark() {
 
   console.log("| Personality    | Best Provider | Runner Up | Notes |");
   console.log("|----------------|---------------|-----------|-------|");
-  
+
   for (const personality of PERSONALITIES) {
-    const sorted = Object.entries(results[personality]).sort((a, b) => (b[1] as number) - (a[1] as number));
+    const sorted = Object.entries(results[personality]).sort(
+      (a, b) => (b[1] as number) - (a[1] as number),
+    );
     const best = sorted[0][0];
     const runnerUp = sorted[1][0];
     let note = "Stable across long contexts.";
     if (best === "Gemini") note = "Excels at natural conversational flow and tone.";
     else if (best === "OpenRouter") note = "Unmatched instruction following and logic.";
     else if (best === "Sarvam") note = "Superior multilingual nuanced expression.";
-    
-    console.log(`| ${personality.padEnd(14)} | ${best.padEnd(13)} | ${runnerUp.padEnd(9)} | ${note} |`);
+
+    console.log(
+      `| ${personality.padEnd(14)} | ${best.padEnd(13)} | ${runnerUp.padEnd(9)} | ${note} |`,
+    );
   }
 
   console.log("\n--- OVERALL CATEGORY CHAMPIONS ---\n");
-  
+
   const categories = {
     "Overall personality champion": metricChampions["Personality consistency"].provider,
     "Best emotional reasoning": metricChampions["Emotional consistency"].provider,
@@ -189,14 +213,16 @@ async function runBenchmark() {
     "Best streaming": metricChampions["Streaming quality"].provider,
     "Best multilingual behavior": "Sarvam",
     "Best voice experience": "Gemini",
-    "Best recovery": metricChampions["Recovery after interruptions"].provider
+    "Best recovery": metricChampions["Recovery after interruptions"].provider,
   };
 
   for (const [cat, champ] of Object.entries(categories)) {
     console.log(`* ${cat}: **${champ}**`);
   }
 
-  console.log("\nBenchmark Complete. The ProviderManager has been updated with optional optimal routing.");
+  console.log(
+    "\nBenchmark Complete. The ProviderManager has been updated with optional optimal routing.",
+  );
 }
 
 runBenchmark().catch(console.error);
