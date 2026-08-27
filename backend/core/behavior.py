@@ -293,9 +293,39 @@ SPEECH_ACT_MARKERS = {
     "ASSERTION": ["hai", "tha", "gya", "hau", "feel", "think"]
 }
 
+# Multi-word markers matched against the cleaned text (word-boundary safe).
+SPEECH_ACT_PHRASES = {
+    "AGREEMENT": ["theek hai", "bilkul sahi", "sahi hai"],
+    "QUESTION": ["kaise ho", "kya hai"],
+}
+
+# Irony markers — "yeah right", "great, another…" must never read as
+# AGREEMENT or trust (Phase 9.2 finding: sarcasm scored as agreement).
+IRONY_MARKERS = [
+    "yeah right", "sure because", "great, another", "great another",
+    "what a surprise", "works perfectly", "as if", "oh really",
+    "like i care", "big deal", "just great", "how wonderful",
+    "oh joy", "sooo", "perfectly fine", "nice one", "well done",
+]
+
+def _clean_tokens(text: str) -> list:
+    """Word-boundary tokenization: 'queen of England' must never match 'la'."""
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+    return [t for t in cleaned.split() if t]
+
+def _clean_phrases(text: str) -> str:
+    return " ".join(_clean_tokens(text))
+
+def detect_irony(text: str) -> bool:
+    lowered = text.lower()
+    return any(m in lowered for m in IRONY_MARKERS)
+
 def detect_speech_act(text: str) -> str:
-    text_lower = text.lower()
-    scores = {act: sum(1 for m in markers if m in text_lower) for act, markers in SPEECH_ACT_MARKERS.items()}
+    tokens = _clean_tokens(text)
+    phrase_text = " ".join(tokens)
+    scores = {act: sum(1 for m in markers if m in tokens) for act, markers in SPEECH_ACT_MARKERS.items()}
+    for act, phrases in SPEECH_ACT_PHRASES.items():
+        scores[act] += sum(1 for p in phrases if p in phrase_text)
     return max(scores, key=scores.get) if any(scores.values()) else "ASSERTION"
 
 def detect_energy(text: str) -> str:
@@ -388,7 +418,15 @@ class RuntimeEngine:
         act = detect_speech_act(transcript)
         kw_result = self.keywords.scan(transcript, ideology)
         energy = detect_energy(transcript)
-        
+
+        # Irony override: sarcasm must never route as AGREEMENT or trust.
+        # Tagged "ironic" so the Executive can probe instead of agreeing.
+        if detect_irony(transcript):
+            if act in ("AGREEMENT", "JOKE"):
+                act = "ASSERTION"
+            energy = "ironic"
+            kw_result["tags"].append("ironic")
+
         return {
             "act": act,
             "tags": kw_result["tags"],

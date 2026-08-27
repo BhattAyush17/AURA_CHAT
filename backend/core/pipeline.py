@@ -37,6 +37,8 @@ from backend.memory.sync import get_chromadb_enrichment_v2
 from backend.core.vocab import VocabLearner
 from backend.core.intelligence import composer
 from backend.personality.toxicity_engine import process_toxicity_pipeline
+from backend.core.thought_field.AssociativeThoughtField import AssociativeThoughtField
+from backend.core.thought_field.CognitiveContext import CognitiveContext
 
 log = get_logger("core.pipeline")
 
@@ -109,6 +111,7 @@ async def run_turn_pipeline(
     rel_tracker=None,
     ip_address: Optional[str] = None,
     memory_timeout: float = 0.5,
+    music_context: Optional[dict] = None,
 ) -> TurnResult:
     """
     Execute the full L1→L4 analysis pipeline for a single conversational turn.
@@ -214,7 +217,21 @@ async def run_turn_pipeline(
     else:
         vocab_injection = ""
 
-    combined_injection = sensing_injection + (vocab_injection or "")
+    # ── Step 4.1-4.3: Associative Thought Field (ATF) ────────────────────────
+    atf = AssociativeThoughtField.get_instance(session_id)
+    ctx = CognitiveContext(
+        session_id=session_id,
+        transcript=user_text,
+        conversation_metadata=turn_data,
+        runtime_signals={"active_mode": personality_mode},
+        music_context=music_context
+    )
+    envelope = atf.tick(ctx)
+    cog_snapshot = envelope.cognitive_snapshot
+    expression_behavior = envelope.behavior_expression
+    
+    self_prompt = atf.self_model.get_state().to_prompt_injection()
+    combined_injection = sensing_injection + (vocab_injection or "") + f"\n\n{self_prompt}\n\n{cog_snapshot}\n\n{expression_behavior}"
 
     # ── Step 4.5: Intelligence Context Layer (L6) ────────────────────────────
     try:
@@ -236,17 +253,7 @@ async def run_turn_pipeline(
             user_text, session_id=session_id, mode=personality_mode
         )
         result.toxicity = toxicity_result
-        if toxicity_result.get("toxicity_detected"):
-            personality_prompt = (
-                f"[PERSONALITY OVERRIDE]\n"
-                f"Mode: {toxicity_result.get('personality_mode')}\n"
-                f"Intent: {toxicity_result.get('intent')}\n"
-                f"Style: {toxicity_result.get('response_style')}\n"
-                f"User Slang Profile: {', '.join(toxicity_result.get('user_custom_slang', []))}\n"
-                f"Matched Terms: {', '.join(toxicity_result.get('matched_terms', []))}\n"
-                f"[/PERSONALITY OVERRIDE]"
-            )
-            combined_injection = f"{combined_injection}\n\n{personality_prompt}"
+        # Note: Personality override is now exclusively handled by SocialAdaptation.
     except Exception as e:
         log.debug("toxicity_pipeline_failed", error=str(e))
 
