@@ -87,13 +87,16 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
     }, 450);
   };
 
-  // Listen to network status / connectionState updates
+  // Listen to network status / connectionState updates / credential updates
   useEffect(() => {
     updateStatus(activeBrain);
 
     const handleOnlineStatus = () => updateStatus(activeBrain);
+    const handleCredentialsUpdated = () => updateStatus(activeBrain);
+    
     window.addEventListener("online", handleOnlineStatus);
     window.addEventListener("offline", handleOnlineStatus);
+    window.addEventListener("aura_credentials_updated", handleCredentialsUpdated);
 
     const unsubscribe = connectionState.subscribe(() => {
       updateStatus(activeBrain);
@@ -102,6 +105,7 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
     return () => {
       window.removeEventListener("online", handleOnlineStatus);
       window.removeEventListener("offline", handleOnlineStatus);
+      window.removeEventListener("aura_credentials_updated", handleCredentialsUpdated);
       unsubscribe();
     };
   }, [activeBrain, updateStatus]);

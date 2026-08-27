@@ -11,8 +11,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, Check, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { X, Zap, Check, Loader2, AlertCircle, Sparkles, Search, Play } from "lucide-react";
 import { useMusicPlayer } from "../music/useMusicPlayer";
+import { musicService } from "../music/MusicService";
 import { SenseManager } from "@/sense/SenseManager/SenseManager";
 import type { SenseRegistryEntry, SenseStatusCode } from "@/sense/SenseManager/types";
 
@@ -55,11 +56,52 @@ function MemoryCard() {
 // ─── Capability Explanation Sheet Modal ────────────────────────────────
 interface ExplanationSheetProps {
   displayName: string;
-  onConfirm: () => void;
+  onConfirm: (providerId: string) => void;
   onCancel: () => void;
 }
 
 function CapabilityExplanationSheet({ displayName, onConfirm, onCancel }: ExplanationSheetProps) {
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+
+  if (selectedProvider) {
+    const providerName = selectedProvider === "youtube" ? "YouTube" : "YouTube Music";
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        className="absolute inset-0 z-50 flex flex-col justify-between bg-[oklch(0.06_0_0)] p-6 backdrop-blur-3xl"
+      >
+        <div>
+          <div className="flex items-center gap-2 text-foreground/80 mb-6">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-bold uppercase tracking-wider">{providerName}</h3>
+          </div>
+          
+          <p className="text-xs text-foreground/90 font-medium leading-relaxed mb-4">
+            Google authorization required.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-4 border-t border-border/30">
+          <button
+            onClick={() => onConfirm(selectedProvider)}
+            className="flex h-11 items-center justify-center rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-opacity uppercase tracking-wider"
+          >
+            Continue with Google
+          </button>
+          <button
+            onClick={() => setSelectedProvider(null)}
+            className="flex h-9 items-center justify-center rounded-2xl border border-border/40 text-muted-foreground hover:text-foreground text-xs transition-colors uppercase tracking-wider"
+          >
+            Back
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -75,40 +117,36 @@ function CapabilityExplanationSheet({ displayName, onConfirm, onCancel }: Explan
         </div>
 
         <p className="text-xs text-foreground/90 font-medium leading-relaxed mb-4">
-          Aura doesn't just play music. It understands how music fits into your conversations and emotional context.
+          Aura can understand and interact with your music, with your permission.
         </p>
 
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 font-semibold">
-          With your permission Aura can
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">
+          CHOOSE A SOURCE
         </p>
 
         <div className="space-y-2 mb-4">
-          {[
-            "Know what's currently playing",
-            "Control playback through voice",
-            "Understand listening patterns",
-            "Learn your preferences",
-            "Personalize conversations",
-          ].map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-xs text-foreground/80">
-              <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
-              <span>{item}</span>
-            </div>
-          ))}
+          <button
+            onClick={() => setSelectedProvider("youtube")}
+            className="w-full flex flex-col items-start p-3 rounded-xl border border-border/40 hover:bg-foreground/5 transition-colors text-left"
+          >
+            <span className="text-xs font-semibold text-foreground">▶ YouTube</span>
+            <span className="text-[10px] text-muted-foreground mt-1">Connect your Google account</span>
+          </button>
+          <button
+            onClick={() => setSelectedProvider("ytdlp")}
+            className="w-full flex flex-col items-start p-3 rounded-xl border border-border/40 hover:bg-foreground/5 transition-colors text-left"
+          >
+            <span className="text-xs font-semibold text-foreground">🌐 yt-dlp (Public Proxy)</span>
+            <span className="text-[10px] text-muted-foreground mt-1">No authentication required</span>
+          </button>
         </div>
 
-        <p className="text-[11px] text-muted-foreground leading-relaxed italic border-t border-border/20 pt-3">
-          Your music is never used to replace conversation. It simply becomes another way Aura understands you.
+        <p className="text-[11px] text-muted-foreground leading-relaxed italic pt-1">
+          Your music access is optional and can be disconnected at any time.
         </p>
       </div>
 
       <div className="flex flex-col gap-2 pt-4 border-t border-border/30">
-        <button
-          onClick={onConfirm}
-          className="flex h-11 items-center justify-center rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-opacity uppercase tracking-wider"
-        >
-          Continue with Google
-        </button>
         <button
           onClick={onCancel}
           className="flex h-9 items-center justify-center rounded-2xl border border-border/40 text-muted-foreground hover:text-foreground text-xs transition-colors uppercase tracking-wider"
@@ -238,17 +276,45 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
   const [health, setHealth] = useState(() =>
     entry.sense?.health() ?? { status: "coming_soon" as SenseStatusCode, provider: null }
   );
+  
+  // Local state to track which sub-provider might be connected
+  const [connectedProviderStr, setConnectedProviderStr] = useState<string | null>(null);
+  const [providerEmail, setProviderEmail] = useState<string | null>(null);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const { state: playerState } = useMusicPlayer();
 
   useEffect(() => {
     if (!entry.sense) return;
-    const interval = setInterval(() => {
+    
+    const updateHealth = () => {
       setHealth(entry.sense!.health());
-    }, 2000);
-    return () => clearInterval(interval);
+      const p = localStorage.getItem('aura_music_connected_provider');
+      setConnectedProviderStr(p);
+      const email = localStorage.getItem('aura_sense_google_email');
+      setProviderEmail(email);
+    };
+
+    // Initial check
+    updateHealth();
+
+    // Listen for custom credential update event
+    window.addEventListener('aura_credentials_updated', updateHealth);
+    
+    return () => {
+      window.removeEventListener('aura_credentials_updated', updateHealth);
+    };
   }, [entry.sense]);
 
   const isComingSoon = !entry.available;
   const isConnected = health.status === "connected" || health.status === "active";
+  
+  const providerName = connectedProviderStr 
+    ? (connectedProviderStr === 'youtube' ? 'YouTube' : 'YouTube Music') 
+    : (entry.manifest.id === 'music' ? 'Public Search (yt-dlp)' : entry.manifest.description);
 
   return (
     <div
@@ -270,11 +336,11 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
                 {entry.manifest.displayName}
               </p>
               {!isComingSoon && (
-                <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(health.status)}`} />
+                <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(isConnected ? "connected" : health.status)}`} />
               )}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-              {isComingSoon ? "Coming Soon" : isConnected ? "Playback Ready" : entry.manifest.description}
+              {isComingSoon ? "Coming Soon" : isConnected ? providerName : entry.manifest.description}
             </p>
           </div>
         </div>
@@ -282,7 +348,7 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
         {/* Right: action */}
         {!isComingSoon && (
           <div className="shrink-0">
-            {isConnected ? (
+            {connectedProviderStr ? (
               <button
                 onClick={() => onOpenDisconnect(entry)}
                 className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors border border-border/40 hover:border-border rounded-lg px-2.5 py-1.5"
@@ -294,7 +360,7 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
                 onClick={() => onOpenExplanation(entry)}
                 className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-foreground bg-foreground/10 hover:bg-foreground/20 border border-border/40 rounded-lg px-3 py-1.5 transition-all"
               >
-                <span>Continue</span>
+                <span>Connect Google</span>
               </button>
             )}
           </div>
@@ -308,16 +374,97 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
             <div className="flex items-center gap-2">
               <Check className="h-3 w-3 text-green-400" strokeWidth={2.5} />
               <span className="text-[10px] text-green-400/80 font-medium">
-                Connected {health.provider && entry.manifest.id !== 'music' ? `(${health.provider})` : ""}
+                CONNECTED ✓
               </span>
             </div>
             {entry.manifest.id === 'music' && <MusicProviderSwitcher />}
           </div>
-          {health.status !== "active" && (
-            <p className="text-[10px] text-muted-foreground italic pl-5">
-              Nothing currently playing. Try saying "Play Interstellar."
-            </p>
+          <p className="text-[10px] text-muted-foreground pl-5 mt-0.5">
+            {connectedProviderStr ? (
+              <>
+                Google account authorized.<br/>
+                {providerEmail && <span className="text-foreground/70">{providerEmail}</span>}
+              </>
+            ) : (
+              entry.manifest.id === 'music' ? 'Ready to play public streams.' : ''
+            )}
+          </p>
+          
+          {entry.manifest.id === 'music' && (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <input 
+                  type="text" 
+                  placeholder="Search music..." 
+                  className="w-full bg-background border border-border/40 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:border-border transition-colors text-foreground placeholder:text-muted-foreground"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
+                      setIsSearching(true);
+                      const results = await musicService.search(searchQuery);
+                      setSearchResults(results);
+                      setIsSearching(false);
+                    }
+                  }}
+                />
+              </div>
+              
+              {isSearching && <div className="text-center py-2"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" /></div>}
+              
+              {!isSearching && searchResults.length > 0 && (
+                <div className="flex flex-col gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                  {searchResults.map((track) => (
+                    <button 
+                      key={track.id}
+                      onClick={() => {
+                        musicService.playTrack(track);
+                      }}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-foreground/5 transition-colors text-left group border border-transparent hover:border-border/20"
+                    >
+                      <div className="w-8 h-8 shrink-0 rounded bg-background overflow-hidden relative border border-border/40">
+                        {track.albumArt ? (
+                          <img src={track.albumArt} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-foreground/5 flex items-center justify-center">
+                            <Play className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                           <Play className="w-3.5 h-3.5 text-white" fill="white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium text-foreground truncate">{track.title}</p>
+                        <p className="text-[9px] text-muted-foreground truncate">{track.artist || 'Unknown'}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Current Playback Status snippet */}
+              {playerState.currentTrack && (
+                <div className="mt-2 pt-2 border-t border-border/10 flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-green-400 animate-pulse" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest">{playerState.isLoading ? 'RESOLVING...' : playerState.isPlaying ? 'PLAYING' : 'PAUSED'}</p>
+                    <p className="text-[10px] text-foreground truncate font-medium">{playerState.currentTrack.title}</p>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
+        </div>
+      )}
+      
+      {/* Error state */}
+      {!isConnected && health.status === "error" && (
+        <div className="mt-3 pt-3 border-t border-red-500/20 flex flex-col gap-1">
+          <p className="text-[10px] text-red-400 pl-1">
+            Couldn't connect. Google authorization failed.
+          </p>
         </div>
       )}
     </div>
@@ -353,12 +500,18 @@ export function SensePanel({ isOpen, onClose }: SensePanelProps) {
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, explainingEntry, disconnectingEntry, isActivating, onClose]);
 
-  const handleStartOAuth = useCallback(async () => {
+  const handleStartOAuth = useCallback(async (providerId: string) => {
     if (!explainingEntry) return;
     const targetId = explainingEntry.manifest.id;
     setExplainingEntry(null);
     try {
-      await manager.connectSense(targetId);
+      if (targetId === 'music') {
+        const { youtubeProvider, youtubeMusicProvider } = await import('@/music/providers/GoogleMusicProvider');
+        const provider = providerId === 'youtube' ? youtubeProvider : youtubeMusicProvider;
+        await provider.connect();
+      } else {
+        await manager.connectSense(targetId);
+      }
       setIsActivating(true);
     } catch (err) {
       console.error("[SensePanel] Auth error:", err);
@@ -369,7 +522,16 @@ export function SensePanel({ isOpen, onClose }: SensePanelProps) {
     if (!disconnectingEntry) return;
     const targetId = disconnectingEntry.manifest.id;
     setDisconnectingEntry(null);
-    await manager.disconnectSense(targetId);
+    
+    if (targetId === 'music') {
+      const { youtubeProvider, youtubeMusicProvider } = await import('@/music/providers/GoogleMusicProvider');
+      const connectedProvider = localStorage.getItem('aura_music_connected_provider');
+      const provider = connectedProvider === 'youtube' ? youtubeProvider : youtubeMusicProvider;
+      await provider.disconnect();
+    } else {
+      await manager.disconnectSense(targetId);
+    }
+    
     setEntries(manager.getAllEntries());
   }, [disconnectingEntry, manager]);
 

@@ -1,4 +1,5 @@
 import { MusicProvider, Track } from '../types';
+import { ENDPOINTS } from '@/config/api';
 
 /**
  * YtDlpProvider (Fallback)
@@ -11,11 +12,35 @@ export class YtDlpProvider implements MusicProvider {
   name = 'yt-dlp Extraction Pipeline';
   
   async initialize(): Promise<void> {
-    // Connect to backend stream service
+    // Connect to backend stream service (no auth needed)
   }
 
   async search(query: string): Promise<Track[]> {
-    // Calls backend proxy to scrape search results
+    console.log(`[YtDlpProvider] 🔍 Searching: "${query}"`);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const searchEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/search');
+      const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+      clearTimeout(timeout);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.error && data.youtube_id) {
+          return [{
+            id: data.youtube_id,
+            title: data.title || query,
+            artist: data.artist || "Unknown Artist",
+            albumArt: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
+            durationMs: (data.duration || 0) * 1000,
+            url: data.audio_stream_url || `https://www.youtube.com/watch?v=${data.youtube_id}`,
+            source: 'ytdlp'
+          }];
+        }
+      }
+    } catch (err) {
+      console.warn("[YtDlpProvider] Backend search failed:", err);
+    }
     return [];
   }
 
@@ -24,8 +49,7 @@ export class YtDlpProvider implements MusicProvider {
   }
 
   async getAudioStream(trackId: string): Promise<string | null> {
-    // Returns a proxied audio URL from backend
-    return `https://backend.local/stream/${trackId}`;
+    return null;
   }
 
   async getLyrics(trackId: string): Promise<string | null> {
@@ -36,10 +60,9 @@ export class YtDlpProvider implements MusicProvider {
     return [];
   }
 
-  async play(trackId: string): Promise<void> {
-    // Use HTML5 Audio element to play the stream returned by getAudioStream
-  }
-
+  // PlaybackProvider methods are handled by HTMLAudioPlaybackProvider centrally
+  // So these remain empty stubs for the unified MusicProvider interface
+  async play(trackId: string): Promise<void> {}
   async pause(): Promise<void> {}
   async resume(): Promise<void> {}
   async seek(positionMs: number): Promise<void> {}

@@ -31,6 +31,9 @@ export function validateGeminiApiKey(key: string | null | undefined): boolean {
  */
 export function setCredential(key: CredentialKey, value: string): void {
   sessionStorage.setItem(key, value);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+  }
 }
 
 /**
@@ -74,6 +77,9 @@ export function clearProviderCredentials(): void {
     sessionStorage.removeItem(key);
     localStorage.removeItem(key);
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+  }
 }
 
 /**
@@ -91,6 +97,9 @@ export function clearAllCredentials(): void {
     localStorage.removeItem("supabase_anon_key");
     localStorage.removeItem("supabase_access_token");
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+  }
 }
 
 /**

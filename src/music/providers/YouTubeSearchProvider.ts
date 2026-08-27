@@ -1,5 +1,6 @@
 import { SearchProvider, Track } from '../types';
 import { googleIdentityService } from '../../auth/GoogleIdentityService';
+import { ENDPOINTS } from '@/config/api';
 
 export class YouTubeSearchProvider implements SearchProvider {
   id = 'youtube_search';
@@ -41,7 +42,8 @@ export class YouTubeSearchProvider implements SearchProvider {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`http://localhost:3000/api/ytmusic/search?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+      const searchEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/search');
+      const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, { signal: controller.signal });
       clearTimeout(timeout);
       
       if (res.ok) {
@@ -53,6 +55,7 @@ export class YouTubeSearchProvider implements SearchProvider {
             artist: data.artist || "Unknown Artist",
             albumArt: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
             durationMs: (data.duration || 0) * 1000,
+            url: data.audio_stream_url || `https://www.youtube.com/watch?v=${data.youtube_id}`,
             source: 'youtube'
           }];
         }

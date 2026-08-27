@@ -2,7 +2,10 @@ import { SearchProvider, PlaybackProvider, Track } from "./types";
 import { queueManager } from "./QueueManager";
 import { playbackState } from "./PlaybackState";
 import { YouTubeSearchProvider } from "./providers/YouTubeSearchProvider";
-import { YouTubePlaybackProvider } from "./providers/YouTubePlaybackProvider";
+import { YtDlpProvider } from "./providers/YtDlpProvider";
+import { HTMLAudioPlaybackProvider } from "./providers/HTMLAudioPlaybackProvider";
+import { bufferMusicEvent } from "../lib/behavior-client";
+import { musicEvents } from "./PlaybackEvents";
 
 export class MusicService {
   private searchProvider: SearchProvider;
@@ -10,18 +13,35 @@ export class MusicService {
 
   private previousVolume: number | null = null;
   private isDucked: boolean = false;
+  private activeProviderId: string = "youtube";
+  private lastObservedTrackId: string | null = null;
 
   constructor() {
     // Default to YouTube Providers
     this.searchProvider = new YouTubeSearchProvider();
-    this.playbackProvider = new YouTubePlaybackProvider();
+    this.playbackProvider = new HTMLAudioPlaybackProvider();
   }
 
   async initialize() {
+    // Read previous provider from local storage if available
+    const savedProvider = localStorage.getItem('aura_music_connected_provider');
+    if (savedProvider && (savedProvider === 'youtube' || savedProvider === 'youtube_music')) {
+      this.activeProviderId = savedProvider;
+    }
+    
     // Initialization is silent, no Auth required up front.
     await this.searchProvider.initialize();
     await this.playbackProvider.initialize();
-    playbackState.update({ providerId: this.playbackProvider.id });
+    playbackState.update({ providerId: this.activeProviderId });
+    
+    // Subscribe to state changes for context buffering
+    musicEvents.on('stateChanged', (state) => {
+      if (state.isPlaying && state.currentTrack && state.currentTrack.id !== this.lastObservedTrackId) {
+        this.lastObservedTrackId = state.currentTrack.id;
+        bufferMusicEvent('track_started', state.currentTrack.artist || 'Unknown', state.currentTrack.title);
+      }
+    });
+
     console.log(
       `[MusicService] Initialized with ${this.searchProvider.name} and ${this.playbackProvider.name}`,
     );
@@ -29,16 +49,25 @@ export class MusicService {
 
   getAvailableProviders() {
     return [
-      { id: "youtube", name: "YouTube Music", capabilities: ["oauth", "native_playback"] },
-      { id: "ytdlp", name: "yt-dlp Extraction", capabilities: ["raw_stream"] },
+      { id: "youtube", name: "YouTube", capabilities: ["oauth", "native_playback"] },
+      { id: "youtube_music", name: "YouTube Music", capabilities: ["oauth", "native_playback"] },
+      { id: "ytdlp", name: "Public Search (yt-dlp)", capabilities: ["raw_stream"] },
     ];
   }
 
   async switchProvider(providerId: string) {
-    console.log(
-      `[MusicService] Provider switching to ${providerId} is currently stubbed in new architecture.`,
-    );
-    // Future: implement dynamic swapping of search/playback providers based on ID
+    console.log(`[MusicService] Switching provider to ${providerId}`);
+    this.activeProviderId = providerId;
+    
+    if (providerId === 'ytdlp') {
+      this.searchProvider = new YtDlpProvider();
+    } else {
+      this.searchProvider = new YouTubeSearchProvider();
+    }
+    await this.searchProvider.initialize();
+    
+    playbackState.update({ providerId });
+    localStorage.setItem('aura_music_connected_provider', providerId);
   }
 
   // --- Coordination: Aura Intelligence Entry Points ---
@@ -73,7 +102,11 @@ export class MusicService {
 
   // --- Search Pipeline ---
   async search(query: string): Promise<Track[]> {
-    return this.searchProvider.search(query);
+    const results = await this.searchProvider.search(query);
+    return results.map(track => ({
+      ...track,
+      source: this.activeProviderId
+    }));
   }
 
   // --- Playback Pipeline ---
