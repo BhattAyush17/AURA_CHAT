@@ -1626,8 +1626,6 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
 async def diagnostic_ytmusic():
     import subprocess
     import sys
-    import json
-    
     try:
         import yt_dlp
         y_ver = yt_dlp.version.__version__
@@ -1640,81 +1638,12 @@ async def diagnostic_ytmusic():
         except Exception as e:
             return str(e)
             
-    js_runtime = {
-        "node_v": run_cmd("node -v"),
-        "deno_v": run_cmd("deno -V"),
-        "quickjs": run_cmd("qjs -h | head -n 1")
-    }
-
-    # Extract test logic
-    def extract_test(query: str):
-        try:
-            import yt_dlp
-        except ImportError:
-            return {"error": "yt-dlp missing"}
-            
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'default_search': 'ytsearch',
-            'extract_flat': False,
-            'quiet': True,
-            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
-        }
-        
-        result = {}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(f"ytsearch1:{query}", download=False)
-                if 'entries' in info and len(info['entries']) > 0:
-                    entry = info['entries'][0]
-                    result = {
-                        "query": query,
-                        "video_id": entry.get('id'),
-                        "metadata_resolution": "SUCCESS" if entry.get('id') else "FAILED",
-                        "format_resolution": "SUCCESS" if entry.get('url') else "FAILED",
-                        "audio_stream_url": entry.get('url'),
-                        "failure_reason": None,
-                    }
-                else:
-                    result = {
-                        "query": query,
-                        "video_id": None,
-                        "metadata_resolution": "FAILED",
-                        "format_resolution": "FAILED",
-                        "audio_stream_url": None,
-                        "failure_reason": "No entries found in ytsearch"
-                    }
-            except Exception as e:
-                result = {
-                    "query": query,
-                    "video_id": None,
-                    "metadata_resolution": "FAILED",
-                    "format_resolution": "FAILED",
-                    "audio_stream_url": None,
-                    "failure_reason": str(e)
-                }
-        return result
-
-    import asyncio
-    tracks = ["Counting Stars OneRepublic", "Believer Imagine Dragons", "Blinding Lights The Weeknd"]
-    track_results = []
-    for track in tracks:
-        track_results.append(await asyncio.to_thread(extract_test, track))
-            
     return {
         "python_version": sys.version,
         "yt_dlp_version": y_ver,
-        "js_runtime": js_runtime,
-        "track_results": track_results,
-        "config_used": {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'default_search': 'ytsearch',
-            'extract_flat': False,
-            'quiet': True,
-            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
-        }
+        "node_v": run_cmd("node -v"),
+        "deno_v": run_cmd("deno -V"),
+        "quickjs": run_cmd("qjs -h | head -n 1")
     }
 
 
