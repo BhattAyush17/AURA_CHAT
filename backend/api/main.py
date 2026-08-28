@@ -400,20 +400,6 @@ SESSION_TTL_HOURS = 2
 # ═══════════════════════════════════════════════════════════════════
 
 @app.on_event("startup")
-async def cookie_diagnostic_startup():
-    import os
-    cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
-    exists = os.path.exists(cookie_path)
-    is_file = os.path.isfile(cookie_path) if exists else False
-    size = os.path.getsize(cookie_path) if exists else 0
-    readable = os.access(cookie_path, os.R_OK) if exists else False
-    print(f"\n[AURA COOKIE DIAGNOSTIC]")
-    print(f"exists={str(exists).lower()}")
-    print(f"is_file={str(is_file).lower()}")
-    print(f"size={size}")
-    print(f"readable={str(readable).lower()}\n")
-
-@app.on_event("startup")
 async def start_cleanup_task():
     asyncio.create_task(cleanup_expired_sessions())
 
@@ -1572,24 +1558,41 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'js_runtimes': {'node': {}}
         }
         import os
+        import tempfile
+        import shutil
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
-        if os.path.exists(cookie_path):
-            ydl_opts['cookiefile'] = cookie_path
+        temp_cookie_path = None
+        
+        try:
+            if os.path.exists(cookie_path):
+                fd, temp_cookie_path = tempfile.mkstemp(prefix='aura-youtube-cookies-', suffix='.txt')
+                os.close(fd)
+                shutil.copy2(cookie_path, temp_cookie_path)
+                os.chmod(temp_cookie_path, 0o600)
+                ydl_opts['cookiefile'] = temp_cookie_path
+                log.info("ytmusic_cookies", cookies_loaded=True)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch1:{q}", download=False)
-            if 'entries' in info and len(info['entries']) > 0:
-                entry = info['entries'][0]
-                return {
-                    "title": entry.get('title'),
-                    "artist": entry.get('uploader'),
-                    "duration": entry.get('duration'),
-                    "thumbnail": entry.get('thumbnail'),
-                    "youtube_id": entry.get('id'),
-                    "audio_stream_url": entry.get('url'),
-                    "http_headers": entry.get('http_headers', {}),
-                }
-            return None
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch1:{q}", download=False)
+                if 'entries' in info and len(info['entries']) > 0:
+                    entry = info['entries'][0]
+                    return {
+                        "title": entry.get('title'),
+                        "artist": entry.get('uploader'),
+                        "duration": entry.get('duration'),
+                        "thumbnail": entry.get('thumbnail'),
+                        "youtube_id": entry.get('id'),
+                        "audio_stream_url": entry.get('url'),
+                        "http_headers": entry.get('http_headers', {}),
+                    }
+                return None
+        finally:
+            if temp_cookie_path and os.path.exists(temp_cookie_path):
+                try:
+                    os.remove(temp_cookie_path)
+                except:
+                    pass
+
 
     try:
         result = await asyncio.to_thread(extract_with_ytdlp, query)
@@ -1622,23 +1625,40 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
         }
 
         import os
+        import tempfile
+        import shutil
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
-        if os.path.exists(cookie_path):
-            ydl_opts['cookiefile'] = cookie_path
+        temp_cookie_path = None
+        
+        try:
+            if os.path.exists(cookie_path):
+                fd, temp_cookie_path = tempfile.mkstemp(prefix='aura-youtube-cookies-', suffix='.txt')
+                os.close(fd)
+                shutil.copy2(cookie_path, temp_cookie_path)
+                os.chmod(temp_cookie_path, 0o600)
+                ydl_opts['cookiefile'] = temp_cookie_path
+                log.info("ytmusic_cookies", cookies_loaded=True)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
-            if info:
-                return {
-                    "title": info.get('title'),
-                    "artist": info.get('uploader'),
-                    "duration": info.get('duration'),
-                    "thumbnail": info.get('thumbnail'),
-                    "youtube_id": info.get('id'),
-                    "audio_stream_url": info.get('url'),
-                    "http_headers": info.get('http_headers', {}),
-                }
-            return None
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
+                if info:
+                    return {
+                        "title": info.get('title'),
+                        "artist": info.get('uploader'),
+                        "duration": info.get('duration'),
+                        "thumbnail": info.get('thumbnail'),
+                        "youtube_id": info.get('id'),
+                        "audio_stream_url": info.get('url'),
+                        "http_headers": info.get('http_headers', {}),
+                    }
+                return None
+        finally:
+            if temp_cookie_path and os.path.exists(temp_cookie_path):
+                try:
+                    os.remove(temp_cookie_path)
+                except:
+                    pass
+
 
     try:
         result = await asyncio.to_thread(extract_with_ytdlp, video_id)
@@ -1648,109 +1668,6 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
     except Exception as e:
         log.error("ytmusic_resolve_failed", error=str(e))
         return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
-
-@app.get("/api/ytmusic/diagnostic")
-async def diagnostic_ytmusic():
-    import subprocess
-    import sys
-    try:
-        import yt_dlp
-        y_ver = yt_dlp.version.__version__
-    except:
-        y_ver = "Not installed"
-    
-    def run_cmd(cmd):
-        try:
-            return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, text=True).strip()
-        except Exception as e:
-            return str(e)
-            
-    import os
-    cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
-    exists = os.path.exists(cookie_path)
-    is_file = os.path.isfile(cookie_path) if exists else False
-    size = os.path.getsize(cookie_path) if exists else 0
-    readable = os.access(cookie_path, os.R_OK) if exists else False
-    
-    # Check yt-dlp-ejs presence
-    try:
-        import yt_dlp_plugins.extractor.ejs
-        ejs_present = True
-    except ImportError:
-        try:
-            import py_mini_racer
-            ejs_present = True # sometimes just using py_mini_racer is enough, but user asked for yt-dlp-ejs
-        except:
-            ejs_present = False
-            
-    try:
-        import importlib.util
-        if importlib.util.find_spec("yt_dlp_plugins.extractor.ejs") or importlib.util.find_spec("yt_dlp_ejs"):
-            ejs_present = True
-    except:
-        pass
-
-    node_version = run_cmd("node -v")
-    
-    diagnostic = {
-        "exists": exists,
-        "is_file": is_file,
-        "size": size,
-        "readable": readable
-    }
-    
-    test_result = None
-    if exists and is_file and readable:
-        def extract_test(query: str):
-            try:
-                import yt_dlp
-            except ImportError:
-                return {"error": "yt-dlp missing"}
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'noplaylist': True,
-                'default_search': 'ytsearch',
-                'extract_flat': False,
-                'quiet': True,
-                'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
-                'cookiefile': cookie_path,
-                'js_runtimes': {'node': {}}
-            }
-            result = {}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
-                    info = ydl.extract_info(f"ytsearch1:{query}", download=False)
-                    if 'entries' in info and len(info['entries']) > 0:
-                        entry = info['entries'][0]
-                        url = entry.get('url')
-                        domain = None
-                        if url:
-                            from urllib.parse import urlparse
-                            domain = urlparse(url).netloc
-                        result = {
-                            "query": query,
-                            "video_id": entry.get('id'),
-                            "audio_stream_url": bool(url),
-                            "media_domain": domain,
-                            "failure_reason": None,
-                        }
-                    else:
-                        result = {"failure_reason": "No entries found in ytsearch"}
-                except Exception as e:
-                    result = {"failure_reason": str(e)}
-            return result
-        
-        import asyncio
-        test_result = await asyncio.to_thread(extract_test, "Counting Stars OneRepublic")
-
-    return {
-        "python_version": sys.version,
-        "yt_dlp_version": y_ver,
-        "yt_dlp_ejs_present": ejs_present,
-        "node_version": node_version,
-        "cookie_diagnostic": diagnostic,
-        "extraction_test": test_result
-    }
 
 
 
