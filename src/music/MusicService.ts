@@ -1,4 +1,4 @@
-import { SearchProvider, PlaybackProvider, Track } from "./types";
+import { SearchProvider, PlaybackProvider, Track, MusicIntentPayload } from "./types";
 import { queueManager } from "./QueueManager";
 import { playbackState } from "./PlaybackState";
 import { YouTubeSearchProvider } from "./providers/YouTubeSearchProvider";
@@ -34,11 +34,18 @@ export class MusicService {
     await this.playbackProvider.initialize();
     playbackState.update({ providerId: this.activeProviderId });
     
-    // Subscribe to state changes for context buffering
+    // Subscribe to state changes for context buffering and queue advancement
     musicEvents.on('stateChanged', (state) => {
       if (state.isPlaying && state.currentTrack && state.currentTrack.id !== this.lastObservedTrackId) {
         this.lastObservedTrackId = state.currentTrack.id;
         bufferMusicEvent('track_started', state.currentTrack.artist || 'Unknown', state.currentTrack.title);
+      }
+      
+      // Auto-advance queue when a track legitimately finishes
+      if (!state.isPlaying && this.lastObservedTrackId && !state.isPaused && !state.isLoading && !state.isBuffering) {
+        // If it stopped playing but wasn't manually paused, it likely ended naturally.
+        // Wait, a better way is to listen for an explicit 'ended' event, but we can do it here:
+        // However, HTMLAudioPlaybackProvider just sets isPlaying to false. Let's make it robust by letting HTMLAudioPlaybackProvider call next().
       }
     });
 
@@ -71,14 +78,31 @@ export class MusicService {
   }
 
   // --- Coordination: Aura Intelligence Entry Points ---
-  async processIntent(intent: { type: string; query?: string; text?: string; level?: number }) {
+  async processIntent(intent: ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload>) | { type: "pause" | "resume" | "stop" | "next" | "previous" }) {
     console.log(`[MusicService] Processing intent:`, intent);
     switch (intent.type) {
       case "play":
-        if (intent.query) {
-          const results = await this.search(intent.query);
+        const playIntent = intent as ({ type: "play" } & Partial<MusicIntentPayload>);
+        let finalQuery = playIntent.query || "";
+        
+        // Formulate a semantic search query if none was provided
+        if (!finalQuery) {
+            const parts = [];
+            if (playIntent.mood) parts.push(playIntent.mood);
+            if (playIntent.activity) parts.push(playIntent.activity);
+            if (playIntent.genre) parts.push(playIntent.genre);
+            if (parts.length > 0) {
+                finalQuery = parts.join(" ") + " music";
+            }
+        }
+
+        if (finalQuery) {
+          const results = await this.search(finalQuery);
           if (results.length > 0) {
-            await this.playTrack(results[0]);
+            const bestTrack = this.rankTracks(results, playIntent);
+            await this.playTrack(bestTrack);
+          } else {
+            throw new Error(`No music found for search: ${finalQuery}`);
           }
         }
         break;
@@ -98,6 +122,55 @@ export class MusicService {
         await this.previous();
         break;
     }
+  }
+
+  // --- Ranking Pipeline ---
+  private rankTracks(tracks: Track[], intent: Partial<MusicIntentPayload>): Track {
+      if (tracks.length === 0) throw new Error("No tracks to rank");
+      
+      const history = playbackState.getState().history.map(t => t.id);
+
+      const scoredTracks = tracks.map(track => {
+          let score = 100;
+          let reasons: string[] = [];
+
+          // Keyword match heuristic against title
+          const title = track.title.toLowerCase();
+          
+          if (intent.intent === 'explicit_song') {
+             score += 50;
+             reasons.push("Explicit intent bonus");
+          }
+
+          if (intent.mood && title.includes(intent.mood.toLowerCase())) {
+             score += 20;
+             reasons.push(`Mood match: ${intent.mood}`);
+          }
+          if (intent.activity && title.includes(intent.activity.toLowerCase())) {
+             score += 20;
+             reasons.push(`Activity match: ${intent.activity}`);
+          }
+          if (intent.genre && title.includes(intent.genre.toLowerCase())) {
+             score += 20;
+             reasons.push(`Genre match: ${intent.genre}`);
+          }
+
+          // Penalize recent repeats
+          if (history.includes(track.id)) {
+              score -= 50;
+              reasons.push("Recent repeat penalty");
+          }
+
+          return { track, score, reasons };
+      });
+
+      // Sort descending by score
+      scoredTracks.sort((a, b) => b.score - a.score);
+
+      const best = scoredTracks[0];
+      console.log(`[MusicService] Ranked tracks. Selected '${best.track.title}' with score ${best.score}. Reasons: ${best.reasons.join(", ")}`);
+      
+      return best.track;
   }
 
   // --- Search Pipeline ---

@@ -130,7 +130,8 @@ export function useVoiceOrchestrator(
             () => ({
               isSpeaking: pipelineRef.current.isSpeaking,
               isThinking: pipelineRef.current.isThinking,
-              isActiveVoice: pipelineRef.current.isActiveVoice
+              isActiveVoice: pipelineRef.current.isActiveVoice,
+              status: pipelineRef.current.status
             })
           );
         });

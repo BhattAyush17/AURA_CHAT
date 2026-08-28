@@ -18,6 +18,7 @@ export class MicrophoneCoordinator {
   private inputAnalyser: AnalyserNode | null = null;
   
   private isAcquiring: boolean = false;
+  private acquisitionPromise: Promise<{ stream: MediaStream, audioContext: AudioContext, analyser: AnalyserNode }> | null = null;
   private subscribers: Set<(data: { type: string; pcm?: Float32Array; lease?: BufferLease; rms?: number; probability?: number; noiseFloor?: number; silenceMs?: number }) => void> = new Set();
   
   // Mobile lifecycle bound status
@@ -40,50 +41,66 @@ export class MicrophoneCoordinator {
    * Acquires the microphone and sets up the AudioContext and Worklet.
    */
   public async acquireMicrophone(): Promise<{ stream: MediaStream, audioContext: AudioContext, analyser: AnalyserNode }> {
+    const callerStack = new Error().stack || "";
+    RuntimeTelemetry.getInstance().logEvent({ 
+      subsystem: "MicrophoneCoordinator", 
+      severity: "info", 
+      data: { event: "AcquireRequested", callerStack } 
+    });
+
     if (this.stream && this.audioContext && this.inputAnalyser) {
       return { stream: this.stream, audioContext: this.audioContext, analyser: this.inputAnalyser };
     }
 
-    if (this.isAcquiring) {
-      throw new Error("Microphone acquisition already in progress.");
-    }
-    
-    this.isAcquiring = true;
-
-    try {
-      RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "Acquiring Mic" } });
-      
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+    if (this.acquisitionPromise) {
+      RuntimeTelemetry.getInstance().logEvent({ 
+        subsystem: "MicrophoneCoordinator", 
+        severity: "info", 
+        data: { event: "AcquireReusingPromise" } 
       });
-
-      this.audioContext = new AudioContext({ sampleRate: 16000 });
-      this.inputAnalyser = this.audioContext.createAnalyser();
-      this.inputAnalyser.fftSize = 256;
-
-      const src = this.audioContext.createMediaStreamSource(this.stream);
-      
-      // High-pass filter
-      const highPass = this.audioContext.createBiquadFilter();
-      highPass.type = "highpass";
-      highPass.frequency.value = 80;
-
-      // Low-pass filter
-      const lowPass = this.audioContext.createBiquadFilter();
-      lowPass.type = "lowpass";
-      lowPass.frequency.value = 8000;
-
-      src.connect(highPass).connect(lowPass).connect(this.inputAnalyser);
-
-      await this.setupWorklet();
-
-      this.isAcquiring = false;
-      return { stream: this.stream, audioContext: this.audioContext, analyser: this.inputAnalyser };
-    } catch (e) {
-      this.isAcquiring = false;
-      RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "error", data: { event: "MicAcquisitionFailed", error: String(e) } });
-      throw e;
+      return this.acquisitionPromise;
     }
+
+    this.isAcquiring = true;
+    this.acquisitionPromise = (async () => {
+      try {
+        RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "Acquiring Mic" } });
+        
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+
+        this.audioContext = new AudioContext({ sampleRate: 16000 });
+        this.inputAnalyser = this.audioContext.createAnalyser();
+        this.inputAnalyser.fftSize = 256;
+
+        const src = this.audioContext.createMediaStreamSource(this.stream);
+        
+        // High-pass filter
+        const highPass = this.audioContext.createBiquadFilter();
+        highPass.type = "highpass";
+        highPass.frequency.value = 80;
+
+        // Low-pass filter
+        const lowPass = this.audioContext.createBiquadFilter();
+        lowPass.type = "lowpass";
+        lowPass.frequency.value = 8000;
+
+        src.connect(highPass).connect(lowPass).connect(this.inputAnalyser);
+
+        await this.setupWorklet();
+
+        return { stream: this.stream, audioContext: this.audioContext, analyser: this.inputAnalyser };
+      } catch (e) {
+        RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "error", data: { event: "MicAcquisitionFailed", error: String(e) } });
+        throw e;
+      } finally {
+        this.isAcquiring = false;
+        this.acquisitionPromise = null;
+      }
+    })();
+
+    return this.acquisitionPromise;
   }
 
   private async setupWorklet() {
@@ -165,6 +182,16 @@ export class MicrophoneCoordinator {
    * Releases the microphone and cleans up all audio graph nodes.
    */
   public releaseMicrophone() {
+    const callerStack = new Error().stack || "";
+    RuntimeTelemetry.getInstance().logEvent({ 
+      subsystem: "MicrophoneCoordinator", 
+      severity: "info", 
+      data: { event: "ReleaseRequested", callerStack } 
+    });
+
+    this.acquisitionPromise = null;
+    this.isAcquiring = false;
+
     if (this.workletNode) {
       this.workletNode.disconnect();
       if (this.workletNode.port) this.workletNode.port.close();

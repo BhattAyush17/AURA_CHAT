@@ -12,6 +12,15 @@ export interface Track {
   mood?: string;
 }
 
+export interface MusicIntentPayload {
+  query?: string;
+  mood?: string;
+  energy?: string;
+  genre?: string;
+  activity?: string;
+  intent?: 'explicit_song' | 'mood_based' | 'contextual' | 'similar' | 'preference_based';
+}
+
 export interface PlaybackStateData {
   currentTrack: Track | null;
   isPlaying: boolean;

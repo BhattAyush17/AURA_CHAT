@@ -38,12 +38,10 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       
       this.audio.addEventListener("ended", () => {
         playbackState.setPlaying(false);
-        // Note: MusicEngine handleTrackEnded will detect state change or we emit event?
-        // PlaybackEngine already polls or relies on state. We could emit an event here if needed,
-        // but playbackState updates usually trigger the queue in AURA.
-        // Wait, MusicService or PlaybackEngine manages 'next'. 
-        // Actually PlaybackEngine has `handleTrackEnded` which we should call, or emit an event.
-        // For now we'll just update state.
+        // Explicitly advance the queue when the track completes naturally
+        import('../MusicService').then(({ musicService }) => {
+          musicService.next();
+        });
       });
       
       this.audio.addEventListener("error", (e) => {
@@ -64,25 +62,39 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
     
     if (!track) return;
     
+    if (!track.url) {
+      console.error("[MUSIC_ERROR] Music track has no playable audio source.");
+      throw new Error("Music track has no playable audio source.");
+    }
+
     // If it's a new track, load the URL
-    if (track.url && track.url !== this.currentUrl) {
+    if (track.url !== this.currentUrl) {
       this.currentUrl = track.url;
       
-      // Determine the proxy base
-      const proxyBase = ENDPOINTS.health.replace('/health', '');
-      const proxyUrl = `${proxyBase}/api/ytmusic/proxy?url=${encodeURIComponent(track.url)}`;
-      
       if (this.audio) {
-        this.audio.src = proxyUrl;
+        this.audio.src = track.url;
         this.audio.load();
       }
     }
     
     if (this.audio) {
       try {
+        console.log("[MUSIC_PLAY] starting audio");
         await this.audio.play();
-      } catch (e) {
-        console.error("[HTMLAudioPlaybackProvider] Playback failed:", e);
+      } catch (e: any) {
+        if (e.name === "NotAllowedError") {
+          console.warn("[MUSIC_PLAY] browser rejected playback: NotAllowedError");
+          playbackState.update({ isPlaying: false });
+          throw new Error("Playback requires user interaction.");
+        } else if (e.name === "NotSupportedError") {
+          console.error("[MUSIC_PLAY] browser rejected playback: NotSupportedError");
+          playbackState.update({ isPlaying: false });
+          throw new Error("Music track has no playable audio source.");
+        } else {
+          console.error("[HTMLAudioPlaybackProvider] Playback failed:", e);
+          playbackState.update({ isPlaying: false });
+          throw e;
+        }
       }
     }
   }

@@ -114,9 +114,17 @@ const extractStageDirections = (text: string) => {
   const processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
     try {
       const data = JSON.parse(match);
-      if (data.user_query) {
+      if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
         import("@/music/MusicService").then(({ musicService }) => {
-          musicService.processIntent({ type: "play", query: data.user_query });
+          musicService.processIntent({ 
+            type: "play", 
+            query: data.query || data.user_query,
+            mood: data.mood,
+            energy: data.energy,
+            genre: data.genre,
+            activity: data.activity,
+            intent: data.intent
+          });
         });
       }
     } catch (e) {}
@@ -1350,11 +1358,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                         (match) => {
                           try {
                             const data = JSON.parse(match);
-                            if (data.user_query) {
+                            if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
                               import("@/music/MusicService").then(({ musicService }) => {
                                 musicService.processIntent({
                                   type: "play",
-                                  query: data.user_query,
+                                  query: data.query || data.user_query,
+                                  mood: data.mood,
+                                  energy: data.energy,
+                                  genre: data.genre,
+                                  activity: data.activity,
+                                  intent: data.intent
                                 });
                               });
                             }
@@ -1736,9 +1749,17 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                     (m) => {
                       try {
                         const d = JSON.parse(m);
-                        if (d.user_query) {
+                        if (d.query || d.mood || d.activity || d.genre || d.intent === 'similar' || d.user_query) {
                           import("@/music/MusicService").then(({ musicService }) => {
-                            musicService.processIntent({ type: "play", query: d.user_query });
+                            musicService.processIntent({ 
+                              type: "play", 
+                              query: d.query || d.user_query,
+                              mood: d.mood,
+                              energy: d.energy,
+                              genre: d.genre,
+                              activity: d.activity,
+                              intent: d.intent
+                            });
                           });
                         }
                       } catch {}

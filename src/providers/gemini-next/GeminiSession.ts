@@ -92,10 +92,30 @@ export class GeminiSession {
                       properties: {
                         query: {
                           type: Type.STRING,
-                          description: "The song name and artist to search and play",
+                          description: "The song name and artist to search and play (optional)",
+                        },
+                        mood: {
+                          type: Type.STRING,
+                          description: "The mood of the music (e.g. calm, energetic)",
+                        },
+                        energy: {
+                          type: Type.STRING,
+                          description: "The energy level (e.g. low, high)",
+                        },
+                        genre: {
+                          type: Type.STRING,
+                          description: "The genre of the music",
+                        },
+                        activity: {
+                          type: Type.STRING,
+                          description: "The activity the music is for (e.g. workout, focus)",
+                        },
+                        intent: {
+                          type: Type.STRING,
+                          description: "explicit_song | mood_based | contextual | similar | preference_based",
                         },
                       },
-                      required: ["query"],
+                      required: [],
                     },
                   },
                   {
@@ -216,7 +236,13 @@ export class GeminiSession {
   private handleClose(event: any) {
     console.warn(`[GeminiSession] WebSocket closed. Code: ${event?.code}, Reason: ${event?.reason}`);
     this.session = null;
-    this.setState("CLOSED");
+    if (event?.code && event.code !== 1000 && event.code !== 1005) {
+      const errMsg = event.reason || `WebSocket closed with code ${event.code}`;
+      this.setState("ERROR");
+      this.events.onError?.(new Error(errMsg));
+    } else {
+      this.setState("CLOSED");
+    }
   }
 
   private handleError(err: any) {

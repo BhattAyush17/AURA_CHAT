@@ -61,7 +61,9 @@ interface ExplanationSheetProps {
 }
 
 function CapabilityExplanationSheet({ displayName, onConfirm, onCancel }: ExplanationSheetProps) {
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(
+    displayName === "Music Intelligence" ? "youtube" : null
+  );
 
   if (selectedProvider) {
     const providerName = selectedProvider === "youtube" ? "YouTube" : "YouTube Music";
@@ -89,13 +91,13 @@ function CapabilityExplanationSheet({ displayName, onConfirm, onCancel }: Explan
             onClick={() => onConfirm(selectedProvider)}
             className="flex h-11 items-center justify-center rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-opacity uppercase tracking-wider"
           >
-            Continue with Google
+            Connect with Google
           </button>
           <button
-            onClick={() => setSelectedProvider(null)}
+            onClick={displayName === "Music Intelligence" ? onCancel : () => setSelectedProvider(null)}
             className="flex h-9 items-center justify-center rounded-2xl border border-border/40 text-muted-foreground hover:text-foreground text-xs transition-colors uppercase tracking-wider"
           >
-            Back
+            {displayName === "Music Intelligence" ? "Cancel" : "Back"}
           </button>
         </div>
       </motion.div>
@@ -247,23 +249,7 @@ function ActivationSequenceOverlay({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-function MusicProviderSwitcher() {
-  const { availableProviders, state, switchProvider } = useMusicPlayer();
-  if (!availableProviders || availableProviders.length === 0) return null;
 
-  return (
-    <select
-      className="text-[10px] bg-background border border-border/40 text-muted-foreground rounded px-1.5 py-0.5 outline-none hover:text-foreground transition-colors cursor-pointer"
-      value={state.providerId || ""}
-      onChange={(e) => switchProvider(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {availableProviders.map((p: any) => (
-        <option key={p.id} value={p.id}>{p.name}</option>
-      ))}
-    </select>
-  );
-}
 
 // ─── Sense Card ────────────────────────────────────────────────────────
 interface SenseCardProps {
@@ -316,6 +302,149 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
     ? (connectedProviderStr === 'youtube' ? 'YouTube' : 'YouTube Music') 
     : (entry.manifest.id === 'music' ? 'Public Search (yt-dlp)' : entry.manifest.description);
 
+  if (entry.manifest.id === 'music') {
+    return (
+      <div className={`rounded-2xl border transition-all duration-300 p-4 border-border/40 bg-foreground/[0.03] hover:border-border/60 hover:bg-foreground/[0.05]`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-xl">{entry.manifest.icon}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-foreground tracking-wide truncate">
+                  {entry.manifest.displayName}
+                </p>
+                <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot("connected")}`} />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                Dual Source Audio Engine
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-border/20 flex flex-col gap-3">
+          
+          {/* YouTube Section */}
+          <div className="flex items-center justify-between gap-2 bg-background/50 rounded-lg p-2.5 border border-border/30">
+            <div>
+              <p className="text-xs font-medium text-foreground">YouTube Music</p>
+              {connectedProviderStr ? (
+                <div className="mt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Check className="h-3 w-3 text-green-400" strokeWidth={2.5} />
+                    <span className="text-[10px] text-green-400/80 font-medium">Connected</span>
+                  </div>
+                  {providerEmail && <p className="text-[9px] text-muted-foreground mt-0.5">{providerEmail}</p>}
+                </div>
+              ) : (
+                <p className="text-[9px] text-muted-foreground mt-0.5">Account-linked streaming</p>
+              )}
+            </div>
+            <div>
+              {connectedProviderStr ? (
+                <button
+                  onClick={() => onOpenDisconnect(entry)}
+                  className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors border border-border/40 hover:border-border rounded-lg px-2.5 py-1.5"
+                >
+                  Log out
+                </button>
+              ) : (
+                <button
+                  onClick={() => onOpenExplanation(entry)}
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-foreground bg-foreground/10 hover:bg-foreground/20 border border-border/40 rounded-lg px-3 py-1.5 transition-all"
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* yt-dlp Section */}
+          {!connectedProviderStr && (
+            <div className="flex items-center justify-between gap-2 p-2.5">
+              <div>
+                <p className="text-xs font-medium text-foreground">Public Search (yt-dlp)</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Available without Google account</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Check className="h-3 w-3 text-foreground/40" strokeWidth={2.5} />
+                <span className="text-[10px] text-foreground/40 font-medium">Active</span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-1 flex flex-col gap-2">
+            {connectedProviderStr && (
+              <>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input 
+                    type="text" 
+                    placeholder="Search YouTube..."
+                    className="w-full bg-background border border-border/40 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:border-border transition-colors text-foreground placeholder:text-muted-foreground"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && searchQuery.trim()) {
+                        setIsSearching(true);
+                        const results = await musicService.search(searchQuery);
+                        setSearchResults(results);
+                        setIsSearching(false);
+                      }
+                    }}
+                  />
+                </div>
+                
+                {isSearching && <div className="text-center py-2"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" /></div>}
+                
+                {!isSearching && searchResults.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                    {searchResults.map((track) => (
+                      <button 
+                        key={track.id}
+                        onClick={() => {
+                          musicService.playTrack(track);
+                        }}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-foreground/5 transition-colors text-left group border border-transparent hover:border-border/20"
+                      >
+                        <div className="w-8 h-8 shrink-0 rounded bg-background overflow-hidden relative border border-border/40">
+                          {track.albumArt ? (
+                            <img src={track.albumArt} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-foreground/5 flex items-center justify-center">
+                              <Play className="w-3.5 h-3.5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                             <Play className="w-3.5 h-3.5 text-white" fill="white" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium text-foreground truncate">{track.title}</p>
+                          <p className="text-[9px] text-muted-foreground truncate">{track.artist || 'Unknown'}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            
+            {playerState.currentTrack && (
+              <div className="mt-2 pt-2 border-t border-border/10 flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-green-400 animate-pulse" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest">{playerState.isLoading ? 'RESOLVING...' : playerState.isPlaying ? 'PLAYING' : 'PAUSED'}</p>
+                  <p className="text-[10px] text-foreground truncate font-medium">{playerState.currentTrack.title}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`rounded-2xl border transition-all duration-300 p-4 ${
@@ -340,13 +469,13 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
               )}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-              {isComingSoon ? "Coming Soon" : isConnected ? providerName : entry.manifest.description}
+              {isComingSoon ? "Coming Soon" : isConnected ? "Active" : entry.manifest.description}
             </p>
           </div>
         </div>
 
         {/* Right: action */}
-        {!isComingSoon && (
+        {!isComingSoon && entry.manifest.providerRequirements && entry.manifest.providerRequirements.length > 0 && (
           <div className="shrink-0">
             {connectedProviderStr ? (
               <button
@@ -368,94 +497,17 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
       </div>
 
       {/* Connected status & Empty State Detail */}
-      {isConnected && (
+      {isConnected && !isComingSoon && (
         <div className="mt-3 pt-3 border-t border-border/20 flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Check className="h-3 w-3 text-green-400" strokeWidth={2.5} />
-              <span className="text-[10px] text-green-400/80 font-medium">
-                CONNECTED ✓
-              </span>
-            </div>
-            {entry.manifest.id === 'music' && <MusicProviderSwitcher />}
+          <div className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-green-400" strokeWidth={2.5} />
+            <span className="text-[10px] text-green-400/80 font-medium">
+              ACTIVE ✓
+            </span>
           </div>
           <p className="text-[10px] text-muted-foreground pl-5 mt-0.5">
-            {connectedProviderStr ? (
-              <>
-                Google account authorized.<br/>
-                {providerEmail && <span className="text-foreground/70">{providerEmail}</span>}
-              </>
-            ) : (
-              entry.manifest.id === 'music' ? 'Ready to play public streams.' : ''
-            )}
+            {entry.manifest.description}
           </p>
-          
-          {entry.manifest.id === 'music' && (
-            <div className="mt-3 flex flex-col gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  placeholder="Search music..." 
-                  className="w-full bg-background border border-border/40 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:border-border transition-colors text-foreground placeholder:text-muted-foreground"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter' && searchQuery.trim()) {
-                      setIsSearching(true);
-                      const results = await musicService.search(searchQuery);
-                      setSearchResults(results);
-                      setIsSearching(false);
-                    }
-                  }}
-                />
-              </div>
-              
-              {isSearching && <div className="text-center py-2"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" /></div>}
-              
-              {!isSearching && searchResults.length > 0 && (
-                <div className="flex flex-col gap-1.5 mt-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {searchResults.map((track) => (
-                    <button 
-                      key={track.id}
-                      onClick={() => {
-                        musicService.playTrack(track);
-                      }}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-foreground/5 transition-colors text-left group border border-transparent hover:border-border/20"
-                    >
-                      <div className="w-8 h-8 shrink-0 rounded bg-background overflow-hidden relative border border-border/40">
-                        {track.albumArt ? (
-                          <img src={track.albumArt} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-foreground/5 flex items-center justify-center">
-                            <Play className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                           <Play className="w-3.5 h-3.5 text-white" fill="white" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium text-foreground truncate">{track.title}</p>
-                        <p className="text-[9px] text-muted-foreground truncate">{track.artist || 'Unknown'}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {/* Current Playback Status snippet */}
-              {playerState.currentTrack && (
-                <div className="mt-2 pt-2 border-t border-border/10 flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-green-400 animate-pulse" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest">{playerState.isLoading ? 'RESOLVING...' : playerState.isPlaying ? 'PLAYING' : 'PAUSED'}</p>
-                    <p className="text-[10px] text-foreground truncate font-medium">{playerState.currentTrack.title}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
       
@@ -463,7 +515,7 @@ function SenseCard({ entry, onOpenExplanation, onOpenDisconnect }: SenseCardProp
       {!isConnected && health.status === "error" && (
         <div className="mt-3 pt-3 border-t border-red-500/20 flex flex-col gap-1">
           <p className="text-[10px] text-red-400 pl-1">
-            Couldn't connect. Google authorization failed.
+            Couldn't start perception service.
           </p>
         </div>
       )}
@@ -509,6 +561,8 @@ export function SensePanel({ isOpen, onClose }: SensePanelProps) {
         const { youtubeProvider, youtubeMusicProvider } = await import('@/music/providers/GoogleMusicProvider');
         const provider = providerId === 'youtube' ? youtubeProvider : youtubeMusicProvider;
         await provider.connect();
+        await musicService.switchProvider(providerId);
+        window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
       } else {
         await manager.connectSense(targetId);
       }
@@ -528,6 +582,8 @@ export function SensePanel({ isOpen, onClose }: SensePanelProps) {
       const connectedProvider = localStorage.getItem('aura_music_connected_provider');
       const provider = connectedProvider === 'youtube' ? youtubeProvider : youtubeMusicProvider;
       await provider.disconnect();
+      await musicService.switchProvider('ytdlp');
+      window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
     } else {
       await manager.disconnectSense(targetId);
     }

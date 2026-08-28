@@ -16,6 +16,7 @@
 
 import { memoryGateway } from "@/lib/memory-gateway";
 import { playbackState } from "@/music/PlaybackState";
+import { MusicIntentPayload } from "@/music/types";
 
 export type AuraActionName = "saveMemory" | "playYouTubeMusic" | "stopYouTubeMusic";
 
@@ -48,7 +49,7 @@ Now playing: "${title}" by ${artist} (${status})
 }
 
 function sendMusicIntent(
-  intent: { type: "play"; query: string } | { type: "stop" },
+  intent: ({ type: "play" } & MusicIntentPayload) | { type: "stop" },
 ): Promise<void> {
   return import("@/music/MusicService").then(({ musicService }) =>
     musicService.processIntent(intent),
@@ -95,31 +96,54 @@ export async function executeAuraAction(
 
     case "playYouTubeMusic": {
       const query = typeof args.query === "string" ? args.query.trim() : "";
-      if (!query) {
-        return { ok: false, result: "Cannot play music: no search query was provided." };
+      const mood = typeof args.mood === "string" ? args.mood.trim() : undefined;
+      const energy = typeof args.energy === "string" ? args.energy.trim() : undefined;
+      const genre = typeof args.genre === "string" ? args.genre.trim() : undefined;
+      const activity = typeof args.activity === "string" ? args.activity.trim() : undefined;
+      const intentValue = typeof args.intent === "string" ? args.intent.trim() : undefined;
+
+      if (!query && !mood && !genre && !activity && intentValue !== 'similar') {
+        return { ok: false, result: "Cannot play music: no search criteria provided." };
       }
 
-      // Fire asynchronously to not block the Gemini response
-      sendMusicIntent({ type: "play", query }).catch((e) => {
-        console.warn("[AuraActions] play failed:", e);
-      });
-
-      return {
-        ok: true,
-        result: `Successfully initiated playback for "${query}". The music is starting now.`,
-      };
+      // Await the music intent so we capture actual success/failure
+      try {
+        await sendMusicIntent({ 
+          type: "play", 
+          query, 
+          mood, 
+          energy, 
+          genre, 
+          activity, 
+          intent: intentValue as any 
+        });
+        return {
+          ok: true,
+          result: `Successfully initiated playback. The music is starting now.`,
+        };
+      } catch (e: any) {
+        console.error("[AuraActions] play failed:", e);
+        return {
+          ok: false,
+          result: `I couldn't start the music because the music service is unavailable or the search failed. Error: ${e.message || "Unknown error"}`,
+        };
+      }
     }
 
     case "stopYouTubeMusic": {
-      // Fire asynchronously
-      sendMusicIntent({ type: "stop" }).catch((e) => {
-        console.warn("[AuraActions] stop failed:", e);
-      });
-
-      return {
-        ok: true,
-        result: "Music stopped.",
-      };
+      try {
+        await sendMusicIntent({ type: "stop" });
+        return {
+          ok: true,
+          result: "Music stopped.",
+        };
+      } catch (e: any) {
+        console.error("[AuraActions] stop failed:", e);
+        return {
+          ok: false,
+          result: `Failed to stop music: ${e.message || "Unknown error"}`,
+        };
+      }
     }
   }
 }

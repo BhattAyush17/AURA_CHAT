@@ -18,7 +18,7 @@ export class SessionLifecycleManager {
            isSpeaking: act.isSpeaking,
            isThinking: act.isThinking,
            isUserSpeaking: act.isActiveVoice,
-           isRecovering: false,
+           isRecovering: act.status === "connecting" || act.status === "reconnecting" || act.status === "disconnecting" || !!act.isRecovering,
            isBackgrounded: typeof document !== "undefined" ? document.visibilityState === "hidden" : false
          };
        },
@@ -48,6 +48,11 @@ export class SessionLifecycleManager {
          } catch (e) {
            console.warn("[LifecycleManager] Failed to trigger consolidation", e);
          }
+         
+         // Explicitly release microphone on idle timeout
+         import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+           MicrophoneCoordinator.getInstance().releaseMicrophone();
+         });
          
          endSession();
        }

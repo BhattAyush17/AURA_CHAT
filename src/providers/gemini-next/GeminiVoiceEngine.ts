@@ -146,6 +146,7 @@ export class GeminiVoiceEngine {
     } catch (err: any) {
       this.updateState("ERROR");
       this.events.onError?.(err);
+      this.stop();
       throw err;
     }
   }

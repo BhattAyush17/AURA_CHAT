@@ -132,6 +132,7 @@ export function useGeminiVoiceAdapter(options: {
 
     const engine = new GeminiVoiceEngine(config, {
       onStateChange: (state: GeminiSessionState) => {
+        console.log(`[GeminiVoiceAdapter] Engine state transitioned to: ${state}`);
         switch (state) {
           case "IDLE": setStatus("idle"); break;
           case "CONNECTING": setStatus(isRecovery ? "reconnecting" : "connecting"); break;
@@ -144,7 +145,9 @@ export function useGeminiVoiceAdapter(options: {
               recoveryAttemptsRef.current = 0;
             }, 30000);
             break;
-          case "ERROR": setStatus("error"); break;
+          case "ERROR": 
+            setStatus("error"); 
+            break;
           case "CLOSED": 
             setStatus("idle"); 
             watchdogRef.current?.stop();
@@ -329,7 +332,16 @@ function classifyError(milestoneId: string, message: string): ReadinessErrorCode
   if (lower.includes("audiocontext") || lower.includes("audio context")) {
     return "AUDIO_CONTEXT_FAILED";
   }
-  if (lower.includes("billing") || lower.includes("1008") || lower.includes("prepaid")) {
+  if (
+    lower.includes("billing") ||
+    lower.includes("1008") ||
+    lower.includes("prepaid") ||
+    lower.includes("credential") ||
+    lower.includes("authentication") ||
+    lower.includes("api key") ||
+    lower.includes("apikey") ||
+    lower.includes("auth")
+  ) {
     return "GEMINI_CONNECTION_FAILED";
   }
 

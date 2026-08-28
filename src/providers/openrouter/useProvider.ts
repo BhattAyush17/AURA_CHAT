@@ -1090,9 +1090,17 @@ export function useOpenRouter(mode: string = "adaptive") {
                       textBuffer = textBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
                         try {
                           const data = JSON.parse(match);
-                          if (data.user_query) {
+                          if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
                             import("@/music/MusicService").then(({ musicService }) => {
-                              musicService.processIntent({ type: "play", query: data.user_query });
+                              musicService.processIntent({ 
+                                type: "play", 
+                                query: data.query || data.user_query,
+                                mood: data.mood,
+                                energy: data.energy,
+                                genre: data.genre,
+                                activity: data.activity,
+                                intent: data.intent
+                              });
                             });
                           }
                         } catch (e) { }

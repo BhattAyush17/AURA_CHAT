@@ -1569,7 +1569,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'extract_flat': False,
             'quiet': True,
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
-            'js_runtimes': ['node']
+            'js_runtimes': {'node': {}}
         }
         import os
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
@@ -1618,7 +1618,7 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
             'extract_flat': False,
             'quiet': True,
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
-            'js_runtimes': ['node']
+            'js_runtimes': {'node': {}}
         }
 
         import os
@@ -1714,7 +1714,7 @@ async def diagnostic_ytmusic():
                 'quiet': True,
                 'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
                 'cookiefile': cookie_path,
-                'js_runtimes': ['node']
+                'js_runtimes': {'node': {}}
             }
             result = {}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

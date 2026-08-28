@@ -16,6 +16,7 @@ import { MiniPlayer } from "@/components/MiniPlayer";
 import { ProviderSelector } from "@/components/ProviderSelector";
 import { SensePanel } from "@/sense/SensePanel";
 import { RuntimeDiagnosticsDrawer } from "@/components/diagnostics/RuntimeDiagnosticsDrawer";
+import { MicrophoneCoordinator } from "@/audioRuntime/MicrophoneCoordinator";
 
 import { MusicPlayer } from "@/music/components/MusicPlayer";
 import { musicService } from "@/music/MusicService";
@@ -222,6 +223,7 @@ function AuraExperience() {
     } else {
       console.log("[AURA] 🖱️ Ending session...");
       endSession();
+      MicrophoneCoordinator.getInstance().releaseMicrophone();
     }
   }, [status, startSession, endSession, hasActiveBrainCredentials, activeBrain]);
 
@@ -273,6 +275,7 @@ function AuraExperience() {
                 if (status !== "idle") {
                   endSession();
                 }
+                MicrophoneCoordinator.getInstance().releaseMicrophone();
               }}
               status={status}
               endSession={endSession}

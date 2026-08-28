@@ -23,14 +23,53 @@ export class YouTubeSearchProvider implements SearchProvider {
         if (res.ok) {
           const data = await res.json();
           if (data.items && data.items.length > 0) {
-            return data.items.map((item: any) => ({
-              id: item.id.videoId,
-              title: item.snippet.title,
-              artist: item.snippet.channelTitle,
-              albumArt: item.snippet.thumbnails.default.url,
-              durationMs: 0,
-              source: 'youtube'
+            console.log(`[MUSIC_SEARCH] YouTube result videoId=${data.items[0].id.videoId}`);
+            const resolveEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/resolve');
+            
+            const resolvedItems = await Promise.all(data.items.map(async (item: any) => {
+              const videoId = item.id.videoId;
+              let audioUrl: string | undefined = undefined;
+              
+              try {
+                console.log(`[MUSIC_RESOLVE] Resolving videoId=${videoId}`);
+                const resolveRes = await fetch(`${resolveEndpoint}?video_id=${encodeURIComponent(videoId)}`);
+                if (resolveRes.ok) {
+                  const resolveData = await resolveRes.json();
+                  if (!resolveData.error && resolveData.audio_stream_url) {
+                    audioUrl = resolveData.audio_stream_url;
+                    if (audioUrl && audioUrl.includes('googlevideo.com')) {
+                      const proxyBase = ENDPOINTS.health.replace('/health', '/api/ytmusic/proxy');
+                      let proxyUrl = `${proxyBase}?url=${encodeURIComponent(audioUrl)}`;
+                      if (resolveData.http_headers) {
+                        proxyUrl += `&h=${encodeURIComponent(btoa(JSON.stringify(resolveData.http_headers)))}`;
+                      }
+                      audioUrl = proxyUrl;
+                    }
+                    console.log(`[MUSIC_RESOLVE] audio stream acquired for videoId=${videoId}`);
+                  }
+                }
+              } catch (resolveErr) {
+                console.warn(`[MUSIC_ERROR] Backend resolution failed for ${videoId}:`, resolveErr);
+              }
+              
+              return {
+                id: videoId,
+                title: item.snippet.title,
+                artist: item.snippet.channelTitle,
+                albumArt: item.snippet.thumbnails.default.url,
+                durationMs: 0,
+                source: 'youtube',
+                url: audioUrl
+              };
             }));
+            
+            const playableItems = resolvedItems.filter(item => item.url);
+            if (playableItems.length > 0) {
+              console.log(`[MUSIC_TRACK] playable=true`);
+              return playableItems as Track[];
+            } else {
+              console.warn("[MUSIC_ERROR] Couldn't get an audio stream for this track.");
+            }
           }
         }
       } catch (e) {
@@ -41,27 +80,39 @@ export class YouTubeSearchProvider implements SearchProvider {
     // 2. Try Backend yt-dlp proxy
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 20000); // Increased timeout to 20s
       const searchEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/search');
       const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, { signal: controller.signal });
       clearTimeout(timeout);
       
       if (res.ok) {
         const data = await res.json();
-        if (!data.error && data.youtube_id) {
+        if (!data.error && data.youtube_id && data.audio_stream_url) {
+          let finalUrl = data.audio_stream_url;
+          if (finalUrl.includes('googlevideo.com')) {
+            const proxyBase = ENDPOINTS.health.replace('/health', '/api/ytmusic/proxy');
+            let proxyUrl = `${proxyBase}?url=${encodeURIComponent(finalUrl)}`;
+            if (data.http_headers) {
+              proxyUrl += `&h=${encodeURIComponent(btoa(JSON.stringify(data.http_headers)))}`;
+            }
+            finalUrl = proxyUrl;
+          }
+
           return [{
             id: data.youtube_id,
             title: data.title || query,
             artist: data.artist || "Unknown Artist",
             albumArt: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
             durationMs: (data.duration || 0) * 1000,
-            url: data.audio_stream_url || `https://www.youtube.com/watch?v=${data.youtube_id}`,
+            url: finalUrl,
             source: 'youtube'
           }];
+        } else if (data.error) {
+          console.warn(`[MUSIC_ERROR] Backend error: ${data.message}`);
         }
       }
-    } catch (err) {
-      console.warn("[YouTubeSearchProvider] Backend search failed, falling back to Invidious:", err);
+    } catch (err: any) {
+      console.warn("[YouTubeSearchProvider] Backend search failed:", err.name === 'AbortError' ? 'Timeout after 20s' : err);
     }
 
     // 3. Try Invidious Public API
