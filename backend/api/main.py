@@ -1554,6 +1554,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'default_search': 'ytsearch',
             'extract_flat': False,
             'quiet': True,
+            'extractor_args': {'youtube': ['player_client=android']}
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch1:{q}", download=False)
@@ -1596,6 +1597,7 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
             'noplaylist': True,
             'extract_flat': False,
             'quiet': True,
+            'extractor_args': {'youtube': ['player_client=android']}
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
