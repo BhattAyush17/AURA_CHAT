@@ -1554,7 +1554,6 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'default_search': 'ytsearch',
             'extract_flat': False,
             'quiet': True,
-            'source_address': '0::0',
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1598,7 +1597,6 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
             'noplaylist': True,
             'extract_flat': False,
             'quiet': True,
-            'source_address': '0::0',
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1623,6 +1621,30 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
     except Exception as e:
         log.error("ytmusic_resolve_failed", error=str(e))
         return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
+
+@app.get("/api/ytmusic/diagnostic")
+async def diagnostic_ytmusic():
+    import subprocess
+    import sys
+    try:
+        import yt_dlp
+        y_ver = yt_dlp.version.__version__
+    except:
+        y_ver = "Not installed"
+    
+    def run_cmd(cmd):
+        try:
+            return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, text=True).strip()
+        except Exception as e:
+            return str(e)
+            
+    return {
+        "python_version": sys.version,
+        "yt_dlp_version": y_ver,
+        "node_v": run_cmd("node -v"),
+        "deno_v": run_cmd("deno -V"),
+        "quickjs": run_cmd("qjs -h | head -n 1")
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
