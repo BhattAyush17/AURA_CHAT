@@ -77,9 +77,13 @@ export class MusicService {
     localStorage.setItem('aura_music_connected_provider', providerId);
   }
 
+  private currentIntentId: number = 0;
+
   // --- Coordination: Aura Intelligence Entry Points ---
   async processIntent(intent: ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload>) | { type: "pause" | "resume" | "stop" | "next" | "previous" }) {
     console.log(`[MusicService] Processing intent:`, intent);
+    const intentId = ++this.currentIntentId;
+
     switch (intent.type) {
       case "play":
         const playIntent = intent as ({ type: "play" } & Partial<MusicIntentPayload>);
@@ -98,6 +102,10 @@ export class MusicService {
 
         if (finalQuery) {
           const results = await this.search(finalQuery);
+          if (this.currentIntentId !== intentId) {
+             console.log(`[MusicService] Stale play intent ignored for query: ${finalQuery}`);
+             return;
+          }
           if (results.length > 0) {
             const bestTrack = this.rankTracks(results, playIntent);
             await this.playTrack(bestTrack);
