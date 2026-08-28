@@ -400,6 +400,20 @@ SESSION_TTL_HOURS = 2
 # ═══════════════════════════════════════════════════════════════════
 
 @app.on_event("startup")
+async def cookie_diagnostic_startup():
+    import os
+    cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
+    exists = os.path.exists(cookie_path)
+    is_file = os.path.isfile(cookie_path) if exists else False
+    size = os.path.getsize(cookie_path) if exists else 0
+    readable = os.access(cookie_path, os.R_OK) if exists else False
+    print(f"\n[AURA COOKIE DIAGNOSTIC]")
+    print(f"exists={str(exists).lower()}")
+    print(f"is_file={str(is_file).lower()}")
+    print(f"size={size}")
+    print(f"readable={str(readable).lower()}\n")
+
+@app.on_event("startup")
 async def start_cleanup_task():
     asyncio.create_task(cleanup_expired_sessions())
 
@@ -1648,13 +1662,64 @@ async def diagnostic_ytmusic():
         except Exception as e:
             return str(e)
             
+    import os
+    cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
+    exists = os.path.exists(cookie_path)
+    is_file = os.path.isfile(cookie_path) if exists else False
+    size = os.path.getsize(cookie_path) if exists else 0
+    readable = os.access(cookie_path, os.R_OK) if exists else False
+    
+    diagnostic = {
+        "exists": exists,
+        "is_file": is_file,
+        "size": size,
+        "readable": readable
+    }
+    
+    test_result = None
+    if exists and is_file and readable:
+        def extract_test(query: str):
+            try:
+                import yt_dlp
+            except ImportError:
+                return {"error": "yt-dlp missing"}
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'noplaylist': True,
+                'default_search': 'ytsearch',
+                'extract_flat': False,
+                'quiet': True,
+                'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
+                'cookiefile': cookie_path
+            }
+            result = {}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+                    if 'entries' in info and len(info['entries']) > 0:
+                        entry = info['entries'][0]
+                        result = {
+                            "query": query,
+                            "video_id": entry.get('id'),
+                            "audio_stream_url": entry.get('url'),
+                            "failure_reason": None,
+                        }
+                    else:
+                        result = {"failure_reason": "No entries found in ytsearch"}
+                except Exception as e:
+                    result = {"failure_reason": str(e)}
+            return result
+        
+        import asyncio
+        test_result = await asyncio.to_thread(extract_test, "Counting Stars OneRepublic")
+
     return {
         "python_version": sys.version,
         "yt_dlp_version": y_ver,
-        "node_v": run_cmd("node -v"),
-        "deno_v": run_cmd("deno -V"),
-        "quickjs": run_cmd("qjs -h | head -n 1")
+        "cookie_diagnostic": diagnostic,
+        "extraction_test": test_result
     }
+
 
 
 # ═══════════════════════════════════════════════════════════════════
