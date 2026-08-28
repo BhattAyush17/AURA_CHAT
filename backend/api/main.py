@@ -1556,6 +1556,11 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'quiet': True,
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
         }
+        import os
+        cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
+        if os.path.exists(cookie_path):
+            ydl_opts['cookiefile'] = cookie_path
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch1:{q}", download=False)
             if 'entries' in info and len(info['entries']) > 0:
@@ -1599,6 +1604,11 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
             'quiet': True,
             'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
         }
+        import os
+        cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
+        if os.path.exists(cookie_path):
+            ydl_opts['cookiefile'] = cookie_path
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
             if info:
