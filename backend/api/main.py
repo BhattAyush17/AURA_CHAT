@@ -1528,6 +1528,7 @@ class YTMusicSearchResponse(BaseModel):
     thumbnail: Optional[str] = None
     youtube_id: Optional[str] = None
     audio_stream_url: Optional[str] = None
+    http_headers: Optional[Dict[str, str]] = None
     source: str = "youtube"
     error: bool = False
     message: Optional[str] = None
@@ -1542,14 +1543,10 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         try:
             import yt_dlp
         except ImportError:
-            # Fallback mock for testing in restricted environments if yt_dlp is missing
+            # Missing dependency causes explicit backend error
             return {
-                "title": q,
-                "artist": "Unknown",
-                "duration": 180,
-                "thumbnail": "",
-                "youtube_id": "mock_id",
-                "audio_stream_url": "mock_url"
+                "error": True,
+                "message": "yt-dlp dependency missing on backend"
             }
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -1569,6 +1566,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
                     "thumbnail": entry.get('thumbnail'),
                     "youtube_id": entry.get('id'),
                     "audio_stream_url": entry.get('url'),
+                    "http_headers": entry.get('http_headers', {}),
                 }
             return None
 
@@ -1582,6 +1580,47 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
 
 
+@app.get("/api/ytmusic/resolve", response_model=YTMusicSearchResponse)
+async def resolve_ytmusic(video_id: str, request: Request, response: Response):
+    import asyncio
+    client_ip = request.client.host if request.client else "unknown"
+    await apply_rate_limit(f"ytmusic_resolve:{client_ip}", 30, response)
+    
+    def extract_with_ytdlp(vid: str):
+        try:
+            import yt_dlp
+        except ImportError:
+            return None
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'extract_flat': False,
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
+            if info:
+                return {
+                    "title": info.get('title'),
+                    "artist": info.get('uploader'),
+                    "duration": info.get('duration'),
+                    "thumbnail": info.get('thumbnail'),
+                    "youtube_id": info.get('id'),
+                    "audio_stream_url": info.get('url'),
+                    "http_headers": info.get('http_headers', {}),
+                }
+            return None
+
+    try:
+        result = await asyncio.to_thread(extract_with_ytdlp, video_id)
+        if result and result.get("audio_stream_url"):
+            return YTMusicSearchResponse(**result)
+        return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
+    except Exception as e:
+        log.error("ytmusic_resolve_failed", error=str(e))
+        return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
+
+
 # ═══════════════════════════════════════════════════════════════════
 # AUDIO PROXY — Streams YouTube audio through the backend to bypass
 # browser CORS restrictions on googlevideo.com URLs.
@@ -1593,46 +1632,83 @@ from urllib.parse import quote, unquote
 _audio_url_cache: dict[str, tuple[str, float]] = {}
 
 @app.get("/api/ytmusic/proxy")
-async def proxy_audio(url: str, request: Request, response: Response):
-    """Proxy an audio stream URL to bypass CORS restrictions."""
+async def proxy_audio(url: str, request: Request, response: Response, h: Optional[str] = None):
+    """Stream an audio URL through the backend to bypass CORS restrictions on googlevideo.com."""
     import httpx
-    import time
+    import json
+    import base64
+    from fastapi.responses import StreamingResponse
 
     decoded_url = unquote(url)
-    
+
     # Validate URL is from a trusted source
     if not any(domain in decoded_url for domain in ["googlevideo.com", "youtube.com", "ytimg.com"]):
         return Response(content="Forbidden", status_code=403)
 
-    # Forward range headers for seeking support
-    headers = {}
+    # Build upstream headers: start with yt-dlp http_headers if provided
+    upstream_headers: dict = {}
+    if h:
+        try:
+            decoded_h = base64.b64decode(unquote(h)).decode('utf-8')
+            parsed_headers = json.loads(decoded_h)
+            if isinstance(parsed_headers, dict):
+                upstream_headers.update(parsed_headers)
+        except Exception as e:
+            log.warning("audio_proxy_header_decode_failed", error=str(e))
+
+    # Forward Range header from browser so seek works
     range_header = request.headers.get("range")
     if range_header:
-        headers["Range"] = range_header
+        upstream_headers["Range"] = range_header
 
+    async def generate_stream():
+        """Generator that owns the entire httpx client and stream lifetime."""
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(15.0, read=120.0)) as client:
+                async with client.stream("GET", decoded_url, headers=upstream_headers) as upstream:
+                    async for chunk in upstream.aiter_bytes(chunk_size=65536):
+                        yield chunk
+        except Exception as e:
+            log.error("audio_proxy_stream_failed", error=str(e))
+
+    # Probe upstream headers cheaply before streaming
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            upstream = await client.get(decoded_url, headers=headers)
-            
-            response_headers = {
-                "Content-Type": upstream.headers.get("Content-Type", "audio/webm"),
-                "Accept-Ranges": "bytes",
-                "Access-Control-Allow-Origin": "*",
-            }
-            
-            if "Content-Length" in upstream.headers:
-                response_headers["Content-Length"] = upstream.headers["Content-Length"]
-            if "Content-Range" in upstream.headers:
-                response_headers["Content-Range"] = upstream.headers["Content-Range"]
-            
-            return Response(
-                content=upstream.content,
-                status_code=upstream.status_code,
-                headers=response_headers,
-            )
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as probe_client:
+            try:
+                probe = await probe_client.head(decoded_url, headers=upstream_headers)
+                status_code = probe.status_code
+                content_type = probe.headers.get("Content-Type", "audio/webm")
+                content_length = probe.headers.get("Content-Length")
+                content_range = probe.headers.get("Content-Range")
+            except Exception:
+                status_code = 200
+                content_type = "audio/webm"
+                content_length = None
+                content_range = None
     except Exception as e:
         log.error("audio_proxy_failed", error=str(e))
         return Response(content="Proxy error", status_code=502)
+
+    if status_code not in (200, 206, 405):
+        log.error("audio_proxy_upstream_error", status=status_code, url=decoded_url[:80])
+        return Response(content=f"Upstream error {status_code}", status_code=502)
+
+    response_headers: dict = {
+        "Content-Type": content_type,
+        "Accept-Ranges": "bytes",
+        "Access-Control-Allow-Origin": "*",
+    }
+    if content_length:
+        response_headers["Content-Length"] = content_length
+    if content_range:
+        response_headers["Content-Range"] = content_range
+
+    return StreamingResponse(
+        generate_stream(),
+        status_code=200,
+        headers=response_headers,
+        media_type=content_type,
+    )
 
 
 if __name__ == "__main__":
