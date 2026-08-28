@@ -1574,10 +1574,10 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         result = await asyncio.to_thread(extract_with_ytdlp, query)
         if result:
             return YTMusicSearchResponse(**result)
-        return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
+        return YTMusicSearchResponse(error=True, message="Unable to find playable audio. No result.")
     except Exception as e:
         log.error("ytmusic_search_failed", error=str(e))
-        return YTMusicSearchResponse(error=True, message="Unable to find playable audio.")
+        return YTMusicSearchResponse(error=True, message=f"yt-dlp Error: {str(e)}")
 
 
 @app.get("/api/ytmusic/resolve", response_model=YTMusicSearchResponse)
