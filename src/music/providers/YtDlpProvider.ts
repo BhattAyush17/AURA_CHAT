@@ -19,7 +19,7 @@ export class YtDlpProvider implements MusicProvider {
     console.log(`[YtDlpProvider] 🔍 Searching: "${query}"`);
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000); // Increased timeout to 20s
+      const timeout = setTimeout(() => controller.abort(), 45000); // Increased timeout to 45s
       const searchEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/search');
       const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, { signal: controller.signal });
       clearTimeout(timeout);
