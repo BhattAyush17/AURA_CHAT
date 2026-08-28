@@ -1568,7 +1568,8 @@ async def search_ytmusic(query: str, request: Request, response: Response):
             'default_search': 'ytsearch',
             'extract_flat': False,
             'quiet': True,
-            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
+            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
+            'js_runtimes': ['node']
         }
         import os
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
@@ -1616,8 +1617,10 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
             'noplaylist': True,
             'extract_flat': False,
             'quiet': True,
-            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']}
+            'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
+            'js_runtimes': ['node']
         }
+
         import os
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
         if os.path.exists(cookie_path):
@@ -1669,6 +1672,26 @@ async def diagnostic_ytmusic():
     size = os.path.getsize(cookie_path) if exists else 0
     readable = os.access(cookie_path, os.R_OK) if exists else False
     
+    # Check yt-dlp-ejs presence
+    try:
+        import yt_dlp_plugins.extractor.ejs
+        ejs_present = True
+    except ImportError:
+        try:
+            import py_mini_racer
+            ejs_present = True # sometimes just using py_mini_racer is enough, but user asked for yt-dlp-ejs
+        except:
+            ejs_present = False
+            
+    try:
+        import importlib.util
+        if importlib.util.find_spec("yt_dlp_plugins.extractor.ejs") or importlib.util.find_spec("yt_dlp_ejs"):
+            ejs_present = True
+    except:
+        pass
+
+    node_version = run_cmd("node -v")
+    
     diagnostic = {
         "exists": exists,
         "is_file": is_file,
@@ -1690,7 +1713,8 @@ async def diagnostic_ytmusic():
                 'extract_flat': False,
                 'quiet': True,
                 'extractor_args': {'youtube': ['player_client=ios,android,web_creator']},
-                'cookiefile': cookie_path
+                'cookiefile': cookie_path,
+                'js_runtimes': ['node']
             }
             result = {}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1698,10 +1722,16 @@ async def diagnostic_ytmusic():
                     info = ydl.extract_info(f"ytsearch1:{query}", download=False)
                     if 'entries' in info and len(info['entries']) > 0:
                         entry = info['entries'][0]
+                        url = entry.get('url')
+                        domain = None
+                        if url:
+                            from urllib.parse import urlparse
+                            domain = urlparse(url).netloc
                         result = {
                             "query": query,
                             "video_id": entry.get('id'),
-                            "audio_stream_url": entry.get('url'),
+                            "audio_stream_url": bool(url),
+                            "media_domain": domain,
                             "failure_reason": None,
                         }
                     else:
@@ -1716,6 +1746,8 @@ async def diagnostic_ytmusic():
     return {
         "python_version": sys.version,
         "yt_dlp_version": y_ver,
+        "yt_dlp_ejs_present": ejs_present,
+        "node_version": node_version,
         "cookie_diagnostic": diagnostic,
         "extraction_test": test_result
     }
