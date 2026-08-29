@@ -54,7 +54,9 @@ export function MiniPlayer() {
     seek,
     setVolume,
     availableProviders,
-    switchProvider
+    switchProvider,
+    audioUnlockState,
+    unlockAudio
   } = useMusicPlayer();
 
   const [expanded, setExpanded] = useState(true);
@@ -144,7 +146,34 @@ export function MiniPlayer() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25 }}
             className="mini-player-expanded"
+            style={{ position: 'relative' }}
           >
+            {audioUnlockState === "blocked" && (
+              <div 
+                className="mini-player-unlock-overlay" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  unlockAudio();
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.85)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 100,
+                  cursor: 'pointer',
+                  borderRadius: 'inherit'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <Play className="w-6 h-6" fill="currentColor" />
+                  <span className="mini-player-title" style={{ fontSize: '13px' }}>Tap to enable music</span>
+                </div>
+              </div>
+            )}
             {/* Header */}
             <div className="mini-player-header">
               <div className="mini-player-header-left">

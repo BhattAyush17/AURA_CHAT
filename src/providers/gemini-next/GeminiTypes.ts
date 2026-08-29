@@ -28,6 +28,8 @@ export interface VoiceEngineEvents {
   onUsageMetadata?: (meta: any) => void;
   onMilestone?: (id: MilestoneId, status: "in_progress" | "complete" | "failed", error?: string) => void;
   onGoAway?: () => void;
+  onAuraSpeechStart?: () => void;
+  onUserSpeechDetected?: () => void;
 }
 
 export interface VoiceTelemetry {

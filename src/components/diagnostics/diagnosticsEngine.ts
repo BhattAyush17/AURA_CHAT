@@ -11,6 +11,7 @@
  */
 
 // ─── Types ──────────────────────────────────────────────────────────
+import { AudioEnvironment, detectAudioEnvironment } from "../../audioRuntime/AudioEnvironment";
 
 export interface DeviceInfo {
   browser: string;
@@ -36,6 +37,9 @@ export interface MicrophoneInfo {
   sampleRate: number | null;
   channelCount: number | null;
   label: string | null;
+  echoCancellation: boolean | null;
+  noiseSuppression: boolean | null;
+  autoGainControl: boolean | null;
 }
 
 export interface AudioContextInfo {
@@ -80,6 +84,7 @@ export interface DiagnosticSnapshot {
   timestamp: number;
   version: string;
   device: DeviceInfo;
+  audioEnvironment: AudioEnvironment;
   microphone: MicrophoneInfo;
   audio: AudioContextInfo;
   speech: SpeechRecognitionInfo;
@@ -147,6 +152,7 @@ export async function probeMicrophone(): Promise<MicrophoneInfo> {
   const base: MicrophoneInfo = {
     supported: false, permission: "unknown", stream: false,
     failureReason: null, sampleRate: null, channelCount: null, label: null,
+    echoCancellation: null, noiseSuppression: null, autoGainControl: null
   };
 
   try {
@@ -176,6 +182,9 @@ export async function probeMicrophone(): Promise<MicrophoneInfo> {
       base.sampleRate = settings.sampleRate ?? null;
       base.channelCount = settings.channelCount ?? null;
       base.label = track.label || null;
+      base.echoCancellation = settings.echoCancellation ?? null;
+      base.noiseSuppression = settings.noiseSuppression ?? null;
+      base.autoGainControl = settings.autoGainControl ?? null;
       // Release immediately — don't hold the mic open
       track.stop();
     }
@@ -346,6 +355,7 @@ export function computeCompatibility(
 
 export async function runFullDiagnostics(): Promise<DiagnosticSnapshot> {
   const device = probeDevice();
+  const audioEnvironment = await detectAudioEnvironment();
   const [microphone, websocket, playback] = await Promise.all([
     probeMicrophone(),
     probeWebSocket(),
@@ -360,6 +370,7 @@ export async function runFullDiagnostics(): Promise<DiagnosticSnapshot> {
     timestamp: Date.now(),
     version: "1.0.0",
     device,
+    audioEnvironment,
     microphone,
     audio,
     speech,

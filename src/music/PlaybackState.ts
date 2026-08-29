@@ -17,6 +17,8 @@ export class PlaybackState {
     queue: [],
     history: [],
     providerId: null,
+    audioUnlockState: "unknown",
+    pendingTrack: null,
   };
 
   getState(): PlaybackStateData {

@@ -48,6 +48,26 @@ export class ReflectionEngine {
     warmthBias: 0, // >0 → lean warmer
   };
 
+  constructor() {
+    try {
+      const saved = localStorage.getItem("aura_reflection_weights");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.clarifyBias === "number") this.weights.clarifyBias = parsed.clarifyBias;
+        if (typeof parsed.brevityBias === "number") this.weights.brevityBias = parsed.brevityBias;
+        if (typeof parsed.warmthBias === "number") this.weights.warmthBias = parsed.warmthBias;
+      }
+    } catch (e) {
+      console.warn("Failed to load reflection weights", e);
+    }
+  }
+  
+  private saveWeights() {
+    try {
+      localStorage.setItem("aura_reflection_weights", JSON.stringify(this.weights));
+    } catch (e) {}
+  }
+
   reflect(outcome: TurnOutcome): ReflectionResult {
     const signals: ReflectionSignal[] = [];
     const notes: string[] = [];
@@ -143,6 +163,10 @@ export class ReflectionEngine {
     if (outcome.userReactedNegatively && plan.tone.warmth < 0.5) {
       this.weights.warmthBias = Math.min(1, this.weights.warmthBias + 0.05);
       adjustments.warmthBias = this.weights.warmthBias;
+    }
+
+    if (Object.keys(adjustments).length > 0) {
+      this.saveWeights();
     }
 
     return { signals, adjustments, notes };

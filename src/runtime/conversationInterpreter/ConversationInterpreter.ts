@@ -11,6 +11,8 @@ import type { HumanState } from "../humanState/HumanStateTypes";
 import { AdaptiveCommunicationAnalyzer } from "../language/AdaptiveCommunicationAnalyzer";
 import type { AdaptiveCommunicationProfile } from "../language/AdaptiveCommunicationProfile";
 import type { ExecutionPlan } from "@/executive/ExecutionPlan";
+import { buildModeContractBlock } from "@/lib/gemini-prompt";
+
 
 /**
  * Evidence is only surfaced to the model when it carries meaningful signal.
@@ -41,6 +43,7 @@ export class ConversationInterpreter {
     backendBehavior: BehaviorAnalysis | null,
     senseEvidence: SenseEvidenceV1[] = [],
     plan?: ExecutionPlan,
+    mode: string = "adaptive",
   ): string {
     // 1. Extract backend intelligence (or degrade gracefully)
     const intent = backendBehavior?.act || "Exploring ideas";
@@ -81,9 +84,11 @@ export class ConversationInterpreter {
     });
     const humanStateBlock = this.formatHumanState(humanState);
 
-    // 3.75 Format Adaptive Communication Profile
-    const adaptiveProfile = AdaptiveCommunicationAnalyzer.getInstance().getProfile();
-    const adaptiveBlock = this.formatAdaptiveProfile(adaptiveProfile);
+    // 3.75 Format Adaptive Communication Profile (three-block mode-aware format)
+    const analyzer = AdaptiveCommunicationAnalyzer.getInstance();
+    const adaptiveProfile = analyzer.getProfile();
+    const currentTurnSignal = analyzer.getCurrentTurnSignal();
+    const adaptiveBlock = this.formatAdaptiveProfile(adaptiveProfile, currentTurnSignal, mode);
 
     // 3.8 Format Central Cognitive Context (Memory & Identity)
     let memoryBlock = "";
@@ -131,25 +136,116 @@ export class ConversationInterpreter {
   }
 
   /**
-   * Renders the Adaptive Communication Profile to steer the model's language and tone seamlessly.
+   * Renders the three-block Mode × Adaptation cognitive instruction.
+   *
+   * Block 1 — [AURA PERSONALITY MODE]: Authoritative mode contract.
+   *   Source: buildModeContractBlock (canonical from gemini-prompt.ts).
+   *   Role: mode-locked identity anchor, injected every turn to prevent drift.
+   *
+   * Block 2 — [PERSONAL COMMUNICATION PROFILE]: Longitudinal learned tendencies.
+   *   Role: personalization baseline — HOW to express the mode for THIS user.
+   *   Never replaces the mode; only enriches expression within it.
+   *
+   * Block 3 — [CURRENT COMMUNICATION SIGNAL]: Per-turn immediate signal.
+   *   Role: immediate language/expression adaptation for THIS message.
+   *   Highest immediacy, but still constrained by the mode contract above.
+   *
+   * PRECEDENCE (highest → lowest):
+   *   1. Safety / platform constraints (implicit)
+   *   2. Selected AURA personality mode  ← block 1 enforces this
+   *   3. Longitudinal personal profile   ← block 2, personalization only
+   *   4. Current-turn signal             ← block 3, expression only
+   *   5. AURA defaults
    */
-  private formatAdaptiveProfile(profile: AdaptiveCommunicationProfile): string {
-    if (profile.profileMaturity < 0.3) return ""; // Wait for at least 1 reliable turn
+  private formatAdaptiveProfile(
+    profile: AdaptiveCommunicationProfile,
+    currentTurnSignal: any,
+    mode: string,
+  ): string {
+    const parts: string[] = [];
 
-    const langPref = profile.preferences.preferredResponseLanguage;
-    const tone = Object.entries(profile.tone)
-      .filter(([_, val]) => val > 0.6)
-      .map(([key, _]) => key)
-      .join(", ");
+    // ── Block 1: Mode Contract (always injected — prevents mid-session drift) ──
+    parts.push(buildModeContractBlock(mode));
 
-    const lines = [
-      `- Target Language: ${langPref.toUpperCase()}`,
-      `- Tone/Style: ${tone || "balanced"}`,
-      `- Verbosity: ${profile.style.verbosity}`,
-      profile.language.codeSwitching > 0.3 ? `- Note: Mirror user's code-switching as a natural behavioral preference.` : "",
-    ].filter(Boolean);
+    // ── Block 2: Longitudinal User Model & Metacognition ────────────────────────
+    // Only surface when profile has meaningful evidence
+    if (profile.profileMaturity >= 0.2) {
+      const langPref = profile.preferences.value.preferredResponseLanguage;
+      const dominantTones = Object.entries(profile.tone.value)
+        .filter(([, val]) => val > 0.6)
+        .map(([key]) => key)
+        .join(", ");
 
-    return `\n[ADAPTIVE COMMUNICATION PROFILE]\n${lines.join("\n")}\n[/ADAPTIVE COMMUNICATION PROFILE]\n`;
+      const profileLines: string[] = [];
+      
+      // Metacognitive State Summary
+      const metaLines: string[] = [];
+      metaLines.push(`Analyzed turns: ${profile.totalTurnsAnalyzed} | Independent Conversations: ${profile.totalConversationsAnalyzed} | Model Confidence: ${(profile.profileMaturity * 100).toFixed(0)}%`);
+      
+      const changedBeliefs = [profile.language, profile.style, profile.tone].filter(b => b.state === "RECENTLY_CHANGED");
+      if (changedBeliefs.length > 0) {
+        metaLines.push(`Warning: Detected recent divergence from historical communication baseline. Adapt appropriately.`);
+      }
+
+      if (profile.explicitPreferences && profile.explicitPreferences.length > 0) {
+        metaLines.push(`\nEXPLICIT PREFERENCES (Highest Priority):`);
+        profile.explicitPreferences.forEach(pref => {
+          metaLines.push(`- ${pref.value.toUpperCase()} (State: ${pref.state})`);
+        });
+      }
+
+      profileLines.push(`\nINFERRED TENDENCIES:`);
+      profileLines.push(`Baseline language preference: ${langPref.toUpperCase()} (State: ${profile.preferences.state})`);
+
+      if (profile.contextualLanguage) {
+        const techPref = profile.contextualLanguage.technical.value.primary;
+        const casualPref = profile.contextualLanguage.casual.value.primary;
+        if (techPref !== "unknown") profileLines.push(`  Technical context: ${techPref.toUpperCase()} (State: ${profile.contextualLanguage.technical.state})`);
+        if (casualPref !== "unknown") profileLines.push(`  Casual context: ${casualPref.toUpperCase()} (State: ${profile.contextualLanguage.casual.state})`);
+      }
+
+      if (dominantTones) profileLines.push(`Tone tendencies: ${dominantTones}`);
+      profileLines.push(`Verbosity: ${profile.style.value.verbosity}`);
+      profileLines.push(`Technicality: ${(profile.style.value.technicality * 100).toFixed(0)}%`);
+
+      if (profile.language.value.codeSwitching > 0.3) {
+        profileLines.push(`Code-switching: active (ratio: ${profile.language.value.codeSwitching.toFixed(2)})`);
+      }
+
+      parts.push(
+        `[METACOGNITIVE & LONGITUDINAL USER MODEL]\n` +
+        `This describes long-term communication and behavioral tendencies of THIS specific user.\n` +
+        `It includes structured epistemic state (Confidence, Change Detection, Explicit Facts).\n` +
+        `It is a personalization layer — NOT a personality instruction.\n` +
+        `Use these tendencies to enrich expression within the selected mode,\n` +
+        `but never to replace, weaken, or override the mode contract above.\n\n` +
+        metaLines.join("\n") + "\n" +
+        profileLines.join("\n") +
+        `\n[/METACOGNITIVE & LONGITUDINAL USER MODEL]`
+      );
+    }
+
+
+    // ── Block 3: Current-Turn Communication Signal ────────────────────────────
+    // Injected per-turn for immediate expression adaptation.
+    if (currentTurnSignal) {
+      const signalLines: string[] = [];
+      signalLines.push(`Detected language: ${currentTurnSignal.language.primary.toUpperCase()}`);
+      signalLines.push(`Code-switching level: ${currentTurnSignal.language.codeSwitching.toFixed(2)}`);
+      signalLines.push(`Context: ${currentTurnSignal.context.toUpperCase()}`);
+
+      parts.push(
+        `[CURRENT COMMUNICATION SIGNAL]\n` +
+        `This describes how the user is communicating RIGHT NOW in this turn.\n` +
+        `Use this for immediate language and expression adaptation.\n` +
+        `It adjusts HOW you speak — it does NOT change which personality you are.\n\n` +
+        signalLines.join("\n") +
+        `\n[/CURRENT COMMUNICATION SIGNAL]`
+      );
+    }
+
+    if (parts.length === 0) return "";
+    return `\n${parts.join("\n\n")}\n`;
   }
 
   /**

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { VoiceEngineConfig, VoiceEngineEvents, GeminiSessionState } from "./GeminiTypes";
+import { buildMusicContext } from "@/lib/aura-actions";
 
 export class GeminiSession {
   private session: any = null;
@@ -58,9 +59,17 @@ export class GeminiSession {
                 silenceDurationMs: 1300,
               },
             },
-            systemInstruction: this.config.systemInstruction
-              ? { parts: [{ text: this.config.systemInstruction }] }
-              : undefined,
+            systemInstruction: (() => {
+              let instruction = this.config.systemInstruction || "";
+              const activeMusicCtx = buildMusicContext();
+              const regex = /\[ACTIVE MUSIC CONTEXT\][\s\S]*?\[\/ACTIVE MUSIC CONTEXT\]/;
+              if (regex.test(instruction)) {
+                instruction = instruction.replace(regex, activeMusicCtx);
+              } else if (activeMusicCtx) {
+                instruction = instruction ? `${instruction}\n\n${activeMusicCtx}` : activeMusicCtx;
+              }
+              return instruction ? { parts: [{ text: instruction }] } : undefined;
+            })(),
             tools: [
               {
                 functionDeclarations: [
@@ -121,6 +130,14 @@ export class GeminiSession {
                   {
                     name: "stopYouTubeMusic",
                     description: "Stops or closes the currently playing YouTube music.",
+                  },
+                  {
+                    name: "getMusicContext",
+                    description: "Gets the current authoritative playing music track, playback state, queue, and history from runtime. Call this tool when the user asks about: current music, current song, artist, song identity, previous or next songs, playback state, queue, song history, references like 'this song', 'it', 'that track', 'the previous one', or before modifications depending on knowing the current track. Do not guess the track; call this tool for actual state.",
+                    parameters: {
+                      type: Type.OBJECT,
+                      properties: {},
+                    },
                   },
                 ],
               },

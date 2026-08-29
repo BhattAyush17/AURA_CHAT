@@ -857,8 +857,10 @@ export function useOpenRouter(mode: string = "adaptive") {
       // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
       const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
         userText,
-        behaviorResult
+        behaviorResult,
+        modeRef.current,
       );
+
 
       // Extract emotional state for memory retrieval
       const currentEmotionalState: Record<string, number> = {
@@ -1622,6 +1624,9 @@ CRITICAL RULES:
       setWords("Listening...");
       errorRetryCountRef.current = 0;
       startTracking();
+      import("@/music/MusicService").then(({ musicService }) => {
+        musicService.onMicActive();
+      });
     };
 
     recognition.onspeechstart = () => {

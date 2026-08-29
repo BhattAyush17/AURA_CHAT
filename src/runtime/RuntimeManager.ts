@@ -94,6 +94,7 @@ export class RuntimeManager {
   public async processCognitiveTurn(
     text: string,
     backendBehavior: BehaviorAnalysis | null,
+    mode: string = "adaptive",
   ): Promise<string> {
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
@@ -146,7 +147,8 @@ export class RuntimeManager {
     const plan = this.conversationExecutive.plan(ctx);
 
     // 4. Interpret Backend Intelligence for Frontend Execution
-    const response = ConversationInterpreter.getInstance().processTurn(text, backendBehavior, evidence, plan);
+    const response = ConversationInterpreter.getInstance().processTurn(text, backendBehavior, evidence, plan, mode);
+
 
     // 4. Asynchronously update Adaptive Communication Profile (Does not block TTFB)
     setTimeout(() => {
@@ -177,7 +179,7 @@ export class RuntimeManager {
    * This retrieves the latest UserIdentity and AdaptiveCommunication profile without 
    * blocking or triggering an active conversation turn.
    */
-  public async buildInitialCognitiveSnapshot(userId: string): Promise<string> {
+  public async buildInitialCognitiveSnapshot(userId: string, mode: string = "adaptive"): Promise<string> {
     // 1. Fetch any generic/top-level relevant memories
     // Now supported by passing an empty query to the backend which returns 
     // relevance-ranked stable facts and current state within context limits.
@@ -214,7 +216,8 @@ export class RuntimeManager {
 
     // 4. Format the final snapshot using the Interpreter
     // We pass empty arrays for evidence/behavior as they are not applicable on session start
-    const snapshot = ConversationInterpreter.getInstance().processTurn("", null, [], plan);
+    const snapshot = ConversationInterpreter.getInstance().processTurn("", null, [], plan, mode);
+
     
     return snapshot;
   }

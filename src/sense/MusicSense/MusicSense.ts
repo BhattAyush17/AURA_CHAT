@@ -1,7 +1,6 @@
 import { BaseSense } from "../SenseManager/BaseSense";
 import type { RawSenseObservation, SenseManifest } from "../SenseManager/types";
 import { playbackState } from "../../music/PlaybackState";
-import { playerStateMachine } from "../../music/PlayerStateMachine";
 
 export class MusicSense extends BaseSense {
   readonly manifest: SenseManifest = {
@@ -43,8 +42,6 @@ export class MusicSense extends BaseSense {
 
   async collectContext(): Promise<RawSenseObservation | null> {
     const state = playbackState.getState();
-    const playerStatus = playerStateMachine.state;
-
     // Do not infer emotion. Do not infer memory. Only construct evidence payload.
     const payload = {
       playback: {
@@ -55,7 +52,7 @@ export class MusicSense extends BaseSense {
         positionSeconds: state.positionMs / 1000,
         durationSeconds: state.durationMs / 1000,
       },
-      playerState: playerStatus,
+      playerState: state.isPlaying ? "Playing" : (state.isPaused ? "Paused" : "Stopped"),
       volume: state.volume,
     };
 

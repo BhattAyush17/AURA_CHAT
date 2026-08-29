@@ -28,6 +28,8 @@ export function useGeminiVoiceAdapter(options: {
   onToolCall?: (toolCall: any) => Promise<any>;
   onInterruption?: () => void;
   onInputTranscription?: (text: string) => void;
+  onAuraSpeechStart?: () => void;
+  onUserSpeechDetected?: () => void;
 }): GeminiVoiceAdapterState {
   const engineRef = useRef<GeminiVoiceEngine | null>(null);
   const readinessRef = useRef<SessionReadinessManager | null>(null);
@@ -206,6 +208,16 @@ export function useGeminiVoiceAdapter(options: {
         setWords("");
         setIsSpeaking(false);
         setStatus("listening");
+      },
+      onAuraSpeechStart: () => {
+        if (options.onAuraSpeechStart) {
+          options.onAuraSpeechStart();
+        }
+      },
+      onUserSpeechDetected: () => {
+        if (options.onUserSpeechDetected) {
+          options.onUserSpeechDetected();
+        }
       },
       onMilestone: (id, milestoneStatus, error) => {
         if (!readinessRef.current) return;

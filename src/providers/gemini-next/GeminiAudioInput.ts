@@ -5,6 +5,7 @@ export class GeminiAudioInput {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private onAudioDataCallback: ((base64Data: string) => void) | null = null;
+  private onBargeInCallback: (() => void) | null = null;
   private isStreaming: boolean = false;
   private isMuted: boolean = false;
 
@@ -20,12 +21,17 @@ export class GeminiAudioInput {
     return { audioContext, analyser };
   }
 
-  public startStreaming(callback: (base64Data: string) => void) {
+  public startStreaming(callback: (base64Data: string) => void, onBargeIn?: () => void) {
     this.onAudioDataCallback = callback;
+    this.onBargeInCallback = onBargeIn || null;
     if (!this.isStreaming) {
       this.micCoordinator.subscribeToStream(this.handleMicData);
       this.isStreaming = true;
     }
+  }
+
+  public setVadState(isListening: boolean, isSpeaking: boolean, isGracePeriod: boolean) {
+    this.micCoordinator.setVadState(isListening, isSpeaking, isGracePeriod);
   }
 
   public stopStreaming() {
@@ -34,6 +40,7 @@ export class GeminiAudioInput {
       this.isStreaming = false;
     }
     this.onAudioDataCallback = null;
+    this.onBargeInCallback = null;
   }
 
   public teardown() {
@@ -61,6 +68,8 @@ export class GeminiAudioInput {
         this.onAudioDataCallback(b64);
       }
       msg.lease.release();
+    } else if (msg.type === "BARGE_IN_DETECTED" && this.onBargeInCallback) {
+      this.onBargeInCallback();
     }
   }
 

@@ -25,12 +25,14 @@ import {
 } from "@/lib/usage-tracker";
 import { resolveUserId } from "@/lib/user-identity";
 import { getCredential, clearAllCredentials, hasRequiredCredentials, hasSupabaseCredentials } from "@/lib/credentials";
-import { isLateNightHour } from "@/lib/gemini-prompt";
+import { isLateNightHour, getSystemPromptForPersonality } from "@/lib/gemini-prompt";
+
 import { generateSeed } from "@/lib/utils/seed-generator";
 import { saveSyncMeta } from "@/lib/sync-meta";
 import { claimPrimaryTab, isPrimaryTab, HEARTBEAT_KEY, HEARTBEAT_INTERVAL } from "./types";
-import { executeAuraAction } from "@/lib/aura-actions";
+import { executeAuraAction, buildMusicContext } from "@/lib/aura-actions";
 import { assembleCognitiveContext } from "@/lib/aura-context";
+import { musicService } from "@/music/MusicService";
 
 import type { UIStatus, AuraAnalysis } from "./types";
 
@@ -101,15 +103,17 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       // Async Cognitive Sync: Let RuntimeManager process the turn in the background
       // This saves memories and updates the AdaptiveCommunicationProfile without blocking TTFB
       setTimeout(() => {
-        RuntimeManager.getInstance().processCognitiveTurn(finalUserText, behavior.lastAnalysisRef.current).catch(e => {
+        RuntimeManager.getInstance().processCognitiveTurn(finalUserText, behavior.lastAnalysisRef.current, modeRef.current).catch(e => {
           console.warn("[AURA] Async cognitive turn processing failed:", e);
         });
       }, 0);
+
     }
     if (modelText) {
       transcript_.addTurn(modelText, false);
       conversationState.reportSpeakingFinished();
     }
+    musicService.onAuraSpeechEnd();
     languageManager.resetBuffer();
   }, [transcript_, languageManager]);
 
@@ -134,6 +138,12 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         source: "transcription",
         timestamp: Date.now()
       });
+    },
+    onAuraSpeechStart: () => {
+      musicService.onAuraSpeechStart();
+    },
+    onUserSpeechDetected: () => {
+      musicService.onUserSpeechStart();
     }
   });
 
@@ -161,29 +171,42 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
     transcript_.reset();
     sessionIdRef.current = crypto.randomUUID();
 
-    const systemInstructionBase = prompts.getGreeting(modeRef.current);
+    // Build the full personality system instruction (same canonical source as OpenRouter/Sarvam).
+    // This is the complete AURA persona + mode contract delivered once at connection.
+    const systemInstructionBase = getSystemPromptForPersonality(
+      modeRef.current,
+      prompts.seedRef.current.content || undefined,
+    );
     
-    // Fetch snapshot with a safe timeout (voice availability > personalization)
+    // Fetch the cognitive snapshot (memory + mode contract block) with a safe timeout.
+    // voice availability > personalization, so we never block connection on this.
     let initialCognitiveSnapshot = "";
     try {
       initialCognitiveSnapshot = await Promise.race([
-        RuntimeManager.getInstance().buildInitialCognitiveSnapshot(userId),
+        RuntimeManager.getInstance().buildInitialCognitiveSnapshot(userId, modeRef.current),
         new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Cognitive snapshot timeout")), 1500))
       ]);
     } catch (e) {
       console.warn("[AURA] Cognitive snapshot unavailable/timed out. Falling back to base instruction.");
     }
     
-    // Combine base persona with the dynamic cognitive snapshot
-    const systemInstruction = initialCognitiveSnapshot 
+    // Combine base persona with the dynamic cognitive snapshot and any active music context
+    const musicCtx = buildMusicContext();
+    let systemInstruction = initialCognitiveSnapshot 
       ? `${systemInstructionBase}\n\n${initialCognitiveSnapshot}`
       : systemInstructionBase;
+      
+    if (musicCtx) {
+      systemInstruction += `\n\n${musicCtx}`;
+    }
     
     // Tools list can be dynamic based on capabilities
     const tools: any[] = []; 
     // We would map actual tools here if required.
 
     await adapter.startSession(systemInstruction, tools, voiceRef.current);
+    
+    musicService.onMicActive();
     
     if (adapter.engine) {
       // Let engine finish setup
@@ -202,6 +225,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
     await adapter.endSession();
     sessionIdRef.current = null;
     isStartingRef.current = false;
+    musicService.onAuraSpeechEnd();
   }, [adapter]);
 
   useEffect(() => {

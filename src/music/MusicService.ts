@@ -15,6 +15,8 @@ export class MusicService {
   private isDucked: boolean = false;
   private activeProviderId: string = "youtube";
   private lastObservedTrackId: string | null = null;
+  private currentVolume: number = 100;
+  private fadeInterval: any = null;
 
   constructor() {
     // Default to YouTube Providers
@@ -32,6 +34,7 @@ export class MusicService {
     // Initialization is silent, no Auth required up front.
     await this.searchProvider.initialize();
     await this.playbackProvider.initialize();
+    this.currentVolume = playbackState.getState().volume || 100;
     playbackState.update({ providerId: this.activeProviderId });
     
     // Subscribe to state changes for context buffering and queue advancement
@@ -107,8 +110,12 @@ export class MusicService {
              return;
           }
           if (results.length > 0) {
-            const bestTrack = this.rankTracks(results, playIntent);
-            await this.playTrack(bestTrack);
+             const bestTrack = this.rankTracks(results, playIntent);
+             if (playIntent.mood) bestTrack.mood = playIntent.mood;
+             if (playIntent.energy) bestTrack.energy = playIntent.energy;
+             if (playIntent.genre) bestTrack.genre = playIntent.genre;
+             if (playIntent.activity) bestTrack.activity = playIntent.activity;
+             await this.playTrack(bestTrack);
           } else {
             throw new Error(`No music found for search: ${finalQuery}`);
           }
@@ -196,6 +203,9 @@ export class MusicService {
     queueManager.getNext(); // advance
 
     playbackState.setTrack(track);
+    const volume = playbackState.getState().volume;
+    this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
+    await this.playbackProvider.setVolume(this.currentVolume);
     await this.playbackProvider.play(track.id);
   }
 
@@ -205,6 +215,9 @@ export class MusicService {
     const track = queueManager.getCurrent();
     if (track) {
       playbackState.setTrack(track);
+      const volume = playbackState.getState().volume;
+      this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
+      await this.playbackProvider.setVolume(this.currentVolume);
       await this.playbackProvider.play(track.id);
     }
   }
@@ -216,6 +229,9 @@ export class MusicService {
   async resume() {
     const track = queueManager.getCurrent();
     if (track) {
+      const volume = playbackState.getState().volume;
+      this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
+      await this.playbackProvider.setVolume(this.currentVolume);
       await this.playbackProvider.resume();
     }
   }
@@ -242,7 +258,20 @@ export class MusicService {
 
   async setVolume(volume: number) {
     playbackState.update({ volume });
-    await this.playbackProvider.setVolume(volume);
+    if (this.isDucked) {
+      this.previousVolume = volume;
+      this.currentVolume = Math.max(0, Math.round(volume * 0.2));
+      await this.playbackProvider.setVolume(this.currentVolume);
+    } else {
+      this.currentVolume = volume;
+      await this.playbackProvider.setVolume(volume);
+    }
+  }
+
+  async unlockAudio() {
+    if (this.playbackProvider.unlockAudio) {
+      await this.playbackProvider.unlockAudio();
+    }
   }
 
   // --- State & Modifiers ---
@@ -260,23 +289,59 @@ export class MusicService {
     playbackState.update({ isShuffled });
   }
 
+  private async fadeVolume(targetVolume: number, durationMs: number = 250) {
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+    }
+
+    const steps = 10;
+    const intervalMs = durationMs / steps;
+    const volumeDelta = (targetVolume - this.currentVolume) / steps;
+    let stepCount = 0;
+
+    return new Promise<void>((resolve) => {
+      this.fadeInterval = setInterval(async () => {
+        stepCount++;
+        this.currentVolume = Math.max(0, Math.min(100, this.currentVolume + volumeDelta));
+        await this.playbackProvider.setVolume(this.currentVolume);
+        
+        if (stepCount >= steps) {
+          clearInterval(this.fadeInterval);
+          this.fadeInterval = null;
+          this.currentVolume = targetVolume;
+          await this.playbackProvider.setVolume(this.currentVolume);
+          resolve();
+        }
+      }, intervalMs);
+    });
+  }
+
   // --- Audio Ducking / Voice Overlay ---
+  async onMicActive() {
+    console.log("[MusicService] Microphone active/armed. Volume maintained.");
+    if (this.isDucked) {
+      await this.onAuraSpeechEnd();
+    }
+  }
+
   async onAuraSpeechStart() {
     if (this.isDucked) return;
     const state = playbackState.getState();
-    if (!state.isPlaying) return;
     this.previousVolume = state.volume;
     this.isDucked = true;
-    await this.playbackProvider.setVolume(Math.max(0, state.volume * 0.2));
+    if (state.isPlaying) {
+      const targetVal = Math.max(0, Math.round(state.volume * 0.2));
+      await this.fadeVolume(targetVal, 200);
+    }
   }
 
   async onAuraSpeechEnd() {
     if (!this.isDucked) return;
     this.isDucked = false;
-    if (this.previousVolume !== null) {
-      await this.playbackProvider.setVolume(this.previousVolume);
-      this.previousVolume = null;
-    }
+    const targetVol = this.previousVolume !== null ? this.previousVolume : playbackState.getState().volume;
+    await this.fadeVolume(targetVol, 250);
+    this.previousVolume = null;
   }
 
   async onUserSpeechStart() {

@@ -1692,7 +1692,11 @@ async def proxy_audio(url: str, request: Request, response: Response, h: Optiona
     decoded_url = unquote(url)
 
     # Validate URL is from a trusted source
-    if not any(domain in decoded_url for domain in ["googlevideo.com", "youtube.com", "ytimg.com"]):
+    from urllib.parse import urlparse
+    parsed = urlparse(decoded_url)
+    if parsed.scheme not in ("http", "https"):
+        return Response(content="Forbidden", status_code=403)
+    if not parsed.hostname or not (parsed.hostname.endswith(".googlevideo.com") or parsed.hostname.endswith(".youtube.com") or parsed.hostname.endswith(".ytimg.com") or parsed.hostname in ("googlevideo.com", "youtube.com", "ytimg.com")):
         return Response(content="Forbidden", status_code=403)
 
     # Build upstream headers: start with yt-dlp http_headers if provided

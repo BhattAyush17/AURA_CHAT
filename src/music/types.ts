@@ -10,6 +10,8 @@ export interface Track {
   releaseYear?: number;
   genre?: string;
   mood?: string;
+  energy?: string;
+  activity?: string;
 }
 
 export interface MusicIntentPayload {
@@ -36,6 +38,8 @@ export interface PlaybackStateData {
   queue: Track[];
   history: Track[];
   providerId: string | null;
+  audioUnlockState: "unknown" | "unlocked" | "blocked" | "failed";
+  pendingTrack: Track | null;
 }
 
 export interface SearchProvider {
@@ -60,6 +64,7 @@ export interface PlaybackProvider {
   seek(positionMs: number): Promise<void>;
   setVolume(volume: number): Promise<void>;
   getAudioStream?(trackId: string): Promise<string | null>;
+  unlockAudio(): Promise<void>;
   dispose(): Promise<void>;
 }
 

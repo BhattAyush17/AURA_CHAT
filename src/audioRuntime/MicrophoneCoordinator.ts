@@ -1,5 +1,6 @@
 import { RuntimeTelemetry } from "../runtime/RuntimeTelemetry";
 import { AudioBufferPool, BufferLease } from "./AudioBufferPool";
+import { detectAudioEnvironment, AudioEnvironment } from "./AudioEnvironment";
 
 /**
  * MicrophoneCoordinator
@@ -66,9 +67,30 @@ export class MicrophoneCoordinator {
       try {
         RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "Acquiring Mic" } });
         
+        const env = await detectAudioEnvironment();
+        RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "AudioEnvironmentDetected", environment: env } });
+
+        // Adaptive Constraints
+        // If we know the user is using headphones or bluetooth, we can safely disable AEC/NS/AGC
+        // to prevent the OS from forcing low-quality "Communications Mode".
+        // Otherwise, we MUST keep them enabled to prevent STT from hallucinating on music from speakers.
+        const useAEC = env === "speaker" || env === "unknown";
+
+        const constraints: MediaTrackConstraints = {
+          echoCancellation: useAEC,
+          noiseSuppression: useAEC,
+          autoGainControl: useAEC,
+        };
+
+        RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "MicConstraintsRequested", constraints } });
+
         this.stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: constraints,
         });
+
+        // Log actual settings resolved by the browser
+        const actualSettings = this.stream.getAudioTracks()[0]?.getSettings();
+        RuntimeTelemetry.getInstance().logEvent({ subsystem: "MicrophoneCoordinator", severity: "info", data: { event: "MicSettingsResolved", settings: actualSettings } });
 
         this.audioContext = new AudioContext({ sampleRate: 16000 });
         this.inputAnalyser = this.audioContext.createAnalyser();

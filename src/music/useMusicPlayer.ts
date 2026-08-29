@@ -8,7 +8,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { PlaybackStateData, Track } from "./types";
 import { playbackState } from "./PlaybackState";
-import { playbackEngine } from "./PlaybackEngine";
 import { musicEvents } from "./PlaybackEvents";
 import { musicService } from "./MusicService";
 
@@ -42,42 +41,42 @@ export function useMusicPlayer() {
   }, []);
 
   const pause = useCallback(async () => {
-    await playbackEngine.pause();
+    await musicService.pause();
   }, []);
 
   const resume = useCallback(async () => {
-    await playbackEngine.resume();
+    await musicService.resume();
   }, []);
 
   const stop = useCallback(async () => {
-    await playbackEngine.pause();
+    await musicService.pause();
   }, []);
 
   const seek = useCallback(async (seconds: number) => {
-    await playbackEngine.seek(seconds * 1000);
+    await musicService.seek(seconds * 1000);
   }, []);
 
   const setVolume = useCallback(async (level: number) => {
-    await playbackEngine.setVolume(level);
+    await musicService.setVolume(level);
   }, []);
 
   const volumeUp = useCallback(async () => {
     const nextVol = Math.min(100, state.volume + 10);
-    await playbackEngine.setVolume(nextVol);
+    await musicService.setVolume(nextVol);
   }, [state.volume]);
 
   const volumeDown = useCallback(async () => {
     const nextVol = Math.max(0, state.volume - 10);
-    await playbackEngine.setVolume(nextVol);
+    await musicService.setVolume(nextVol);
   }, [state.volume]);
 
   const next = useCallback(async () => {
-    await playbackEngine.next();
+    await musicService.next();
     return true;
   }, []);
 
   const previous = useCallback(async () => {
-    await playbackEngine.previous();
+    await musicService.previous();
     return true;
   }, []);
 
@@ -104,6 +103,7 @@ export function useMusicPlayer() {
     duration: state.durationMs / 1000,
     volume: state.volume,
     queue: state.queue,
+    audioUnlockState: state.audioUnlockState,
 
     // Actions
     playQuery,
@@ -118,10 +118,11 @@ export function useMusicPlayer() {
     previous,
     togglePlayPause,
     processIntent,
+    unlockAudio: () => musicService.unlockAudio(),
     switchProvider: (id: string) => musicService.switchProvider(id),
     availableProviders: musicService.getAvailableProviders(),
     
     // Engine access
-    engine: playbackEngine
+    engine: musicService
   };
 }

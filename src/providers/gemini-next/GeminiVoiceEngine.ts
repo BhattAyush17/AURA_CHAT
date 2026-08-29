@@ -60,6 +60,7 @@ export class GeminiVoiceEngine {
           // Report gemini_session milestone on CONNECTED
           if (state === "CONNECTED") {
             this.events.onMilestone?.("gemini_session", "complete");
+            this.input.setVadState(true, false, false);
           }
         },
         onAudioChunkReceived: (base64Data) => {
@@ -68,6 +69,8 @@ export class GeminiVoiceEngine {
           this.telemetry.isPlaying = true;
           if (!this.isAuraSpeaking) {
             this.isAuraSpeaking = true;
+            this.input.setVadState(false, true, false);
+            this.events.onAuraSpeechStart?.();
           }
           this.output.enqueueChunk(base64Data, () => {
              // Chunk playback ended. We handle overall turn via onTurnComplete
@@ -77,6 +80,11 @@ export class GeminiVoiceEngine {
         },
         onModelText: (text) => {
           this.telemetry.lastServerMessageAt = Date.now();
+          if (!this.isAuraSpeaking) {
+            this.isAuraSpeaking = true;
+            this.input.setVadState(false, true, false);
+            this.events.onAuraSpeechStart?.();
+          }
           this.events.onModelText?.(text);
         },
         onInputTranscription: (text) => {
@@ -88,6 +96,7 @@ export class GeminiVoiceEngine {
           this.telemetry.isPlaying = false;
           this.isAuraSpeaking = false;
           this.output.stopPlayback();
+          this.input.setVadState(true, false, false);
           this.events.onInterrupted?.();
         },
         onTurnComplete: () => {
@@ -96,6 +105,7 @@ export class GeminiVoiceEngine {
           this.telemetry.isPlaying = false;
           this.isAuraSpeaking = false;
           this.turnCounter++;
+          this.input.setVadState(true, false, false);
           this.events.onTurnComplete?.();
         },
         onToolCall: async (calls) => {
@@ -116,33 +126,39 @@ export class GeminiVoiceEngine {
           this.events.onError?.(err);
         }
       });
-
+ 
       // 4. Connect to Gemini Live
       await this.session.connect();
-
+ 
       // 5. Start streaming audio to session — verify input path
       this.events.onMilestone?.("input_path", "in_progress");
-      this.input.startStreaming((base64Data) => {
-        this.telemetry.isCapturing = true;
-        if (this.session?.getState() === "CONNECTED") {
-          this.telemetry.lastInputSendAt = Date.now();
-          this.session.sendRealtimeInput({
-            audio: {
-              mimeType: "audio/pcm;rate=16000",
-              data: base64Data,
-            },
-          });
-          // Mark input path verified on first successful send
-          if (!this.inputPathVerified) {
-            this.inputPathVerified = true;
-            this.events.onMilestone?.("input_path", "complete");
-            // Output path is ready once input is flowing and output infra is initialized
-            this.events.onMilestone?.("output_path", "in_progress");
-            this.events.onMilestone?.("output_path", "complete");
+      this.input.startStreaming(
+        (base64Data) => {
+          this.telemetry.isCapturing = true;
+          if (this.session?.getState() === "CONNECTED") {
+            this.telemetry.lastInputSendAt = Date.now();
+            this.session.sendRealtimeInput({
+              audio: {
+                mimeType: "audio/pcm;rate=16000",
+                data: base64Data,
+              },
+            });
+            // Mark input path verified on first successful send
+            if (!this.inputPathVerified) {
+              this.inputPathVerified = true;
+              this.events.onMilestone?.("input_path", "complete");
+              // Output path is ready once input is flowing and output infra is initialized
+              this.events.onMilestone?.("output_path", "in_progress");
+              this.events.onMilestone?.("output_path", "complete");
+            }
           }
+        },
+        () => {
+          console.log("[GeminiVoiceEngine] Barge-in/speech confirmed via local VAD.");
+          this.events.onUserSpeechDetected?.();
         }
-      });
-
+      );
+ 
     } catch (err: any) {
       this.updateState("ERROR");
       this.events.onError?.(err);
@@ -150,10 +166,11 @@ export class GeminiVoiceEngine {
       throw err;
     }
   }
-
+ 
   public stop(): void {
     this.telemetry.isCapturing = false;
     this.telemetry.isPlaying = false;
+    this.isAuraSpeaking = false;
     this.input.stopStreaming();
     this.output.stopPlayback();
     this.session?.disconnect();

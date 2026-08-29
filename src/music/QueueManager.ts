@@ -44,6 +44,14 @@ export class QueueManager {
     return null;
   }
 
+  getQueue(): Track[] {
+    return this.queue;
+  }
+
+  getCurrentIdx(): number {
+    return this.currentIdx;
+  }
+
   clear() {
     this.queue = [];
     this.currentIdx = -1;

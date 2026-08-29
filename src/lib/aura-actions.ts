@@ -16,13 +16,15 @@
 
 import { memoryGateway } from "@/lib/memory-gateway";
 import { playbackState } from "@/music/PlaybackState";
+import { queueManager } from "@/music/QueueManager";
 import { MusicIntentPayload } from "@/music/types";
 
-export type AuraActionName = "saveMemory" | "playYouTubeMusic" | "stopYouTubeMusic";
+export type AuraActionName = "saveMemory" | "playYouTubeMusic" | "stopYouTubeMusic" | "getMusicContext";
 
 export interface AuraActionResult {
   ok: boolean;
   result: string;
+  musicContext?: string;
 }
 
 export interface AuraActionContext {
@@ -37,14 +39,55 @@ export interface AuraActionContext {
  */
 export function buildMusicContext(): string {
   const s = playbackState.getState();
-  if (!s.currentTrack) return "";
+  if (!s.currentTrack) {
+    return `[ACTIVE MUSIC CONTEXT]
+No music is currently playing.
+[/ACTIVE MUSIC CONTEXT]`;
+  }
 
   const title = s.currentTrack.title || "unknown track";
   const artist = s.currentTrack.artist || "unknown artist";
-  const status = s.isPaused ? "paused" : s.isBuffering || s.isLoading ? "loading" : "playing";
+  const videoId = s.currentTrack.id || "unknown ID";
+  const status = s.isPaused ? "paused" : s.isBuffering || s.isLoading ? "loading" : s.isPlaying ? "playing" : "stopped";
+
+  const posMinutes = Math.floor((s.positionMs || 0) / 60000);
+  const posSeconds = Math.floor(((s.positionMs || 0) % 60000) / 1000).toString().padStart(2, '0');
+  const durMinutes = Math.floor((s.currentTrack.durationMs || 0) / 60000);
+  const durSeconds = Math.floor(((s.currentTrack.durationMs || 0) % 60000) / 1000).toString().padStart(2, '0');
+  const percentage = s.currentTrack.durationMs ? Math.round((s.positionMs / s.currentTrack.durationMs) * 100) : 0;
+
+  const history = s.history || [];
+  const historyString = history.map((t, idx) => `${idx + 1}. "${t.title}" by ${t.artist}`).join(", ") || "None";
+  const prevTrack = history.length > 0 ? history[history.length - 1] : null;
+  const prevString = prevTrack ? `"${prevTrack.title}" by ${prevTrack.artist}` : "None";
+
+  const queue = queueManager.getQueue();
+  const currentIdx = queueManager.getCurrentIdx();
+  const nextTrack = currentIdx >= 0 && currentIdx < queue.length - 1 ? queue[currentIdx + 1] : null;
+  const nextString = nextTrack ? `"${nextTrack.title}" by ${nextTrack.artist}` : "None";
+
+  const queueString = queue.map((t, idx) => `${idx === currentIdx ? '👉 ' : ''}${idx + 1}. "${t.title}" by ${t.artist}`).join("\n") || "Empty";
+  const queuePos = queue.length > 0 ? `${currentIdx + 1} of ${queue.length}` : "N/A";
+
+  const intentParts: string[] = [];
+  if (s.currentTrack.mood) intentParts.push(`mood: ${s.currentTrack.mood}`);
+  if (s.currentTrack.energy) intentParts.push(`energy: ${s.currentTrack.energy}`);
+  if (s.currentTrack.genre) intentParts.push(`genre: ${s.currentTrack.genre}`);
+  if (s.currentTrack.activity) intentParts.push(`activity: ${s.currentTrack.activity}`);
+  const intentString = intentParts.join(", ") || "None";
 
   return `[ACTIVE MUSIC CONTEXT]
-Now playing: "${title}" by ${artist} (${status})
+Now playing: "${title}" — ${artist}
+Video ID: ${videoId}
+State: ${status}
+Position: ${posMinutes}:${posSeconds} / ${durMinutes}:${durSeconds} (${percentage}%)
+Queue position: ${queuePos}
+Queue:
+${queueString}
+Previous: ${prevString}
+Next: ${nextString}
+History: ${historyString}
+Intent Metadata: ${intentString}
 [/ACTIVE MUSIC CONTEXT]`;
 }
 
@@ -70,6 +113,10 @@ export async function executeAuraAction(
   ctx: AuraActionContext,
 ): Promise<AuraActionResult> {
   switch (action) {
+    case "getMusicContext": {
+      return { ok: true, result: buildMusicContext() };
+    }
+
     case "saveMemory": {
       const fact = typeof args.fact === "string" ? args.fact.trim() : "";
       if (fact.length < 3) {
@@ -119,7 +166,8 @@ export async function executeAuraAction(
         });
         return {
           ok: true,
-          result: `Successfully initiated playback. The music is starting now.`,
+          result: `Successfully initiated playback. The music is starting now. Current Context: \n${buildMusicContext()}`,
+          musicContext: buildMusicContext()
         };
       } catch (e: any) {
         console.error("[AuraActions] play failed:", e);

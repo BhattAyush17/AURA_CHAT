@@ -1110,8 +1110,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
       const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
         userText,
-        behaviorResult
+        behaviorResult,
+        modeRef.current,
       );
+
 
       // Extract emotional state for memory retrieval
       const l3_start = performance.now();
@@ -2246,6 +2248,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         startTracking();
         isRecordingRef.current = true;
         startBackchannelMonitor();
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.onMicActive();
+        });
       };
 
       recognition.onresult = (event: any) => {
