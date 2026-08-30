@@ -8,15 +8,50 @@
 import { useState, useEffect } from "react";
 import { getGeminiKey, getOpenRouterKey, getSarvamKey, isValidKey } from "@/lib/api";
 import {
-  Cloud, Key, CheckCircle, Zap, ChevronDown, Eye, EyeOff,
-  Trash2, MessageSquare, Clock, Sparkles,
+  Cloud,
+  Key,
+  CheckCircle,
+  Zap,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Trash2,
+  MessageSquare,
+  Clock,
+  Sparkles,
+  Search,
+  Download,
+  Upload,
+  FileText,
+  FolderArchive,
+  X,
+  ChevronRight,
+  FolderOpen,
 } from "lucide-react";
-import { setCredential, getCredential, hasRequiredCredentials, hasUserKey } from "@/lib/credentials";
+import {
+  setCredential,
+  getCredential,
+  hasRequiredCredentials,
+  hasUserKey,
+} from "@/lib/credentials";
 import { loadSyncMeta, SyncMeta } from "@/lib/sync-meta";
 import { SupabaseConnect } from "@/components/SupabaseConnect";
 import { getStorageManager } from "@/lib/storage/manager";
 import { SessionData } from "@/lib/storage/types";
 import { RedisManager } from "@/components/RedisManager";
+import {
+  getConversationArchive,
+  ConversationArchive,
+  ArchivedMessage,
+  ArchiveSearchResult,
+  formatConversationAsJson,
+  formatConversationAsMarkdown,
+  formatConversationAsText,
+  formatAllConversationsAsJson,
+  formatAllConversationsAsMarkdown,
+  validateExport,
+  ArchiveExport,
+} from "@/lib/storage/ConversationArchive";
 
 // ─── Reusable Key Input Row ─────────────────────────────────────────
 function KeyInput({
@@ -46,7 +81,8 @@ function KeyInput({
     let envVal: string | null = null;
     if (import.meta.env.DEV) {
       if (credentialKey === "aura_gemini_api_key") envVal = import.meta.env.VITE_GEMINI_API_KEY;
-      else if (credentialKey === "openrouter_api_key") envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
+      else if (credentialKey === "openrouter_api_key")
+        envVal = import.meta.env.VITE_OPENROUTER_API_KEY;
       else if (credentialKey === "sarvam_api_key") envVal = import.meta.env.VITE_SARVAM_API_KEY;
       else if (credentialKey === "cohere_api_key") envVal = import.meta.env.VITE_COHERE_API_KEY;
       else if (credentialKey === "redis_url") envVal = import.meta.env.VITE_REDIS_URL;
@@ -89,7 +125,9 @@ function KeyInput({
 
     if (!isValidKey(trimmed, credentialKey)) {
       if (credentialKey === "aura_gemini_api_key") {
-        setError("Invalid Gemini API key.\n\nSupported formats:\n• AQ... (current)\n• AIza... (legacy)\n\nVerify the key was copied correctly from Google AI Studio.");
+        setError(
+          "Invalid Gemini API key.\n\nSupported formats:\n• AQ... (current)\n• AIza... (legacy)\n\nVerify the key was copied correctly from Google AI Studio.",
+        );
       } else if (credentialKey === "openrouter_api_key") {
         setError("Invalid OpenRouter API key. Must start with 'sk-or-v1-'.");
       } else if (credentialKey === "sarvam_api_key") {
@@ -156,17 +194,20 @@ function KeyInput({
         <p className="text-xs text-red-500 font-semibold mt-1 whitespace-pre-line">{error}</p>
       )}
       {!saved ? (
-        <button onClick={handleSave} className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full cursor-pointer">
+        <button
+          onClick={handleSave}
+          className="px-4 py-2 bg-foreground hover:bg-foreground/90 text-background rounded text-sm font-medium transition w-full cursor-pointer"
+        >
           ✓ Save {label.split(" ").slice(-2).join(" ")}
         </button>
       ) : (
-        <button 
-          onClick={() => { 
-            setSaved(false); 
+        <button
+          onClick={() => {
+            setSaved(false);
             const existing = getCredential(credentialKey as any);
             setValue(existing || "");
             setError(null);
-          }} 
+          }}
           className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded text-sm font-medium transition w-full cursor-pointer"
         >
           Edit
@@ -185,8 +226,21 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
   const [syncMeta, setSyncMeta] = useState<SyncMeta | null>(null);
   const [showSessions, setShowSessions] = useState(false);
   const [sessions, setSessions] = useState<SessionData[]>([]);
-  const [usageStats, setUsageStats] = useState({ conversations: 0, messagesTotal: 0, lastUpdated: Date.now() });
+  const [usageStats, setUsageStats] = useState({
+    conversations: 0,
+    messagesTotal: 0,
+    lastUpdated: Date.now(),
+  });
   const [showRedisManager, setShowRedisManager] = useState(false);
+
+  // Conversation Archive state
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveConversations, setArchiveConversations] = useState<ConversationArchive[]>([]);
+  const [archiveSearch, setArchiveSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<ArchiveSearchResult[]>([]);
+  const [viewingConversation, setViewingConversation] = useState<ConversationArchive | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<ArchiveExport | null>(null);
 
   // Detect which pipeline is already configured — UI only checks user-provided keys
   const geminiSaved = hasUserKey("aura_gemini_api_key");
@@ -224,7 +278,9 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
     if (!showSessions) {
       const manager = getStorageManager("local-user");
       const allSessions = await manager.list();
-      allSessions.sort((a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime());
+      allSessions.sort(
+        (a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime(),
+      );
       setSessions(allSessions);
     }
     setShowSessions(!showSessions);
@@ -235,14 +291,186 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       const manager = getStorageManager("local-user");
       await manager.delete(sessionId);
       const allSessions = await manager.list();
-      allSessions.sort((a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime());
+      allSessions.sort(
+        (a, b) => new Date(b.last_active).getTime() - new Date(a.last_active).getTime(),
+      );
       setSessions(allSessions);
     }
   };
 
+  // ─── Conversation Archive Handlers ───────────────────────────────────
+
+  const loadArchive = async () => {
+    const archive = getConversationArchive();
+    const all = await archive.getAll();
+    setArchiveConversations(all);
+  };
+
+  const handleToggleArchive = () => {
+    if (!showArchive) {
+      loadArchive();
+      setShowArchive(true);
+    } else {
+      setShowArchive(false);
+    }
+    setViewingConversation(null);
+    setSearchResults([]);
+    setArchiveSearch("");
+  };
+
+  const handleArchiveSearch = async (query: string) => {
+    setArchiveSearch(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const archive = getConversationArchive();
+    const results = await archive.search(query);
+    setSearchResults(results);
+  };
+
+  const handleOpenConversation = (conv: ConversationArchive) => {
+    setViewingConversation(conv);
+  };
+
+  const handleCloseViewer = () => {
+    setViewingConversation(null);
+  };
+
+  const handleDeleteArchiveConversation = async (conversationId: string) => {
+    if (confirm("Delete this conversation from archive? This cannot be undone.")) {
+      const archive = getConversationArchive();
+      await archive.delete(conversationId);
+      loadArchive();
+      if (viewingConversation?.conversationId === conversationId) {
+        setViewingConversation(null);
+      }
+    }
+  };
+
+  const handleExportConversation = (
+    conv: ConversationArchive,
+    format: "json" | "markdown" | "txt",
+  ) => {
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    const safeName = conv.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 30);
+
+    switch (format) {
+      case "json":
+        content = formatConversationAsJson(conv);
+        filename = `aura_conversation_${safeName}.json`;
+        mimeType = "application/json";
+        break;
+      case "markdown":
+        content = formatConversationAsMarkdown(conv);
+        filename = `aura_conversation_${safeName}.md`;
+        mimeType = "text/markdown";
+        break;
+      case "txt":
+        content = formatConversationAsText(conv);
+        filename = `aura_conversation_${safeName}.txt`;
+        mimeType = "text/plain";
+        break;
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportAll = async () => {
+    const archive = getConversationArchive();
+    const all = await archive.getAll();
+    if (all.length === 0) {
+      alert("No conversations to export.");
+      return;
+    }
+
+    const content = formatAllConversationsAsJson(all);
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aura_archive_${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportAllMarkdown = async () => {
+    const archive = getConversationArchive();
+    const all = await archive.getAll();
+    if (all.length === 0) {
+      alert("No conversations to export.");
+      return;
+    }
+
+    const content = formatAllConversationsAsMarkdown(all);
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aura_archive_${new Date().toISOString().split("T")[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        if (!validateExport(data)) {
+          alert("Invalid archive file. Please select a valid AURA export.");
+          return;
+        }
+
+        setImportPreview(data);
+        setShowImportModal(true);
+      } catch {
+        alert("Failed to read file. Please select a valid JSON file.");
+      }
+    };
+    input.click();
+  };
+
+  const handleImportConfirm = async (mode: "merge" | "replace") => {
+    if (!importPreview) return;
+
+    const archive = getConversationArchive();
+    const result = archive.importConversations(importPreview, mode);
+
+    let message = `Imported ${result.imported} conversation(s).`;
+    if (result.skipped > 0) message += ` ${result.skipped} already existed.`;
+    if (result.errors > 0) message += ` ${result.errors} errors.`;
+
+    alert(message);
+    setShowImportModal(false);
+    setImportPreview(null);
+    await loadArchive();
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto p-6 bg-background rounded-lg border border-border shadow-sm space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar overscroll-contain">
-
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* HEADER                                                        */}
       {/* ═══════════════════════════════════════════════════════════════ */}
@@ -279,7 +507,8 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
             <span className="text-sm font-bold text-foreground">Gemini Live</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            One key does everything — voice, intelligence, and audio output through a single WebSocket.
+            One key does everything — voice, intelligence, and audio output through a single
+            WebSocket.
           </p>
           {geminiSaved && (
             <span className="mt-2 inline-flex items-center gap-1 text-[10px] text-foreground font-medium">
@@ -304,7 +533,8 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
             <span className="text-sm font-bold text-foreground">OpenRouter + Sarvam</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Best for Hinglish. HD Indian voices via Sarvam + open LLMs via OpenRouter. Two keys needed.
+            Best for Hinglish. HD Indian voices via Sarvam + open LLMs via OpenRouter. Two keys
+            needed.
           </p>
           {orSaved && sarvamSaved && (
             <span className="mt-2 inline-flex items-center gap-1 text-[10px] text-foreground font-medium">
@@ -323,8 +553,9 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               <div>
                 <p className="text-sm font-medium text-foreground">Cloud Memory Detected</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  You have a cloud memory copy from {new Date(syncMeta.updatedAt).toLocaleDateString()}.
-                  Add Supabase credentials in Power-Ups below to load it.
+                  You have a cloud memory copy from{" "}
+                  {new Date(syncMeta.updatedAt).toLocaleDateString()}. Add Supabase credentials in
+                  Power-Ups below to load it.
                 </p>
               </div>
             </div>
@@ -337,7 +568,9 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
             placeholder="Enter your Gemini API key..."
             credentialKey="aura_gemini_api_key"
             icon="🔑"
-            onSaved={() => { if (onClose) setTimeout(onClose, 800); }}
+            onSaved={() => {
+              if (onClose) setTimeout(onClose, 800);
+            }}
           />
 
           {/* Voice Language */}
@@ -360,8 +593,12 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
 
           {/* Speech / Accent */}
           <div className="border-t border-border/40 pt-4 space-y-2">
-            <label className="text-sm font-semibold text-foreground block">🗣️ Speech / Accent (Optional)</label>
-            <p className="text-xs text-muted-foreground">Helps interpret ambiguous transcriptions based on your accent.</p>
+            <label className="text-sm font-semibold text-foreground block">
+              🗣️ Speech / Accent (Optional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Helps interpret ambiguous transcriptions based on your accent.
+            </p>
             <select
               defaultValue={localStorage.getItem("aura_speech_accent") || "Automatic"}
               onChange={(e) => {
@@ -404,7 +641,9 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
           {/* Voice Language */}
           <div className="border-t border-border/40 pt-4 space-y-2">
             <label className="text-sm font-semibold text-foreground block">🗣️ Speech Locale</label>
-            <p className="text-xs text-muted-foreground">Sets listening (STT) and speaking (TTS) language.</p>
+            <p className="text-xs text-muted-foreground">
+              Sets listening (STT) and speaking (TTS) language.
+            </p>
             <select
               defaultValue={localStorage.getItem("aura_voice_language") || "hi-IN"}
               onChange={(e) => localStorage.setItem("aura_voice_language", e.target.value)}
@@ -420,8 +659,12 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
 
           {/* Speech / Accent */}
           <div className="border-t border-border/40 pt-4 space-y-2">
-            <label className="text-sm font-semibold text-foreground block">🗣️ Speech / Accent (Optional)</label>
-            <p className="text-xs text-muted-foreground">Helps interpret ambiguous transcriptions based on your accent.</p>
+            <label className="text-sm font-semibold text-foreground block">
+              🗣️ Speech / Accent (Optional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Helps interpret ambiguous transcriptions based on your accent.
+            </p>
             <select
               defaultValue={localStorage.getItem("aura_speech_accent") || "Automatic"}
               onChange={(e) => {
@@ -458,13 +701,14 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               </p>
             </div>
           </div>
-          <ChevronDown className={`w-4 h-4 text-muted-foreground group-hover:text-foreground transition-all duration-200 ${showPowerUps ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`w-4 h-4 text-muted-foreground group-hover:text-foreground transition-all duration-200 ${showPowerUps ? "rotate-180" : ""}`}
+          />
         </button>
       )}
 
       {showPowerUps && (
         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-
           {/* Cohere */}
           <div className="p-4 bg-muted/10 rounded-lg border border-border">
             <KeyInput
@@ -499,7 +743,8 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               credentialKey="redis_url"
               icon="⚡"
             />
-            {getCredential("redis_url") || (import.meta.env.DEV ? import.meta.env.VITE_REDIS_URL : "") ? (
+            {getCredential("redis_url") ||
+            (import.meta.env.DEV ? import.meta.env.VITE_REDIS_URL : "") ? (
               <div className="mt-4 pt-4 border-t border-border/50">
                 <button
                   onClick={() => setShowRedisManager(!showRedisManager)}
@@ -518,17 +763,22 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
           </div>
 
           {/* Cloud Sync (Supabase) */}
-          <div className={`p-4 rounded-lg border transition-all ${cloudSyncEnabled ? "bg-muted/20 border-foreground/30" : "bg-muted/10 border-border"}`}>
+          <div
+            className={`p-4 rounded-lg border transition-all ${cloudSyncEnabled ? "bg-muted/20 border-foreground/30" : "bg-muted/10 border-border"}`}
+          >
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <Cloud className="w-5 h-5 text-foreground" />
                 <div>
                   <label className="text-sm font-semibold text-foreground block">
                     ☁️ Cloud Sync
-                    <span className="ml-2 text-muted-foreground text-xs font-normal">PERSISTENCE</span>
+                    <span className="ml-2 text-muted-foreground text-xs font-normal">
+                      PERSISTENCE
+                    </span>
                   </label>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    Sync conversations across devices with your own Supabase database. Enables relationship memory that survives browser clears.
+                    Sync conversations across devices with your own Supabase database. Enables
+                    relationship memory that survives browser clears.
                   </p>
                 </div>
               </div>
@@ -544,76 +794,348 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* BROWSER STORAGE STATUS                                         */}
+      {/* CONVERSATION ARCHIVE — UNIFIED                                  */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="p-5 bg-muted/30 rounded-lg border border-border space-y-3">
-        <div className="flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-foreground" />
-          <label className="text-sm font-semibold text-foreground">
-            Browser Storage (Always Active)
-          </label>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FolderArchive className="w-5 h-5 text-foreground" />
+            <label className="text-sm font-semibold text-foreground">Conversation Archive</label>
+          </div>
+          <button
+            onClick={handleToggleArchive}
+            className="text-xs text-foreground hover:text-foreground/70 flex items-center gap-1"
+          >
+            {showArchive ? "Hide" : "Show"}
+            <ChevronRight
+              className={`w-4 h-4 transition-transform ${showArchive ? "rotate-90" : ""}`}
+            />
+          </button>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          ✅ Conversations auto-saved to browser local storage.
+          💾 Conversations are automatically saved on this device.
           <br />
-          🔒 100% private — never leaves your device.
-          <br />
-          📊 <strong>Usage:</strong> {usageStats.conversations} conversations stored.
+          🔒 Private — never leaves your browser.
         </p>
 
-        <button
-          onClick={handleToggleSessions}
-          className="w-full mt-2 py-2 px-4 bg-muted hover:bg-muted/80 text-foreground border border-border rounded text-xs font-medium transition flex items-center justify-center gap-2"
-        >
-          <MessageSquare className="w-4 h-4" />
-          {showSessions ? "Hide Saved Chats" : "View Saved Chats"}
-        </button>
+        {showArchive && (
+          <>
+            {/* Search and Actions Bar */}
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={archiveSearch}
+                  onChange={(e) => handleArchiveSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-foreground"
+                />
+              </div>
+              <button
+                onClick={handleImportClick}
+                className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border rounded text-xs font-medium transition flex items-center gap-1"
+                title="Import Archive"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleExportAll}
+                className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border rounded text-xs font-medium transition flex items-center gap-1"
+                title="Export All (JSON)"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            </div>
 
-        {showSessions && (
-          <div className="mt-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar border border-border rounded-md p-2 bg-background/50">
-            {sessions.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">No saved conversations found.</p>
-            ) : (
-              sessions.map(session => {
-                const userTurn = session.transcript?.find(t => t.user_initiated && t.text);
-                const title = userTurn?.text || "Empty Conversation";
-                return (
-                  <div key={session.session_id} className="flex flex-col p-3 border border-border/50 rounded bg-background">
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <div className="mt-2 space-y-2">
+                <p className="text-[10px] text-muted-foreground">
+                  {searchResults.length} result(s) found
+                </p>
+                {searchResults.map((result, idx) => (
+                  <div key={idx} className="p-2 border border-border/50 rounded bg-background/50">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0 pr-2">
-                        <p className="text-xs font-medium text-foreground truncate">{title}</p>
-                        <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(session.last_active).toLocaleString()}
-                          </span>
-                          <span>{session.transcript?.length || 0} turns</span>
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">
+                          {result.conversation.title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {result.matchedField === "title"
+                            ? "Title match"
+                            : `${result.matchedMessage.role} message`}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-1 truncate">
+                          "{result.matchedMessage.content.substring(0, 80)}..."
+                        </p>
                       </div>
                       <button
-                        onClick={() => handleDeleteSession(session.session_id)}
-                        className="p-1.5 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors shrink-0"
-                        title="Delete Conversation"
+                        onClick={() => handleOpenConversation(result.conversation)}
+                        className="p-1 text-foreground/70 hover:text-foreground"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <FolderOpen className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-                );
-              })
+                ))}
+              </div>
             )}
-          </div>
+
+            {/* Day-Grouped Conversation List */}
+            {archiveConversations.length === 0 && !archiveSearch ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                No conversations yet. Start chatting and they'll appear here.
+              </p>
+            ) : archiveConversations.length === 0 && archiveSearch ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                No conversations match your search.
+              </p>
+            ) : (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const yesterday = new Date(today);
+              yesterday.setDate(yesterday.getDate() - 1);
+
+              const groups: Record<string, ConversationArchive[]> = {};
+              for (const conv of archiveConversations) {
+                const date = new Date(conv.updatedAt);
+                date.setHours(0, 0, 0, 0);
+                const key = date.getTime();
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(conv);
+              }
+
+              const formatGroupHeader = (date: Date) => {
+                if (date.getTime() === today.getTime()) return "TODAY";
+                if (date.getTime() === yesterday.getTime()) return "YESTERDAY";
+                return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }).toUpperCase();
+              };
+
+              return (
+                <div className="mt-2 space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
+                  {Object.entries(groups)
+                    .sort(([a], [b]) => Number(b) - Number(a))
+                    .map(([dateKey, convs]) => (
+                      <div key={dateKey}>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          {formatGroupHeader(new Date(Number(dateKey)))}
+                        </p>
+                        <div className="space-y-1">
+                          {convs.map((conv) => (
+                            <div
+                              key={conv.conversationId}
+                              className="flex items-center justify-between p-2 border border-border/50 rounded bg-background hover:bg-muted/30 transition-colors"
+                            >
+                              <button
+                                onClick={() => handleOpenConversation(conv)}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <p className="text-xs font-medium text-foreground truncate">{conv.title}</p>
+                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {new Date(conv.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                  <span>{conv.messages.length} messages</span>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                <button
+                                  onClick={() => handleOpenConversation(conv)}
+                                  className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                                  title="Open"
+                                >
+                                  <FolderOpen className="w-4 h-4" />
+                                </button>
+                                <div className="relative group">
+                                  <button
+                                    className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                                    title="Export"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <div className="absolute right-0 top-full mt-1 bg-background border border-border rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[100px]">
+                                    <button
+                                      onClick={() => handleExportConversation(conv, "json")}
+                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                    >
+                                      <FileText className="w-3 h-3" /> JSON
+                                    </button>
+                                    <button
+                                      onClick={() => handleExportConversation(conv, "markdown")}
+                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                    >
+                                      <FileText className="w-3 h-3" /> Markdown
+                                    </button>
+                                    <button
+                                      onClick={() => handleExportConversation(conv, "txt")}
+                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                    >
+                                      <FileText className="w-3 h-3" /> TXT
+                                    </button>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteArchiveConversation(conv.conversationId)}
+                                  className="p-1.5 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              );
+            })()}
+          </>
         )}
       </div>
+
+      {/* Conversation Viewer Modal */}
+      {viewingConversation && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg border border-border max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div className="flex-1 min-w-0 pr-4">
+                <h3 className="text-sm font-semibold text-foreground truncate">
+                  {viewingConversation.title}
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  {viewingConversation.messages.length} messages ·{" "}
+                  {new Date(viewingConversation.createdAt).toLocaleString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExportConversation(viewingConversation, "json")}
+                  className="p-2 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                  title="Export JSON"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleCloseViewer}
+                  className="p-2 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+              {viewingConversation.messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] px-4 py-2 rounded-lg ${
+                      msg.role === "user"
+                        ? "bg-foreground text-background"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-1">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && importPreview && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg border border-border max-w-md w-full">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Import Archive</h3>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportPreview(null);
+                }}
+                className="p-1 text-foreground/70 hover:text-foreground"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-muted/30 rounded border border-border">
+                <p className="text-xs text-foreground">
+                  <strong>{importPreview.conversationCount}</strong> conversation(s) ready to import
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {importPreview.conversations.slice(0, 3).map((conv) => (
+                    <li key={conv.conversationId} className="text-[10px] text-muted-foreground">
+                      • {conv.title} ({conv.messages.length} messages)
+                    </li>
+                  ))}
+                  {importPreview.conversationCount > 3 && (
+                    <li className="text-[10px] text-muted-foreground">
+                      ...and {importPreview.conversationCount - 3} more
+                    </li>
+                  )}
+                </ul>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <p>
+                  <strong>Merge:</strong> Add new conversations, skip existing
+                </p>
+                <p>
+                  <strong>Replace:</strong> Clear archive and import all
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 p-4 border-t border-border">
+              <button
+                onClick={() => handleImportConfirm("merge")}
+                className="flex-1 py-2 px-4 bg-foreground hover:bg-foreground/90 text-background rounded text-xs font-medium transition"
+              >
+                Merge
+              </button>
+              <button
+                onClick={() => handleImportConfirm("replace")}
+                className="flex-1 py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
+              >
+                Replace All
+              </button>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportPreview(null);
+                }}
+                className="py-2 px-4 bg-muted hover:bg-muted/80 text-foreground border border-border rounded text-xs font-medium transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* FOOTER                                                         */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="p-3 bg-muted/10 rounded border border-border text-xs text-muted-foreground space-y-1">
-        <p>🔒 <strong>Privacy First:</strong> Keys stored in browser session only. Wiped on tab close.</p>
-        <p>💾 <strong>Local Storage:</strong> All conversations saved locally by default.</p>
-        <p>☁️ <strong>Cloud Sync:</strong> Optional — enable via Power-Ups with your own Supabase.</p>
+        <p>
+          🔒 <strong>Privacy First:</strong> Keys stored in browser session only. Wiped on tab
+          close.
+        </p>
+        <p>
+          💾 <strong>Local Storage:</strong> All conversations saved locally by default.
+        </p>
+        <p>
+          ☁️ <strong>Cloud Sync:</strong> Optional — enable via Power-Ups with your own Supabase.
+        </p>
       </div>
     </div>
   );
