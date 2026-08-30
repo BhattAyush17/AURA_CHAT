@@ -26,26 +26,48 @@ export class MusicService {
 
   async initialize() {
     // Read previous provider from local storage if available
-    const savedProvider = localStorage.getItem('aura_music_connected_provider');
-    if (savedProvider && (savedProvider === 'youtube' || savedProvider === 'youtube_music')) {
+    const savedProvider = localStorage.getItem("aura_music_connected_provider");
+    if (savedProvider && (savedProvider === "youtube" || savedProvider === "youtube_music")) {
       this.activeProviderId = savedProvider;
     }
-    
+
     // Initialization is silent, no Auth required up front.
     await this.searchProvider.initialize();
     await this.playbackProvider.initialize();
+
+    if (this.playbackProvider.getAudioElement) {
+      const audioEl = this.playbackProvider.getAudioElement();
+      if (audioEl) {
+        playbackState.setAudioSource(audioEl);
+      }
+    }
+
     this.currentVolume = playbackState.getState().volume || 100;
     playbackState.update({ providerId: this.activeProviderId });
-    
+
     // Subscribe to state changes for context buffering and queue advancement
-    musicEvents.on('stateChanged', (state) => {
-      if (state.isPlaying && state.currentTrack && state.currentTrack.id !== this.lastObservedTrackId) {
+    musicEvents.on("stateChanged", (state) => {
+      if (
+        state.isPlaying &&
+        state.currentTrack &&
+        state.currentTrack.id !== this.lastObservedTrackId
+      ) {
         this.lastObservedTrackId = state.currentTrack.id;
-        bufferMusicEvent('track_started', state.currentTrack.artist || 'Unknown', state.currentTrack.title);
+        bufferMusicEvent(
+          "track_started",
+          state.currentTrack.artist || "Unknown",
+          state.currentTrack.title,
+        );
       }
-      
+
       // Auto-advance queue when a track legitimately finishes
-      if (!state.isPlaying && this.lastObservedTrackId && !state.isPaused && !state.isLoading && !state.isBuffering) {
+      if (
+        !state.isPlaying &&
+        this.lastObservedTrackId &&
+        !state.isPaused &&
+        !state.isLoading &&
+        !state.isBuffering
+      ) {
         // If it stopped playing but wasn't manually paused, it likely ended naturally.
         // Wait, a better way is to listen for an explicit 'ended' event, but we can do it here:
         // However, HTMLAudioPlaybackProvider just sets isPlaying to false. Let's make it robust by letting HTMLAudioPlaybackProvider call next().
@@ -68,54 +90,58 @@ export class MusicService {
   async switchProvider(providerId: string) {
     console.log(`[MusicService] Switching provider to ${providerId}`);
     this.activeProviderId = providerId;
-    
-    if (providerId === 'ytdlp') {
+
+    if (providerId === "ytdlp") {
       this.searchProvider = new YtDlpProvider();
     } else {
       this.searchProvider = new YouTubeSearchProvider();
     }
     await this.searchProvider.initialize();
-    
+
     playbackState.update({ providerId });
-    localStorage.setItem('aura_music_connected_provider', providerId);
+    localStorage.setItem("aura_music_connected_provider", providerId);
   }
 
   private currentIntentId: number = 0;
 
   // --- Coordination: Aura Intelligence Entry Points ---
-  async processIntent(intent: ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload>) | { type: "pause" | "resume" | "stop" | "next" | "previous" }) {
+  async processIntent(
+    intent:
+      | ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload>)
+      | { type: "pause" | "resume" | "stop" | "next" | "previous" },
+  ) {
     console.log(`[MusicService] Processing intent:`, intent);
     const intentId = ++this.currentIntentId;
 
     switch (intent.type) {
       case "play":
-        const playIntent = intent as ({ type: "play" } & Partial<MusicIntentPayload>);
+        const playIntent = intent as { type: "play" } & Partial<MusicIntentPayload>;
         let finalQuery = playIntent.query || "";
-        
+
         // Formulate a semantic search query if none was provided
         if (!finalQuery) {
-            const parts = [];
-            if (playIntent.mood) parts.push(playIntent.mood);
-            if (playIntent.activity) parts.push(playIntent.activity);
-            if (playIntent.genre) parts.push(playIntent.genre);
-            if (parts.length > 0) {
-                finalQuery = parts.join(" ") + " music";
-            }
+          const parts = [];
+          if (playIntent.mood) parts.push(playIntent.mood);
+          if (playIntent.activity) parts.push(playIntent.activity);
+          if (playIntent.genre) parts.push(playIntent.genre);
+          if (parts.length > 0) {
+            finalQuery = parts.join(" ") + " music";
+          }
         }
 
         if (finalQuery) {
           const results = await this.search(finalQuery);
           if (this.currentIntentId !== intentId) {
-             console.log(`[MusicService] Stale play intent ignored for query: ${finalQuery}`);
-             return;
+            console.log(`[MusicService] Stale play intent ignored for query: ${finalQuery}`);
+            return;
           }
           if (results.length > 0) {
-             const bestTrack = this.rankTracks(results, playIntent);
-             if (playIntent.mood) bestTrack.mood = playIntent.mood;
-             if (playIntent.energy) bestTrack.energy = playIntent.energy;
-             if (playIntent.genre) bestTrack.genre = playIntent.genre;
-             if (playIntent.activity) bestTrack.activity = playIntent.activity;
-             await this.playTrack(bestTrack);
+            const bestTrack = this.rankTracks(results, playIntent);
+            if (playIntent.mood) bestTrack.mood = playIntent.mood;
+            if (playIntent.energy) bestTrack.energy = playIntent.energy;
+            if (playIntent.genre) bestTrack.genre = playIntent.genre;
+            if (playIntent.activity) bestTrack.activity = playIntent.activity;
+            await this.playTrack(bestTrack);
           } else {
             throw new Error(`No music found for search: ${finalQuery}`);
           }
@@ -141,72 +167,88 @@ export class MusicService {
 
   // --- Ranking Pipeline ---
   private rankTracks(tracks: Track[], intent: Partial<MusicIntentPayload>): Track {
-      if (tracks.length === 0) throw new Error("No tracks to rank");
-      
-      const history = playbackState.getState().history.map(t => t.id);
+    if (tracks.length === 0) throw new Error("No tracks to rank");
 
-      const scoredTracks = tracks.map(track => {
-          let score = 100;
-          let reasons: string[] = [];
+    const history = playbackState.getState().history.map((t) => t.id);
 
-          // Keyword match heuristic against title
-          const title = track.title.toLowerCase();
-          
-          if (intent.intent === 'explicit_song') {
-             score += 50;
-             reasons.push("Explicit intent bonus");
-          }
+    const scoredTracks = tracks.map((track) => {
+      let score = 100;
+      let reasons: string[] = [];
 
-          if (intent.mood && title.includes(intent.mood.toLowerCase())) {
-             score += 20;
-             reasons.push(`Mood match: ${intent.mood}`);
-          }
-          if (intent.activity && title.includes(intent.activity.toLowerCase())) {
-             score += 20;
-             reasons.push(`Activity match: ${intent.activity}`);
-          }
-          if (intent.genre && title.includes(intent.genre.toLowerCase())) {
-             score += 20;
-             reasons.push(`Genre match: ${intent.genre}`);
-          }
+      // Keyword match heuristic against title
+      const title = track.title.toLowerCase();
 
-          // Penalize recent repeats
-          if (history.includes(track.id)) {
-              score -= 50;
-              reasons.push("Recent repeat penalty");
-          }
+      if (intent.intent === "explicit_song") {
+        score += 50;
+        reasons.push("Explicit intent bonus");
+      }
 
-          return { track, score, reasons };
-      });
+      if (intent.mood && title.includes(intent.mood.toLowerCase())) {
+        score += 20;
+        reasons.push(`Mood match: ${intent.mood}`);
+      }
+      if (intent.activity && title.includes(intent.activity.toLowerCase())) {
+        score += 20;
+        reasons.push(`Activity match: ${intent.activity}`);
+      }
+      if (intent.genre && title.includes(intent.genre.toLowerCase())) {
+        score += 20;
+        reasons.push(`Genre match: ${intent.genre}`);
+      }
 
-      // Sort descending by score
-      scoredTracks.sort((a, b) => b.score - a.score);
+      // Penalize recent repeats
+      if (history.includes(track.id)) {
+        score -= 50;
+        reasons.push("Recent repeat penalty");
+      }
 
-      const best = scoredTracks[0];
-      console.log(`[MusicService] Ranked tracks. Selected '${best.track.title}' with score ${best.score}. Reasons: ${best.reasons.join(", ")}`);
-      
-      return best.track;
+      return { track, score, reasons };
+    });
+
+    // Sort descending by score
+    scoredTracks.sort((a, b) => b.score - a.score);
+
+    const best = scoredTracks[0];
+    console.log(
+      `[MusicService] Ranked tracks. Selected '${best.track.title}' with score ${best.score}. Reasons: ${best.reasons.join(", ")}`,
+    );
+
+    return best.track;
   }
 
   // --- Search Pipeline ---
   async search(query: string): Promise<Track[]> {
     const results = await this.searchProvider.search(query);
-    return results.map(track => ({
+    return results.map((track) => ({
       ...track,
-      source: this.activeProviderId
+      source: this.activeProviderId,
     }));
   }
 
   // --- Playback Pipeline ---
   async playTrack(track: Track) {
+    console.log(
+      `[MusicService] playTrack initiated for trackId=${track.id} title="${track.title}"`,
+    );
     queueManager.addTrack(track, true);
     queueManager.getNext(); // advance
 
     playbackState.setTrack(track);
     const volume = playbackState.getState().volume;
     this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
-    await this.playbackProvider.setVolume(this.currentVolume);
-    await this.playbackProvider.play(track.id);
+    try {
+      await this.playbackProvider.setVolume(this.currentVolume);
+      await this.playbackProvider.play(track.id);
+    } catch (err: any) {
+      console.error(`[MusicService] playTrack failed for trackId=${track.id}:`, err);
+      playbackState.update({
+        isPlaying: false,
+        isLoading: false,
+        hasFailed: true,
+        failureReason: err.message || "Playback failed",
+      });
+      throw err;
+    }
   }
 
   async playQueue(tracks: Track[], startIndex: number = 0) {
@@ -305,7 +347,7 @@ export class MusicService {
         stepCount++;
         this.currentVolume = Math.max(0, Math.min(100, this.currentVolume + volumeDelta));
         await this.playbackProvider.setVolume(this.currentVolume);
-        
+
         if (stepCount >= steps) {
           clearInterval(this.fadeInterval);
           this.fadeInterval = null;
@@ -339,7 +381,8 @@ export class MusicService {
   async onAuraSpeechEnd() {
     if (!this.isDucked) return;
     this.isDucked = false;
-    const targetVol = this.previousVolume !== null ? this.previousVolume : playbackState.getState().volume;
+    const targetVol =
+      this.previousVolume !== null ? this.previousVolume : playbackState.getState().volume;
     await this.fadeVolume(targetVol, 250);
     this.previousVolume = null;
   }
