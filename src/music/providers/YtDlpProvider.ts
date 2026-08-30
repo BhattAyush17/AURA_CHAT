@@ -1,16 +1,16 @@
-import { MusicProvider, Track } from '../types';
-import { ENDPOINTS } from '@/config/api';
+import { MusicProvider, Track, isValidMediaUrl } from "../types";
+import { ENDPOINTS } from "@/config/api";
 
 /**
  * YtDlpProvider (Fallback)
- * 
+ *
  * Used when the official Google OAuth / YouTube API fails.
  * Connects to a hypothetical backend service running yt-dlp to extract raw audio streams.
  */
 export class YtDlpProvider implements MusicProvider {
-  id = 'ytdlp';
-  name = 'yt-dlp Extraction Pipeline';
-  
+  id = "ytdlp";
+  name = "yt-dlp Extraction Pipeline";
+
   async initialize(): Promise<void> {
     // Connect to backend stream service (no auth needed)
   }
@@ -20,42 +20,55 @@ export class YtDlpProvider implements MusicProvider {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 45000); // Increased timeout to 45s
-      const searchEndpoint = ENDPOINTS.health.replace('/health', '/api/ytmusic/search');
-      const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+      const searchEndpoint = ENDPOINTS.health.replace("/health", "/api/ytmusic/search");
+      const res = await fetch(`${searchEndpoint}?query=${encodeURIComponent(query)}`, {
+        signal: controller.signal,
+      });
       clearTimeout(timeout);
-      
+
       if (res.ok) {
         const data = await res.json();
-        if (!data.error && data.youtube_id) {
-          let finalUrl = data.audio_stream_url || `https://www.youtube.com/watch?v=${data.youtube_id}`;
-          
-          if (data.audio_stream_url && data.audio_stream_url.includes('googlevideo.com')) {
-            const proxyBase = ENDPOINTS.health.replace('/health', '/api/ytmusic/proxy');
-            let proxyUrl = `${proxyBase}?url=${encodeURIComponent(data.audio_stream_url)}`;
+        if (!data.error && data.youtube_id && data.audio_stream_url) {
+          let finalUrl = data.audio_stream_url;
+
+          if (finalUrl && finalUrl.includes("googlevideo.com")) {
+            const proxyBase = ENDPOINTS.health.replace("/health", "/api/ytmusic/proxy");
+            let proxyUrl = `${proxyBase}?url=${encodeURIComponent(finalUrl)}`;
             if (data.http_headers) {
               proxyUrl += `&h=${encodeURIComponent(btoa(JSON.stringify(data.http_headers)))}`;
             }
             finalUrl = proxyUrl;
           }
 
-          return [{
-            id: data.youtube_id,
-            title: data.title || query,
-            artist: data.artist || "Unknown Artist",
-            albumArt: data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
-            durationMs: (data.duration || 0) * 1000,
-            url: finalUrl,
-            source: 'ytdlp'
-          }];
+          if (!isValidMediaUrl(finalUrl)) {
+            console.warn("[YtDlpProvider] Resolved audio stream URL is invalid:", finalUrl);
+            return [];
+          }
+
+          return [
+            {
+              id: data.youtube_id,
+              title: data.title || query,
+              artist: data.artist || "Unknown Artist",
+              albumArt:
+                data.thumbnail || `https://img.youtube.com/vi/${data.youtube_id}/mqdefault.jpg`,
+              durationMs: (data.duration || 0) * 1000,
+              url: finalUrl,
+              source: "ytdlp",
+            },
+          ];
         } else if (data.error) {
           console.error(`[YtDlpProvider] Backend returned error: ${data.message}`);
           throw new Error(data.message || "Unknown backend error");
         }
       } else {
-         console.error(`[YtDlpProvider] HTTP Error: ${res.status}`);
+        console.error(`[YtDlpProvider] HTTP Error: ${res.status}`);
       }
     } catch (err: any) {
-      console.error("[YtDlpProvider] Backend search failed:", err.name === 'AbortError' ? 'Timeout after 20s' : err);
+      console.error(
+        "[YtDlpProvider] Backend search failed:",
+        err.name === "AbortError" ? "Timeout after 20s" : err,
+      );
       // Surface the error so MusicService knows it failed
       throw err;
     }
@@ -85,5 +98,9 @@ export class YtDlpProvider implements MusicProvider {
   async resume(): Promise<void> {}
   async seek(positionMs: number): Promise<void> {}
   async setVolume(volume: number): Promise<void> {}
+  async unlockAudio(): Promise<void> {
+    // YtDlpProvider is a fallback search provider, not a playback provider.
+    // Actual audio unlocking is handled by HTMLAudioPlaybackProvider.
+  }
   async dispose(): Promise<void> {}
 }
