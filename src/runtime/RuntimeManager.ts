@@ -19,6 +19,13 @@ import { memoryGateway } from "@/lib/memory-gateway";
 import { getCurrentUserId } from "@/lib/user-identity";
 import { ConversationExecutive } from "@/executive/ConversationExecutive";
 import { buildConversationContext } from "@/executive/ConversationContext";
+import { playbackState } from "@/music/PlaybackState";
+import {
+  evaluateSocialContext,
+  MUSIC_KEYWORDS,
+  ENVIRONMENT_KEYWORDS,
+} from "./socialPresence/ContextualRelevanceEngine";
+import { formatSocialContextBlock } from "./socialPresence/formatSocialContextBlock";
 
 /**
  * RuntimeManager is the single entry point for the Adaptive Runtime.
@@ -149,6 +156,62 @@ export class RuntimeManager {
     // 4. Interpret Backend Intelligence for Frontend Execution
     const response = ConversationInterpreter.getInstance().processTurn(text, backendBehavior, evidence, plan, mode);
 
+    // 4b. Social Presence — global, provider-independent contextual evaluation.
+    // Consumes existing signals without re-implementing them.
+    // Does NOT feed initiativeScore or any autonomous-speech gating.
+    let socialPresenceBlock = "";
+    try {
+      const musicState = playbackState.getState();
+      const socialPresenceInput = {
+        emotion: {
+          tension: ctx.emotion.tension,
+          energy: ctx.emotion.energy,
+          warmth: ctx.emotion.warmth,
+          engagement: ctx.emotion.engagement,
+          frustration: ctx.emotion.frustration,
+          vulnerability: ctx.emotion.vulnerability,
+        },
+        music: {
+          hasActiveTrack: Boolean(musicState.currentTrack),
+          isPlaying: Boolean(musicState.isPlaying),
+          title: musicState.currentTrack?.title ?? null,
+          artist: musicState.currentTrack?.artist ?? null,
+        },
+        atmospherePresent: false,
+        memory: {
+          hasPersonalHistory: ctx.memory.hasPersonalHistory,
+          retrievedCount: ctx.memory.retrieved.length,
+          maxRelevanceScore:
+            ctx.memory.relevanceScores.length > 0 ? Math.max(...ctx.memory.relevanceScores) : 0,
+        },
+        timing: {
+          silenceDurationMs: ctx.timing.silenceDurationMs,
+          turnCount: ctx.timing.turnCount,
+        },
+        userInterrupted: ctx.input.wasInterruption,
+        auraJustSpoke: false,
+        socialMomentum: {
+          user_elaborating: false,
+          unfinished_thought: false,
+          user_wants_space: false,
+          topic_depth: 0,
+          exploratory: false,
+          storytelling: false,
+          argumentative: false,
+        },
+        relationshipStage: "established",
+        autonomousAction: "RESPOND_ONLY",
+        senseSourceCount: evidence.length,
+        userMentionsMusic: MUSIC_KEYWORDS.test(text),
+        userMentionsEnvironment: ENVIRONMENT_KEYWORDS.test(text),
+      };
+      const socialContext = evaluateSocialContext(socialPresenceInput);
+      socialPresenceBlock = formatSocialContextBlock(socialContext);
+    } catch (e) {
+      console.error("[RuntimeManager] Social Presence evaluation failed:", e);
+      socialPresenceBlock = "";
+    }
+
 
     // 4. Asynchronously update Adaptive Communication Profile (Does not block TTFB)
     setTimeout(() => {
@@ -171,7 +234,7 @@ export class RuntimeManager {
       }
     }, 0);
 
-    return response;
+    return response + socialPresenceBlock;
   }
 
   /**
