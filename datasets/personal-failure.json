@@ -1,0 +1,74 @@
+{
+  "id": "personal-failure",
+  "name": "Personal Failure",
+  "trust": 0.75,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 15,
+  "turns": [
+    {
+      "text": "Main fail ho gaya.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["failure", "vulnerability"],
+        "intensity": 0.7
+      },
+      "emo": {
+        "vulnerability": 0.65,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort"],
+        "initiative": ["Continue", "Observe"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-competence", "need-recognition"]
+      }
+    },
+    {
+      "text": "Shayad main enough nahi hoon.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["failure", "vulnerability"],
+        "intensity": 0.7
+      },
+      "emo": {
+        "vulnerability": 0.7,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort", "Reflect"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["imposter-syndrome", "need-recognition"]
+      }
+    },
+    {
+      "text": "Ab?",
+      "behavior": {
+        "act": "question",
+        "tags": ["failure"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "vulnerability": 0.5,
+        "energy": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-information", "seek-help"],
+        "strategy": ["Answer", "Comfort", "Reflect"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-competence"]
+      }
+    }
+  ]
+}

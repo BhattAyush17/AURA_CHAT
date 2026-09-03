@@ -1,0 +1,46 @@
+{
+  "dataset": "success",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 94,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 2463
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Encourage",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3045,
+      "llmWords": 11
+    },
+    {
+      "turn": 2,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2122,
+      "llmWords": 14
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2223,
+      "llmWords": 12
+    }
+  ]
+}

@@ -151,8 +151,7 @@ export class NetworkMonitor {
     // API latency penalty
     if (this.state.latencySamples.length > 0) {
       const avg =
-        this.state.latencySamples.reduce((a, b) => a + b, 0) /
-        this.state.latencySamples.length;
+        this.state.latencySamples.reduce((a, b) => a + b, 0) / this.state.latencySamples.length;
       this.state.avgApiLatencyMs = Math.round(avg);
 
       if (avg > 2000) score -= 30;

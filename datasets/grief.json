@@ -1,0 +1,75 @@
+{
+  "id": "grief",
+  "name": "Grief",
+  "trust": 0.8,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 18,
+  "turns": [
+    {
+      "text": "Aaj woh yaad aa rahe hain.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["grief", "vulnerability"],
+        "intensity": 0.8
+      },
+      "emo": {
+        "vulnerability": 0.7,
+        "energy": 0.2,
+        "tension": 0.4
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort"],
+        "initiative": ["Continue", "Observe"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["grief-lingering", "need-connection"]
+      }
+    },
+    {
+      "text": "Ghar ajeeb sa lag raha hai.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["grief", "vulnerability"],
+        "intensity": 0.7
+      },
+      "emo": {
+        "vulnerability": 0.65,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort", "Reflect"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["grief-lingering", "need-security"]
+      }
+    },
+    {
+      "text": "Bas chup rehna hai.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["grief", "vulnerability"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "vulnerability": 0.6,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort", "Observe", "Listen"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["grief-lingering", "need-connection"]
+      }
+    }
+  ]
+}

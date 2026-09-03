@@ -9,11 +9,7 @@ import { useRef, useCallback } from "react";
 
 // ─── Pause Category Types ───────────────────────────────────────────
 
-export type PauseCategory =
-  | "CONTINUE"
-  | "EMPHASIS"
-  | "INTERJECTION_WINDOW"
-  | "THINKING";
+export type PauseCategory = "CONTINUE" | "EMPHASIS" | "INTERJECTION_WINDOW" | "THINKING";
 
 export interface PauseClassification {
   category: PauseCategory;
@@ -50,47 +46,87 @@ const LIMITS = {
 // ─── Semantic Pattern Detectors ─────────────────────────────────────
 
 const GENUINE_QUESTION_PATTERNS = [
-  /\bwhat do you think\b/i, /\bdoes that make sense\b/i, /\bhave you (ever )?(noticed|tried|seen|thought|experienced|considered)\b/i,
-  /\bwhat about you\b/i, /\bhow (do|does|did|would|could|about) you\b/i, /\bdo you (agree|understand|see|know|remember|want|need|feel|mean)\b/i,
-  /\bwhat('s| is) your (take|opinion|thought|view|perspective|experience)\b/i, /\bcan you (tell|share|explain|describe)\b/i,
-  /\bright\?$/i, /\byou know\?$/i, /\byeah\?$/i, /\bwhat would you (do|say|suggest)\b/i, /\bever (thought|wondered|felt|noticed)\b/i,
-  /\bisn't (it|that)\?$/i, /\bdon't you think\b/i,
+  /\bwhat do you think\b/i,
+  /\bdoes that make sense\b/i,
+  /\bhave you (ever )?(noticed|tried|seen|thought|experienced|considered)\b/i,
+  /\bwhat about you\b/i,
+  /\bhow (do|does|did|would|could|about) you\b/i,
+  /\bdo you (agree|understand|see|know|remember|want|need|feel|mean)\b/i,
+  /\bwhat('s| is) your (take|opinion|thought|view|perspective|experience)\b/i,
+  /\bcan you (tell|share|explain|describe)\b/i,
+  /\bright\?$/i,
+  /\byou know\?$/i,
+  /\byeah\?$/i,
+  /\bwhat would you (do|say|suggest)\b/i,
+  /\bever (thought|wondered|felt|noticed)\b/i,
+  /\bisn't (it|that)\?$/i,
+  /\bdon't you think\b/i,
 ];
 
 const RHETORICAL_PATTERNS = [
-  /\bwho (would|could|can) (even|really|actually)\b/i, /\bwhy would (anyone|you|I|they|we)\b/i,
-  /\bhow (could|would|can) (anyone|that|this) (possibly|even)\b/i, /\bisn't that (just|so|exactly|basically)\b/i,
-  /\bcan you (even )?imagine\b/i, /\bwouldn't that be\b/i, /\bwho (even|really) (cares|knows|wants)\b/i,
+  /\bwho (would|could|can) (even|really|actually)\b/i,
+  /\bwhy would (anyone|you|I|they|we)\b/i,
+  /\bhow (could|would|can) (anyone|that|this) (possibly|even)\b/i,
+  /\bisn't that (just|so|exactly|basically)\b/i,
+  /\bcan you (even )?imagine\b/i,
+  /\bwouldn't that be\b/i,
+  /\bwho (even|really) (cares|knows|wants)\b/i,
 ];
 
 const EMPHASIS_PATTERNS = [
   /\bthat('s| is) (actually|really|truly|so|incredibly|extremely) (important|significant|powerful|meaningful|profound|beautiful|amazing)\b/i,
-  /\bthat changes everything\b/i, /\band (that|this) is (the|a) (key|real|biggest|most important|crucial)\b/i,
-  /\bhere's (the|what's) (thing|interesting|crazy|beautiful)\b/i, /\bthink about (that|this|it) for a (moment|second)\b/i,
-  /\bthis (matters|is important|is crucial|is everything|is the point)\b/i, /\blet that sink in\b/i, /\bthat's the whole point\b/i,
-  /\bI (really |truly |genuinely )?(mean|believe|feel) (that|this|it)\b/i, /\band (that's|this is) what (makes|gives|creates|defines)\b/i,
+  /\bthat changes everything\b/i,
+  /\band (that|this) is (the|a) (key|real|biggest|most important|crucial)\b/i,
+  /\bhere's (the|what's) (thing|interesting|crazy|beautiful)\b/i,
+  /\bthink about (that|this|it) for a (moment|second)\b/i,
+  /\bthis (matters|is important|is crucial|is everything|is the point)\b/i,
+  /\blet that sink in\b/i,
+  /\bthat's the whole point\b/i,
+  /\bI (really |truly |genuinely )?(mean|believe|feel) (that|this|it)\b/i,
+  /\band (that's|this is) what (makes|gives|creates|defines)\b/i,
 ];
 
 const THINKING_PATTERNS = [
-  /^(hmm|hm+|umm?|well)\b/i, /\blet me think\b/i, /\bthat's a (good|great|interesting|tough|hard|difficult) (question|point)\b/i,
-  /\bI('m| am) (not sure|thinking|wondering|trying to)\b/i, /\bgive me a (second|moment|sec)\b/i, /\bactually[,.]?\s*wait\b/i, /\bhold on\b/i,
+  /^(hmm|hm+|umm?|well)\b/i,
+  /\blet me think\b/i,
+  /\bthat's a (good|great|interesting|tough|hard|difficult) (question|point)\b/i,
+  /\bI('m| am) (not sure|thinking|wondering|trying to)\b/i,
+  /\bgive me a (second|moment|sec)\b/i,
+  /\bactually[,.]?\s*wait\b/i,
+  /\bhold on\b/i,
 ];
 
 const CONTINUATION_SIGNALS = [
-  /\band (so|then|also|plus|besides|furthermore|moreover)\b/i, /\bbut (the thing is|here's|what I|also)\b/i,
-  /\b(so|because|since|therefore|however|although|while|whereas)\b/i, /\bfor (example|instance)\b/i, /\blike (when|how|the)\b/i,
-  /\bin (fact|other words|addition)\b/i, /\bnot only\b/i, /\bthe (first|second|third|next|other|main)\b/i, /\bon (one|the other) hand\b/i,
+  /\band (so|then|also|plus|besides|furthermore|moreover)\b/i,
+  /\bbut (the thing is|here's|what I|also)\b/i,
+  /\b(so|because|since|therefore|however|although|while|whereas)\b/i,
+  /\bfor (example|instance)\b/i,
+  /\blike (when|how|the)\b/i,
+  /\bin (fact|other words|addition)\b/i,
+  /\bnot only\b/i,
+  /\bthe (first|second|third|next|other|main)\b/i,
+  /\bon (one|the other) hand\b/i,
 ];
 
 const TOPIC_TRANSITION_PATTERNS = [
-  /\banyway(s)?\b/i, /\bmoving on\b/i, /\bspeaking of\b/i, /\bon a (different|related|separate) (note|topic)\b/i,
-  /\bthat (said|aside|being said)\b/i, /\bbut (back to|let's talk about|anyway)\b/i, /\bso about\b/i, /\bchanging (gears|subjects|topics)\b/i,
+  /\banyway(s)?\b/i,
+  /\bmoving on\b/i,
+  /\bspeaking of\b/i,
+  /\bon a (different|related|separate) (note|topic)\b/i,
+  /\bthat (said|aside|being said)\b/i,
+  /\bbut (back to|let's talk about|anyway)\b/i,
+  /\bso about\b/i,
+  /\bchanging (gears|subjects|topics)\b/i,
 ];
 
 const SOFT_INVITATION_PATTERNS = [
-  /\bmaybe (that's|you|we|it's|it is|this is)\b/i, /\bjust (something|a thought|saying|wondering|curious)\b/i,
-  /\bI (don't|do not) know\b/i, /\bit('s| is) (up to|your call|for you to)\b/i, /\bwhat do you make of\b/i,
-  /\bcurious (what|how|if|whether)\b/i, /\bI('d| would) (love|like) to (hear|know)\b/i,
+  /\bmaybe (that's|you|we|it's|it is|this is)\b/i,
+  /\bjust (something|a thought|saying|wondering|curious)\b/i,
+  /\bI (don't|do not) know\b/i,
+  /\bit('s| is) (up to|your call|for you to)\b/i,
+  /\bwhat do you make of\b/i,
+  /\bcurious (what|how|if|whether)\b/i,
+  /\bI('d| would) (love|like) to (hear|know)\b/i,
 ];
 
 // ─── Punctuation Analysis ───────────────────────────────────────────
@@ -125,7 +161,7 @@ function matchesAny(text: string, patterns: RegExp[]): boolean {
 export function useConversationalPauses() {
   // Momentum System: 0.5 (slow/reflective) to 1.5 (fast/exciting)
   const momentumRef = useRef(1.0);
-  
+
   // User Rhythm Profile
   const rhythmProfileRef = useRef({
     avgResponseLatency: 1000,
@@ -140,17 +176,17 @@ export function useConversationalPauses() {
   // Measure User Rhythm on their responses — GRADUAL learning, not overreaction
   const userRespondedDuringWindow = useCallback((latencyMs?: number) => {
     inInterjectionWindowRef.current = false;
-    
+
     // Update rhythm profile
     const profile = rhythmProfileRef.current;
     profile.interruptCount++;
     profile.turnCount++;
-    
+
     if (latencyMs) {
       // Exponential moving average for response latency — 80% old, 20% new for stability
-      profile.avgResponseLatency = (profile.avgResponseLatency * 0.8) + (latencyMs * 0.2);
+      profile.avgResponseLatency = profile.avgResponseLatency * 0.8 + latencyMs * 0.2;
     }
-    
+
     // Gradual rhythm factor adjustment: long-term patterns influence style more than
     // short-term fluctuations. Only shift by 0.02 per interaction, never overreact.
     const interruptRate = profile.interruptCount / Math.max(1, profile.turnCount);
@@ -159,7 +195,7 @@ export function useConversationalPauses() {
     } else if (interruptRate < 0.1 && profile.factor < 1.3) {
       profile.factor += 0.02; // Slowly relax for patient listeners
     }
-    
+
     // Gentle momentum increase on fast replies/interrupts
     momentumRef.current = Math.min(1.5, momentumRef.current + 0.05);
   }, []);
@@ -168,7 +204,7 @@ export function useConversationalPauses() {
     inInterjectionWindowRef.current = false;
     lastPauseStartRef.current = 0;
     rhythmProfileRef.current.turnCount++;
-    
+
     // Decay momentum back toward 1.0 slowly
     if (momentumRef.current > 1.0) momentumRef.current -= 0.05;
     if (momentumRef.current < 1.0) momentumRef.current += 0.05;
@@ -190,24 +226,34 @@ export function useConversationalPauses() {
     // - Next sentence starts with a conjunction or continuation
     // - Current sentence ends without a strong terminal (ellipsis, comma, dash)
     // - Language switch within the same conversational idea (e.g. Hindi → English mid-thought)
-    
+
     const isThoughtContinuation = (() => {
       if (!nextSentence) return false;
       const nextTrimmed = nextSentence.trim();
-      
+
       // Next starts with a conjunction/connector → same thought
-      if (/^(and|but|so|because|since|also|plus|like|or|yet|still|then|which|where|that|—|–|-)/i.test(nextTrimmed)) return true;
-      
+      if (
+        /^(and|but|so|because|since|also|plus|like|or|yet|still|then|which|where|that|—|–|-)/i.test(
+          nextTrimmed,
+        )
+      )
+        return true;
+
       // Next starts with Hindi/Hinglish connectors → same thought
-      if (/^(aur|lekin|toh|kyunki|isliye|matlab|jaise|ya|par|phir|waise|haan|nahi|bas|ki)/i.test(nextTrimmed)) return true;
-      
+      if (
+        /^(aur|lekin|toh|kyunki|isliye|matlab|jaise|ya|par|phir|waise|haan|nahi|bas|ki)/i.test(
+          nextTrimmed,
+        )
+      )
+        return true;
+
       // Do not treat punctuation as conversational boundaries.
       // If the semantic intent continues, ignore the period.
       if (!punct.hasStrongEnding) return true;
-      
+
       // Current ends with comma or dash → explicitly continuing
       if (punct.trailingPunctuation === "comma") return true;
-      
+
       // Next starts lowercase → not a new thought boundary
       if (/^[a-z]/.test(nextTrimmed)) return true;
 
@@ -216,7 +262,7 @@ export function useConversationalPauses() {
       // Allow seamless Hindi to English and vice-versa
       return true; // Aggressive thought grouping default per Framework
     })();
-    
+
     if (isThoughtContinuation) {
       // Same thought — nearly seamless transition
       return {
@@ -282,9 +328,9 @@ export function useConversationalPauses() {
 
     // 3. Dynamic Calculation
     // finalPause = basePause * momentumFactor * emotionFactor * userRhythmFactor * interruptionFactor + microVariation
-    
+
     const momentumFactor = 1.0 / Math.max(0.5, momentumRef.current); // high momentum -> shorter pause
-    
+
     let emotionFactor = 1.0;
     if (emotionalState) {
       if (emotionalState.energy > 0.7) emotionFactor *= 0.8; // High energy -> faster
@@ -293,19 +339,23 @@ export function useConversationalPauses() {
     }
 
     const userRhythmFactor = rhythmProfileRef.current.factor;
-    
+
     // Interruption Factor based on probability
     let interruptionFactor = 1.0;
-    if (interruptionProbability > 0.7) interruptionFactor = 1.4; // leave room
+    if (interruptionProbability > 0.7)
+      interruptionFactor = 1.4; // leave room
     else if (interruptionProbability < 0.3) interruptionFactor = 0.8; // close gap
 
     const microVariation = Math.random() * 40 - 20; // +/- 20ms jitter
 
-    let finalPause = basePause * momentumFactor * emotionFactor * userRhythmFactor * interruptionFactor + microVariation;
+    let finalPause =
+      basePause * momentumFactor * emotionFactor * userRhythmFactor * interruptionFactor +
+      microVariation;
 
     // 4. Apply Hard Limits
     if (category === "CONTINUE") finalPause = Math.min(finalPause, LIMITS.CONTINUATION_MAX);
-    if (category === "EMPHASIS" || category === "THINKING") finalPause = Math.min(finalPause, LIMITS.REFLECTION_MAX);
+    if (category === "EMPHASIS" || category === "THINKING")
+      finalPause = Math.min(finalPause, LIMITS.REFLECTION_MAX);
     if (category === "INTERJECTION_WINDOW") finalPause = Math.min(finalPause, LIMITS.YIELD_MAX);
 
     // Floor at 10ms
@@ -339,7 +389,7 @@ export function useConversationalPauses() {
       durationMs: Math.round(finalPause),
       listenForInterruption,
       reason: `Base: ${basePause}, Prob: ${interruptionProbability.toFixed(2)}, Mom: ${momentumFactor.toFixed(2)}, Em: ${emotionFactor.toFixed(2)}, Ry: ${userRhythmFactor.toFixed(2)}${isStarving ? " [STARVING]" : ""}${isBreath ? " [BREATH]" : ""}`,
-      isBreath
+      isBreath,
     };
   }, []);
 

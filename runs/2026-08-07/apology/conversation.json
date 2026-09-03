@@ -1,0 +1,553 @@
+{
+  "dataset": {
+    "id": "apology",
+    "name": "Apology",
+    "trust": 0.6,
+    "hasPersonalHistory": true,
+    "languageMode": "hinglish",
+    "durationMinutes": 12,
+    "turns": [
+      {
+        "text": "I'm sorry.",
+        "behavior": {
+          "act": "apology",
+          "tags": ["vulnerability", "repair"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "vulnerability": 0.5,
+          "tension": 0.4
+        },
+        "expected": {
+          "move": ["Comfort", "Reflect"],
+          "goal": ["seek-comfort", "express-uncertainty"],
+          "strategy": ["Comfort", "Reflect", "Answer"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["PURE_ENGLISH", "HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["apology-opening", "reconciliation"]
+        }
+      },
+      {
+        "text": "Galti meri thi.",
+        "behavior": {
+          "act": "apology",
+          "tags": ["vulnerability", "repair"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "vulnerability": 0.55,
+          "tension": 0.4
+        },
+        "expected": {
+          "move": ["Comfort", "Reflect"],
+          "goal": ["seek-comfort", "express-uncertainty"],
+          "strategy": ["Comfort", "Reflect", "Listen"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["apology-motive", "reconciliation"]
+        }
+      },
+      {
+        "text": "Can we fix this?",
+        "behavior": {
+          "act": "question",
+          "tags": ["vulnerability", "repair"],
+          "intensity": 0.4
+        },
+        "emo": {
+          "vulnerability": 0.5,
+          "tension": 0.3
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["seek-help", "seek-information"],
+          "strategy": ["Answer", "Reflect", "Comfort"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["PURE_ENGLISH", "HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["reconciliation", "trust-building"]
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:17:37.073Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "I'm sorry.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["vulnerability", "repair"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -1 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 1,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0.2,
+        "stability": 1
+      },
+      "executive": {
+        "strategy": "Comfort",
+        "initiative": "Continue",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Comfort\nlanguage: PURE_ENGLISH (confidence 1.00, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.20, stable since turn 0) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 0.9, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.20)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 257,
+      "llm": "No need to apologize.",
+      "speech": {
+        "speed": 0.9,
+        "energy": 0.5,
+        "warmth": 0.85,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -1 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1564,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Comfort",
+        "plan": "Tiny/Continue/conf:High",
+        "prompt": "257t",
+        "llm": "4w",
+        "speech": "speed:0.90",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Galti meri thi.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["vulnerability", "repair"]
+      },
+      "understanding": {
+        "move": "Comfort",
+        "literal": "statement",
+        "goal": "seek-comfort",
+        "implicit": null,
+        "expected": "empathy",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": ["need-connection", "grief-life-stage"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: +1 words",
+          "thread continued naturally",
+          "move: Comfort (0.91)",
+          "expected: empathy"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 0.587,
+        "stability": 0.5
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0.2,
+        "stability": 1
+      },
+      "executive": {
+        "strategy": "Comfort",
+        "initiative": "Continue",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Comfort\nlanguage: PURE_ENGLISH (confidence 0.59, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.20, stable since turn 0) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 0.9, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.20)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 257,
+      "llm": "Mistakes happen—it's okay.",
+      "speech": {
+        "speed": 0.9,
+        "energy": 0.5,
+        "warmth": 0.85,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: +1 words",
+          "thread continued naturally",
+          "move: Comfort (0.91)",
+          "expected: empathy"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": true,
+        "initiative": true,
+        "budget": true,
+        "percent": 100
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1592,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Comfort/seek-comfort",
+        "swm": "need-connection,grief-life-stage",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Comfort",
+        "plan": "Tiny/Continue/conf:High",
+        "prompt": "257t",
+        "llm": "3w",
+        "speech": "speed:0.90",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Can we fix this?",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["vulnerability", "repair"]
+      },
+      "understanding": {
+        "move": "Ask",
+        "literal": "question",
+        "goal": "seek-information",
+        "implicit": null,
+        "expected": "information",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 0.714,
+        "stability": 0.667
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0.2,
+        "stability": 1
+      },
+      "executive": {
+        "strategy": "Answer",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Answer\nlanguage: PURE_ENGLISH (confidence 0.71, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.20, stable since turn 0) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.20)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 261,
+      "llm": "Of course we can. Let's figure it out together.",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.45,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1413,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Ask/seek-information",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Answer",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "261t",
+        "llm": "9w",
+        "speech": "speed:1.00",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 89,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 1523
+  }
+}

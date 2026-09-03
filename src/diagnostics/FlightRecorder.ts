@@ -31,7 +31,7 @@ export class FlightRecorder {
   private static instance: FlightRecorder;
   private events: FlightEvent[] = [];
   private listeners: Set<FlightListener> = new Set();
-  
+
   private currentStage: FlightStage = "idle";
   private activeMeasurements: Map<string, Partial<FlightEvent>> = new Map();
   private turnCount = 0;
@@ -72,14 +72,20 @@ export class FlightRecorder {
     return this.currentTurnId;
   }
 
-  public startMeasurement(key: string, module: string, event: string, thread: FlightEvent["thread"], blocking: boolean) {
+  public startMeasurement(
+    key: string,
+    module: string,
+    event: string,
+    thread: FlightEvent["thread"],
+    blocking: boolean,
+  ) {
     this.activeMeasurements.set(key, {
       turnId: this.currentTurnId,
       module,
       event,
       startTime: performance.now(),
       thread,
-      blocking
+      blocking,
     });
   }
 
@@ -99,11 +105,11 @@ export class FlightRecorder {
       duration,
       thread: measure.thread!,
       blocking: measure.blocking!,
-      metadata
+      metadata,
     };
 
     this.events.push(completedEvent);
-    
+
     // Memory limit: keep last 200 events to prevent leak
     if (this.events.length > 200) {
       this.events = this.events.slice(-200);

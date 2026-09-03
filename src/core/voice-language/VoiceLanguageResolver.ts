@@ -9,7 +9,7 @@ export class VoiceLanguageResolver {
   public resolve(
     observation: VoiceLanguageObservation,
     preferredLanguage: string,
-    currentState: ResolvedVoiceLanguage
+    currentState: ResolvedVoiceLanguage,
   ): Omit<ResolvedVoiceLanguage, "responseLanguage"> {
     let detectedLanguage = currentState.detectedLanguage;
     let secondaryLanguage = currentState.secondaryLanguage;
@@ -29,12 +29,14 @@ export class VoiceLanguageResolver {
       source = "provider";
       stable = true; // Provider signals are usually considered stable
       this.speechBuffer = ""; // Reset heuristic buffer
-    } 
+    }
     // Priority 2 & 3 & 4: Text heuristic fallback
     else if (observation.text) {
       this.speechBuffer += " " + observation.text.trim();
       if (this.speechBuffer.length > this.MAX_BUFFER_LENGTH) {
-        this.speechBuffer = this.speechBuffer.substring(this.speechBuffer.length - this.MAX_BUFFER_LENGTH);
+        this.speechBuffer = this.speechBuffer.substring(
+          this.speechBuffer.length - this.MAX_BUFFER_LENGTH,
+        );
       }
 
       const heuristicResult = this.analyzeTextBuffer(preferredLanguage);
@@ -60,7 +62,7 @@ export class VoiceLanguageResolver {
       confidence,
       source,
       stable,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     };
   }
 
@@ -69,8 +71,8 @@ export class VoiceLanguageResolver {
     if (currentState.detectedLanguage === newDetected && currentState.stable) {
       return true;
     }
-    // Simple temporal stability: we consider it stable immediately if confidence is high, 
-    // or we could require multiple turns. For now, since we use a 300-character buffer, 
+    // Simple temporal stability: we consider it stable immediately if confidence is high,
+    // or we could require multiple turns. For now, since we use a 300-character buffer,
     // the buffer itself provides hysteresis. So if it shifts, the shift is stable based on the buffer.
     return true;
   }
@@ -84,17 +86,23 @@ export class VoiceLanguageResolver {
     for (let i = 0; i < text.length; i++) {
       const code = text.charCodeAt(i);
       if (text[i].match(/[\s\d.,!?]/)) continue;
-      
+
       totalSignificantChars++;
-      if (code >= 0x0900 && code <= 0x097F) {
+      if (code >= 0x0900 && code <= 0x097f) {
         devanagariCount++;
-      } else if ((code >= 0x0041 && code <= 0x005A) || (code >= 0x0061 && code <= 0x007A)) {
+      } else if ((code >= 0x0041 && code <= 0x005a) || (code >= 0x0061 && code <= 0x007a)) {
         latinCount++;
       }
     }
 
     if (totalSignificantChars < 4) {
-      return { classification: "UNCERTAIN" as const, detectedLanguage: null, secondaryLanguage: null, dominantLanguage: null, confidence: null };
+      return {
+        classification: "UNCERTAIN" as const,
+        detectedLanguage: null,
+        secondaryLanguage: null,
+        dominantLanguage: null,
+        confidence: null,
+      };
     }
 
     const devanagariRatio = devanagariCount / totalSignificantChars;
@@ -102,21 +110,79 @@ export class VoiceLanguageResolver {
 
     // Hinglish detection (Latin script but Hindi words)
     const hinglishWords = new Set([
-      'hai', 'kya', 'haan', 'nahi', 'main', 'tum', 'aap', 'kaise', 'ho', 'mera', 'naam', 
-      'bhai', 'koi', 'aur', 'hi', 'bhi', 'karo', 'kar', 'kaha', 'yaha', 'waha', 'mat', 
-      'raha', 'rahi', 'rahe', 'tha', 'thi', 'the', 'hun', 'kese', 'apne', 'sab', 'kuch', 
-      'sirf', 'toh', 'ab', 'jab', 'tab', 'kab', 'kyu', 'kyun', 'bol', 'bole', 'karna', 
-      'hua', 'gaya', 'chalo', 'ya', 'woh', 'yeh', 'unko', 'inka', 'iski', 'uski', 'kisko', 
-      'jiski', 'wale', 'wala', 'wali', 'karte', 'karti', 'mujhe', 'tujhe', 'hum'
+      "hai",
+      "kya",
+      "haan",
+      "nahi",
+      "main",
+      "tum",
+      "aap",
+      "kaise",
+      "ho",
+      "mera",
+      "naam",
+      "bhai",
+      "koi",
+      "aur",
+      "hi",
+      "bhi",
+      "karo",
+      "kar",
+      "kaha",
+      "yaha",
+      "waha",
+      "mat",
+      "raha",
+      "rahi",
+      "rahe",
+      "tha",
+      "thi",
+      "the",
+      "hun",
+      "kese",
+      "apne",
+      "sab",
+      "kuch",
+      "sirf",
+      "toh",
+      "ab",
+      "jab",
+      "tab",
+      "kab",
+      "kyu",
+      "kyun",
+      "bol",
+      "bole",
+      "karna",
+      "hua",
+      "gaya",
+      "chalo",
+      "ya",
+      "woh",
+      "yeh",
+      "unko",
+      "inka",
+      "iski",
+      "uski",
+      "kisko",
+      "jiski",
+      "wale",
+      "wala",
+      "wali",
+      "karte",
+      "karti",
+      "mujhe",
+      "tujhe",
+      "hum",
     ]);
-    
+
     let isHinglish = false;
     const words = text.toLowerCase().split(/[\s.,!?]+/);
     for (const word of words) {
-       if (hinglishWords.has(word)) {
-          isHinglish = true;
-          break;
-       }
+      if (hinglishWords.has(word)) {
+        isHinglish = true;
+        break;
+      }
     }
 
     let newDetected: string | null = null;
@@ -132,10 +198,13 @@ export class VoiceLanguageResolver {
     } else if (latinRatio > this.SINGLE_THRESHOLD) {
       newClass = "SINGLE_LANGUAGE";
       // We map Latin to English by default, unless preferred is another latin language.
-      newDetected = (preferredLanguage.includes("Hindi") || preferredLanguage.includes("भारत")) ? "English" : preferredLanguage;
+      newDetected =
+        preferredLanguage.includes("Hindi") || preferredLanguage.includes("भारत")
+          ? "English"
+          : preferredLanguage;
       newConfidence = latinRatio;
-    } 
-    
+    }
+
     if (devanagariRatio > this.MIXED_THRESHOLD && latinRatio > this.MIXED_THRESHOLD) {
       newClass = "MIXED_LANGUAGE";
       if (devanagariRatio >= latinRatio) {
@@ -157,7 +226,13 @@ export class VoiceLanguageResolver {
       newDominant = "Hindi";
       newConfidence = 0.9;
     } else if (newClass === "UNCERTAIN") {
-      return { classification: "UNCERTAIN" as const, detectedLanguage: null, secondaryLanguage: null, dominantLanguage: null, confidence: null };
+      return {
+        classification: "UNCERTAIN" as const,
+        detectedLanguage: null,
+        secondaryLanguage: null,
+        dominantLanguage: null,
+        confidence: null,
+      };
     }
 
     return {
@@ -165,7 +240,7 @@ export class VoiceLanguageResolver {
       detectedLanguage: newDetected,
       secondaryLanguage: newSecondary,
       dominantLanguage: newDominant,
-      confidence: newConfidence
+      confidence: newConfidence,
     };
   }
 

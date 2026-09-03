@@ -1,0 +1,75 @@
+{
+  "id": "argument",
+  "name": "Argument",
+  "trust": 0.4,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 15,
+  "turns": [
+    {
+      "text": "Tum meri baat sunte hi nahi.",
+      "behavior": {
+        "act": "accusation",
+        "tags": ["frustration"],
+        "intensity": 0.7,
+        "frustration": 0.7
+      },
+      "emo": {
+        "frustration": 0.7,
+        "tension": 0.7
+      },
+      "expected": {
+        "move": ["Reflect", "Listen"],
+        "goal": ["complain", "debate"],
+        "strategy": ["Reflect", "Listen", "Answer"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["conflict-escalation", "need-recognition"]
+      }
+    },
+    {
+      "text": "Main bas samjhana chah raha tha.",
+      "behavior": {
+        "act": "explain",
+        "tags": ["frustration"],
+        "intensity": 0.6,
+        "frustration": 0.6
+      },
+      "emo": {
+        "frustration": 0.6,
+        "tension": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["inform", "debate"],
+        "strategy": ["Reflect", "Listen", "Comfort"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["conflict-escalation", "need-recognition"]
+      }
+    },
+    {
+      "text": "Let's restart.",
+      "behavior": {
+        "act": "proposal",
+        "tags": ["repair"],
+        "intensity": 0.3
+      },
+      "emo": {
+        "tension": 0.4,
+        "energy": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "seek-help"],
+        "strategy": ["Answer", "Reflect", "Observe"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["repair-ritual"]
+      }
+    }
+  ]
+}

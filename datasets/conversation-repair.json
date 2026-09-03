@@ -1,0 +1,58 @@
+{
+  "id": "conversation-repair",
+  "name": "Conversation Repair",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 10,
+  "turns": [
+    {
+      "text": "Wait.",
+      "behavior": {
+        "act": "hold",
+        "tags": ["correction"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Repair", "Answer"],
+        "goal": ["inform", "think-aloud"],
+        "strategy": ["Reflect", "Listen", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Actually nahi.",
+      "behavior": {
+        "act": "correction",
+        "tags": ["correction"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Repair", "Answer"],
+        "goal": ["inform", "debate"],
+        "strategy": ["Reflect", "Listen", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Main rephrase karta hoon.",
+      "behavior": {
+        "act": "correction",
+        "tags": ["correction"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Repair"],
+        "goal": ["inform"],
+        "strategy": ["Listen", "Reflect", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

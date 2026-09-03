@@ -2,7 +2,7 @@ export type AudioEnvironment = "speaker" | "headphones" | "bluetooth" | "unknown
 
 /**
  * Detects the current audio output environment by enumerating devices.
- * 
+ *
  * Falls back to "unknown" if permission hasn't been granted or if
  * the browser obfuscates labels for privacy.
  */
@@ -13,21 +13,28 @@ export async function detectAudioEnvironment(): Promise<AudioEnvironment> {
 
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioOutputs = devices.filter(d => d.kind === "audiooutput");
+    const audioOutputs = devices.filter((d) => d.kind === "audiooutput");
 
     if (audioOutputs.length === 0) {
       return "unknown";
     }
 
-    // Combine all labels to search for keywords. 
+    // Combine all labels to search for keywords.
     // If permission is denied, labels will be empty strings.
-    const labels = audioOutputs.map(d => d.label.toLowerCase()).join(" ");
+    const labels = audioOutputs.map((d) => d.label.toLowerCase()).join(" ");
 
     if (!labels.trim()) {
       return "unknown"; // Labels obfuscated
     }
 
-    if (labels.includes("bluetooth") || labels.includes("airpods") || labels.includes("buds") || labels.includes("hands-free") || labels.includes("bose") || labels.includes("sony")) {
+    if (
+      labels.includes("bluetooth") ||
+      labels.includes("airpods") ||
+      labels.includes("buds") ||
+      labels.includes("hands-free") ||
+      labels.includes("bose") ||
+      labels.includes("sony")
+    ) {
       return "bluetooth";
     }
 

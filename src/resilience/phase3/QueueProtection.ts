@@ -38,7 +38,7 @@ export class QueueProtection {
 
   setCallbacks(
     onRefillNeeded: QueueRefillCallback,
-    eventSink?: (e: ResilienceEvent) => void
+    eventSink?: (e: ResilienceEvent) => void,
   ): void {
     this.onRefillNeeded = onRefillNeeded;
     this.eventSink = eventSink ?? null;

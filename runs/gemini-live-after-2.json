@@ -1,0 +1,631 @@
+{
+  "capturedAt": "2026-08-08T08:14:48.265Z",
+  "keyPrefix": "AQ.A…",
+  "latency": [
+    {
+      "t": 6629.599999999977,
+      "d": {
+        "type": {
+          "geminiConnect": 547.9000000000233,
+          "geminiSetup": 547.9000000000233
+        }
+      }
+    },
+    {
+      "t": 6631.099999999977,
+      "d": {
+        "type": "memoryLayer",
+        "value": "live"
+      }
+    },
+    {
+      "t": 7550.099999999977,
+      "d": {
+        "type": "firstToken",
+        "value": 7550
+      }
+    },
+    {
+      "t": 7755.400000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 88.40000000002328
+      }
+    },
+    {
+      "t": 7792.099999999977,
+      "d": {
+        "type": {
+          "roundTrip": 7792.099999999977,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 7812.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 56.800000000046566
+      }
+    },
+    {
+      "t": 7842.29999999993,
+      "d": {
+        "type": {
+          "roundTrip": 7842.29999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 7857.900000000023,
+      "d": {
+        "type": {
+          "roundTrip": 7857.79999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 7885.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 73.59999999997672
+      }
+    },
+    {
+      "t": 7905.099999999977,
+      "d": {
+        "type": {
+          "roundTrip": 7904.79999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 7926.400000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.59999999997672
+      }
+    },
+    {
+      "t": 8014.29999999993,
+      "d": {
+        "type": {
+          "roundTrip": 8014.29999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8014.900000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 88.59999999997672
+      }
+    },
+    {
+      "t": 8053.79999999993,
+      "d": {
+        "type": {
+          "roundTrip": 8053.699999999953,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8059.5,
+      "d": {
+        "type": {
+          "roundTrip": 8059.400000000023,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8059.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 45
+      }
+    },
+    {
+      "t": 8108.599999999977,
+      "d": {
+        "type": {
+          "roundTrip": 8108.5,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8139,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 79.20000000006985
+      }
+    },
+    {
+      "t": 8163.599999999977,
+      "d": {
+        "type": {
+          "roundTrip": 8163.5,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8164.900000000023,
+      "d": {
+        "type": {
+          "roundTrip": 8164.699999999953,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8182.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 43.29999999993015
+      }
+    },
+    {
+      "t": 8207.29999999993,
+      "d": {
+        "type": {
+          "roundTrip": 8207.29999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8251.099999999977,
+      "d": {
+        "type": {
+          "roundTrip": 8251,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8265.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 83.30000000004657
+      }
+    },
+    {
+      "t": 8289.400000000023,
+      "d": {
+        "type": {
+          "roundTrip": 8289.29999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8310.400000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 44.699999999953434
+      }
+    },
+    {
+      "t": 8326.400000000023,
+      "d": {
+        "type": {
+          "roundTrip": 8326.29999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8336,
+      "d": {
+        "type": {
+          "roundTrip": 8335.900000000023,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8395.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 84.70000000006985
+      }
+    },
+    {
+      "t": 8439.400000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 44.40000000002328
+      }
+    },
+    {
+      "t": 8486.400000000023,
+      "d": {
+        "type": {
+          "roundTrip": 8486.400000000023,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8504.900000000023,
+      "d": {
+        "type": {
+          "roundTrip": 8504.79999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8525.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 85.5
+      }
+    },
+    {
+      "t": 8565.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.79999999993015
+      }
+    },
+    {
+      "t": 8599.5,
+      "d": {
+        "type": {
+          "roundTrip": 8599.400000000023,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8656.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 90.40000000002328
+      }
+    },
+    {
+      "t": 8695.599999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 39.40000000002328
+      }
+    },
+    {
+      "t": 8779.599999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 83.79999999993015
+      }
+    },
+    {
+      "t": 8822.699999999953,
+      "d": {
+        "type": {
+          "roundTrip": 8822.599999999977,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8823.79999999993,
+      "d": {
+        "type": {
+          "roundTrip": 8823.79999999993,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8842.900000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 63.5
+      }
+    },
+    {
+      "t": 8904.900000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 62.10000000009313
+      }
+    },
+    {
+      "t": 8945.900000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.79999999993015
+      }
+    },
+    {
+      "t": 9035,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.30000000004657
+      }
+    },
+    {
+      "t": 9075.400000000023,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.29999999993015
+      }
+    },
+    {
+      "t": 9165.699999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 90.30000000004657
+      }
+    },
+    {
+      "t": 9375,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 209.30000000004657
+      }
+    },
+    {
+      "t": 11624.900000000023,
+      "d": {
+        "type": {
+          "turnTokens": 6309,
+          "tokenThroughput": 0
+        }
+      }
+    }
+  ],
+  "statusText": ["LISTENING"],
+  "errBanner": [],
+  "errText": [],
+  "consoleLogs": [
+    {
+      "t": 1786176797191,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176797192,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176797192,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176797193,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176797193,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176797194,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176797194,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176797195,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176797195,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176797196,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176797196,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176797196,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176797196,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176797197,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176797197,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176797197,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176797271,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176797280,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176797909,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176797958,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176798036,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176798048,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176798049,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176798051,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176798052,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176798055,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176798070,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176798081,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176798082,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176798097,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176798097,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176798258,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176802287,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176802304,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176802766,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176802789,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176802840,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176802854,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176802854,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176802856,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176802858,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176802863,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176802879,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176802890,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176802890,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176802910,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176802910,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176803052,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176808242,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786176808243,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786176808248,
+      "line": "[AURA] Resolved Identity: user_480186147665"
+    },
+    {
+      "t": 1786176808250,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176808305,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176808865,
+      "line": "[AURA] ✓ Connected to models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176808904,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786176809117,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176810029,
+      "line": "[AURA] ⏱ Response delay: 264ms"
+    },
+    {
+      "t": 1786176810029,
+      "line": "[SHADOW TIMING] ⏱ Turn turn_7793 | Legacy: 264ms | HRTE: 300ms | Delta: 36ms"
+    },
+    {
+      "t": 1786176868912,
+      "line": "[Telemetry] IdleSupervisor: Object"
+    },
+    {
+      "t": 1786176868912,
+      "line": "[AURA Idle Warning] I'm still here if you need me."
+    }
+  ]
+}

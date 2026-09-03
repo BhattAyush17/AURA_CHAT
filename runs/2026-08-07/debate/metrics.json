@@ -1,0 +1,46 @@
+{
+  "dataset": "debate",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 78,
+    "avgHumanity": 8.333333333333334,
+    "realism": 8.3,
+    "productionReady": false,
+    "pipelineMsAvg": 2645
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2045,
+      "llmWords": 12
+    },
+    {
+      "turn": 2,
+      "strategy": "Clarify",
+      "fidelity": 33,
+      "human": 5,
+      "feelsHuman": false,
+      "pipelineMs": 2414,
+      "llmWords": 23
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3477,
+      "llmWords": 21
+    }
+  ]
+}

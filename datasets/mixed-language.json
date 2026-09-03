@@ -1,0 +1,68 @@
+{
+  "id": "mixed-language",
+  "name": "Mixed Language",
+  "trust": 0.7,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Bro honestly mujhe lagta hai this project is finally working.",
+      "behavior": {
+        "act": "share",
+        "tags": ["mixed"],
+        "intensity": 0.5,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["inform", "share-excitement"],
+        "strategy": ["Reflect", "Answer", "Encourage"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Bas confidence maintain karna hai.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["mixed"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "energy": 0.5
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["inform"],
+        "strategy": ["Reflect", "Encourage", "Answer"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Let's finish it.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["mixed"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "share-excitement"],
+        "strategy": ["Answer", "Encourage", "Reflect"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH", "HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

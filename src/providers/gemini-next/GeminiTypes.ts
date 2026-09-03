@@ -26,7 +26,11 @@ export interface VoiceEngineEvents {
   onToolCall?: (functionCalls: any[]) => Promise<any[]>;
   onError?: (error: Error | string) => void;
   onUsageMetadata?: (meta: any) => void;
-  onMilestone?: (id: MilestoneId, status: "in_progress" | "complete" | "failed", error?: string) => void;
+  onMilestone?: (
+    id: MilestoneId,
+    status: "in_progress" | "complete" | "failed",
+    error?: string,
+  ) => void;
   onGoAway?: () => void;
   onAuraSpeechStart?: () => void;
   onUserSpeechDetected?: () => void;

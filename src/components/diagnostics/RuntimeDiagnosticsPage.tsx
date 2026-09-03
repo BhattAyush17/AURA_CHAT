@@ -57,9 +57,7 @@ function FingerprintRow({ fp }: { fp: FailureFingerprint }) {
         <div className="rtd-fingerprint__cause">{fp.rootCause}</div>
         <div className="rtd-fingerprint__suggestion">{fp.suggestion}</div>
       </div>
-      <div className="rtd-fingerprint__time">
-        {new Date(fp.timestamp).toLocaleTimeString()}
-      </div>
+      <div className="rtd-fingerprint__time">{new Date(fp.timestamp).toLocaleTimeString()}</div>
     </div>
   );
 }
@@ -70,9 +68,7 @@ function TimelineRow({ event, isNew }: { event: TraceEvent; isNew: boolean }) {
   return (
     <div className={`rtd-timeline-row ${isNew ? "rtd-timeline-row--new" : ""}`}>
       <span className={`rtd-timeline__dot rtd-timeline__dot--${event.status}`} />
-      <span className="rtd-timeline__time">
-        {new Date(event.timestamp).toLocaleTimeString()}
-      </span>
+      <span className="rtd-timeline__time">{new Date(event.timestamp).toLocaleTimeString()}</span>
       <span className="rtd-timeline__stage">{event.stage}</span>
       <span className="rtd-timeline__details">{event.details || event.error || ""}</span>
       <span className="rtd-timeline__dur">
@@ -99,8 +95,13 @@ function TestField({ label, value }: { label: string; value: string | number | b
 
 // ─── Speech Probe Card ────────────────────────────────────────────────
 
-function SpeechProbeCard({ probe, result }: { probe: SpeechRecognitionProbe; result: ProbeResult }) {
-
+function SpeechProbeCard({
+  probe,
+  result,
+}: {
+  probe: SpeechRecognitionProbe;
+  result: ProbeResult;
+}) {
   return (
     <div className="rtd-test-card" id="rtd-speech-probe">
       <div className="rtd-test-card__header">
@@ -118,7 +119,13 @@ function SpeechProbeCard({ probe, result }: { probe: SpeechRecognitionProbe; res
       <div className="rtd-test-card__body">
         <div className="rtd-probe-pipeline">
           {(() => {
-            const stages: string[] = ["START", "AUDIO_START", "SOUND_START", "SPEECH_DETECTED", "RESULT"];
+            const stages: string[] = [
+              "START",
+              "AUDIO_START",
+              "SOUND_START",
+              "SPEECH_DETECTED",
+              "RESULT",
+            ];
             if (result.stages.ERROR !== "pending" && result.stages.ERROR !== "skipped") {
               stages.push("ERROR");
             } else {
@@ -163,7 +170,9 @@ function SpeechProbeCard({ probe, result }: { probe: SpeechRecognitionProbe; res
             disabled={result.running}
           >
             {result.running ? (
-              <><span className="rtd-btn-spinner" /> Listening…</>
+              <>
+                <span className="rtd-btn-spinner" /> Listening…
+              </>
             ) : (
               "Start Probe"
             )}
@@ -187,7 +196,9 @@ export function RuntimeDiagnosticsPage() {
   const [events, setEvents] = useState<TraceEvent[]>(runtimeTrace.getEvents());
   const [health, setHealth] = useState<PipelineStatus>(runtimeTrace.getHealth());
   const [latency, setLatency] = useState<LatencyBreakdown>(runtimeTrace.computeLatency());
-  const [fingerprints, setFingerprints] = useState<FailureFingerprint[]>(runtimeTrace.getFingerprints());
+  const [fingerprints, setFingerprints] = useState<FailureFingerprint[]>(
+    runtimeTrace.getFingerprints(),
+  );
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
 
   // Global Speech Probe
@@ -282,7 +293,9 @@ export function RuntimeDiagnosticsPage() {
       {/* Header */}
       <header className="rtd-header">
         <div className="rtd-header__nav">
-          <Link to="/" className="rtd-nav-link" id="rtd-back-home">← Home</Link>
+          <Link to="/" className="rtd-nav-link" id="rtd-back-home">
+            ← Home
+          </Link>
           <Link to="/diagnostics" className="rtd-nav-link" id="rtd-back-diag">
             ← Device Diagnostics
           </Link>
@@ -290,9 +303,7 @@ export function RuntimeDiagnosticsPage() {
         <div className="rtd-header__brand">
           <div className="rtd-header__orb" />
           <h1 className="rtd-header__title">Runtime Pipeline Inspector</h1>
-          <p className="rtd-header__subtitle">
-            Real-time voice pipeline trace & failure detection
-          </p>
+          <p className="rtd-header__subtitle">Real-time voice pipeline trace & failure detection</p>
         </div>
       </header>
 
@@ -329,9 +340,12 @@ export function RuntimeDiagnosticsPage() {
         </h2>
         {fingerprints.length > 0 ? (
           <div className="rtd-fingerprints">
-            {fingerprints.slice(-10).reverse().map((fp, i) => (
-              <FingerprintRow key={i} fp={fp} />
-            ))}
+            {fingerprints
+              .slice(-10)
+              .reverse()
+              .map((fp, i) => (
+                <FingerprintRow key={i} fp={fp} />
+              ))}
           </div>
         ) : (
           <div className="rtd-empty-state">No failures detected — pipeline healthy</div>
@@ -345,13 +359,11 @@ export function RuntimeDiagnosticsPage() {
         </h2>
         <div className="rtd-timeline" ref={timelineRef} id="rtd-event-timeline">
           {events.length > 0 ? (
-            events.slice(-100).map((event) => (
-              <TimelineRow
-                key={event.id}
-                event={event}
-                isNew={newEventIds.has(event.id)}
-              />
-            ))
+            events
+              .slice(-100)
+              .map((event) => (
+                <TimelineRow key={event.id} event={event} isNew={newEventIds.has(event.id)} />
+              ))
           ) : (
             <div className="rtd-empty-state" style={{ borderRadius: 0, border: "none" }}>
               No events recorded. Use Aura or inject test events.
@@ -372,44 +384,67 @@ export function RuntimeDiagnosticsPage() {
         <div className="rtd-tests-grid">
           {/* Speech Probe */}
           <SpeechProbeCard probe={speechProbe} result={speechProbeResult} />
-
-
         </div>
       </section>
 
       {/* ── Actions ───────────────────────────────────────────── */}
       <div className="rtd-actions">
-        <button 
-          className="rtd-btn rtd-btn--primary" 
+        <button
+          className="rtd-btn rtd-btn--primary"
           onClick={() => {
-            document.getElementById("rtd-speech-probe")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            document
+              .getElementById("rtd-speech-probe")
+              ?.scrollIntoView({ behavior: "smooth", block: "center" });
             speechProbe.start();
-          }} 
+          }}
           disabled={speechProbeResult.running}
           id="rtd-btn-global-probe"
-          style={{ background: "oklch(0.7 0.18 145)", color: "oklch(0.05 0 0)", border: "none", fontSize: "0.9rem" }}
+          style={{
+            background: "oklch(0.7 0.18 145)",
+            color: "oklch(0.05 0 0)",
+            border: "none",
+            fontSize: "0.9rem",
+          }}
         >
           {speechProbeResult.running ? (
-            <><span className="rtd-btn-spinner" style={{ borderColor: "oklch(0.05 0 0)", borderTopColor: "transparent" }} /> Listening…</>
+            <>
+              <span
+                className="rtd-btn-spinner"
+                style={{ borderColor: "oklch(0.05 0 0)", borderTopColor: "transparent" }}
+              />{" "}
+              Listening…
+            </>
           ) : (
             "🎙 Start Speech Probe"
           )}
         </button>
-        <button className="rtd-btn rtd-btn--secondary" onClick={handleInjectTest} id="rtd-btn-inject">
+        <button
+          className="rtd-btn rtd-btn--secondary"
+          onClick={handleInjectTest}
+          id="rtd-btn-inject"
+        >
           ⚡ Inject Test Events
         </button>
-        <button className="rtd-btn rtd-btn--primary" onClick={handleExport} disabled={events.length === 0} id="rtd-btn-export">
+        <button
+          className="rtd-btn rtd-btn--primary"
+          onClick={handleExport}
+          disabled={events.length === 0}
+          id="rtd-btn-export"
+        >
           ↓ Export Runtime Report
         </button>
-        <button className="rtd-btn rtd-btn--danger" onClick={handleClear} disabled={events.length === 0} id="rtd-btn-clear">
+        <button
+          className="rtd-btn rtd-btn--danger"
+          onClick={handleClear}
+          disabled={events.length === 0}
+          id="rtd-btn-clear"
+        >
           ✕ Clear Events
         </button>
       </div>
 
       {/* Timestamp */}
-      <p className="rtd-timestamp">
-        Trace engine active — {events.length} events captured
-      </p>
+      <p className="rtd-timestamp">Trace engine active — {events.length} events captured</p>
 
       {/* ── Conversation Telemetry Panel ───────────────────────────────────────────── */}
       <ConversationTelemetryPanel />

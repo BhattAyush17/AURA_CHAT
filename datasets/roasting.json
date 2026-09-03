@@ -1,0 +1,75 @@
+{
+  "id": "roasting",
+  "name": "Roasting",
+  "trust": 0.8,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Gym jaake bhi tummy wahi hai.",
+      "behavior": {
+        "act": "tease",
+        "tags": ["insult", "playful"],
+        "intensity": 0.5,
+        "playfulness": 0.9
+      },
+      "emo": {
+        "energy": 0.6,
+        "warmth": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "test-aura"],
+        "strategy": ["Reflect", "Observe", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "Protein shake se personality nahi banti.",
+      "behavior": {
+        "act": "tease",
+        "tags": ["insult", "playful"],
+        "intensity": 0.5,
+        "playfulness": 0.9
+      },
+      "emo": {
+        "energy": 0.6,
+        "warmth": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "test-aura"],
+        "strategy": ["Reflect", "Observe", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "Love you bro.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["affection", "playful"],
+        "intensity": 0.3,
+        "playfulness": 0.5
+      },
+      "emo": {
+        "warmth": 0.8
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["small-talk", "inform"],
+        "strategy": ["Answer", "Observe", "Reflect"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection"]
+      }
+    }
+  ]
+}

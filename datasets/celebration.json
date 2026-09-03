@@ -1,0 +1,76 @@
+{
+  "id": "celebration",
+  "name": "Celebration",
+  "trust": 0.8,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Selection ho gaya.",
+      "behavior": {
+        "act": "share",
+        "tags": ["excitement", "success"],
+        "intensity": 0.8,
+        "playfulness": 0.5
+      },
+      "emo": {
+        "energy": 0.8,
+        "arc": "peak",
+        "engagement": 0.9
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["share-excitement", "tell-story"],
+        "strategy": ["Encourage", "Reflect", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement"]
+      }
+    },
+    {
+      "text": "Mujhe abhi bhi yakeen nahi.",
+      "behavior": {
+        "act": "share",
+        "tags": ["excitement"],
+        "intensity": 0.6,
+        "playfulness": 0.3
+      },
+      "emo": {
+        "energy": 0.7,
+        "engagement": 0.8
+      },
+      "expected": {
+        "move": ["Reflect", "Comfort"],
+        "goal": ["share-excitement", "express-uncertainty"],
+        "strategy": ["Encourage", "Reflect", "Ask"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement", "need-recognition"]
+      }
+    },
+    {
+      "text": "Chal celebrate karte hain.",
+      "behavior": {
+        "act": "invite",
+        "tags": ["excitement"],
+        "intensity": 0.7,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "energy": 0.8
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["share-excitement", "inform"],
+        "strategy": ["Answer", "Encourage", "Reflect"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection", "need-achievement"]
+      }
+    }
+  ]
+}

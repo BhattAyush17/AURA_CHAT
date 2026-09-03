@@ -40,9 +40,9 @@ src/routes/index.tsx
 ## 3. VAD audit (PASS — server authoritative)
 
 - Activity detection is driven by the server: `realtimeInputConfig
-  { automaticActivityDetection: { disabled: false, startOfSpeechSensitivity:
-  START_SENSITIVITY_HIGH, endOfSpeechSensitivity: END_SENSITIVITY_LOW,
-  prefixPaddingMs: 20, silenceDurationMs: 1300 } }`.
+{ automaticActivityDetection: { disabled: false, startOfSpeechSensitivity:
+START_SENSITIVITY_HIGH, endOfSpeechSensitivity: END_SENSITIVITY_LOW,
+prefixPaddingMs: 20, silenceDurationMs: 1300 } }`.
 - The PCM worklet's `setVadState` path is NOT wired into the gemini path; it is
   observational only. Client audio streaming to the WS is unconditional while
   CONNECTED; turn boundaries fall out of server-side AAD + `generationComplete`.
@@ -69,27 +69,27 @@ espeak-ng utterances, prime text turn, no reconnect tolerated.
 
 Results (saved to `gemini-realtime-benchmark.json`):
 
-| metric | value |
-| --- | --- |
-| turnsReached | 20 / 20 |
-| audioChunks Rx | 142 |
-| audioBytes Rx | 1,476,712 |
-| duration | 91 s |
-| reconnect | none (false) |
+| metric                                | value                                  |
+| ------------------------------------- | -------------------------------------- |
+| turnsReached                          | 20 / 20                                |
+| audioChunks Rx                        | 142                                    |
+| audioBytes Rx                         | 1,476,712                              |
+| duration                              | 91 s                                   |
+| reconnect                             | none (false)                           |
 | ttfb (model first-audio vs last-send) | n=12, p50=24 ms, p90=69 ms, max=116 ms |
-| decode-to-first-audio | n=12, p50=0 ms, max=17 ms |
-| total (send->first playback) | n=12, p50=24 ms, p90=69 ms, max=116 ms |
+| decode-to-first-audio                 | n=12, p50=0 ms, max=17 ms              |
+| total (send->first playback)          | n=12, p50=24 ms, p90=69 ms, max=116 ms |
 
 Note: earlier negative TTFB rows were a probe clock/turn-id alignment artifact
 (mic frames sent while the model was already replying landed in the same turn
-bucket). TTFB is now computed as first-audio minus LAST SEND *before* the first
+bucket). TTFB is now computed as first-audio minus LAST SEND _before_ the first
 audio, giving only non-negative values. LatencyProbe was temporary infra and has
 been removed; the production path carries no probe hooks.
 
 ## 6. Debug / smoke regressions at cleanup time
 
 - `tsc --noEmit` : PASS
-- `vite build`   : PASS
+- `vite build` : PASS
 - raw golden oracle `raw_gemini_live.spec.ts`: `1 passed (2.7m)`, Connection
   CONNECTED PASS, Microphone LIVE PASS, disallowed telemetry NONE.
 

@@ -26,7 +26,7 @@ export class ExecutionBudgetEngine {
   public calculateBudget(
     policy: RuntimePolicy,
     isLowPower: boolean,
-    deviceScore: number
+    deviceScore: number,
   ): ExecutionBudget {
     // Base budget
     const budget: ExecutionBudget = {
@@ -52,12 +52,17 @@ export class ExecutionBudgetEngine {
     return budget;
   }
 
-  public reportViolation(subsystem: string, metric: keyof ExecutionBudget, actual: number, allowed: number) {
+  public reportViolation(
+    subsystem: string,
+    metric: keyof ExecutionBudget,
+    actual: number,
+    allowed: number,
+  ) {
     this.telemetry.logEvent({
       subsystem,
       severity: "warning",
       data: { event: "BudgetViolation", metric, actual, allowed, turnId: "system", thread: "main" },
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 }

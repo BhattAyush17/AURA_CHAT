@@ -36,9 +36,9 @@ export class NaturalPausePlanner {
    * making the pause feel intentional and human.
    */
   public calculatePause(
-    intent: string, 
+    intent: string,
     momentum: ConversationMomentum,
-    actualWaitSoFarMs: number
+    actualWaitSoFarMs: number,
   ): number {
     let targetPause = 300; // Base baseline
 
@@ -55,7 +55,7 @@ export class NaturalPausePlanner {
     // If the system has already taken longer than the target pause to generate TTFT,
     // we don't inject any *additional* fake silence. We just stream immediately.
     const remainingPause = Math.max(0, targetPause - actualWaitSoFarMs);
-    
+
     return remainingPause;
   }
 }

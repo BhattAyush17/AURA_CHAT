@@ -5,5 +5,5 @@ export enum AudioFormat {
   AAC = "AAC",
   OPUS = "OPUS",
   BASE64_JSON = "BASE64_JSON",
-  UNKNOWN = "UNKNOWN"
+  UNKNOWN = "UNKNOWN",
 }

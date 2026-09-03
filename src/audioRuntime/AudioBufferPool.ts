@@ -24,7 +24,7 @@ export class AudioBufferPool {
   private pool: BufferLease[] = [];
   private poolSize: number;
   private bufferSize: number;
-  
+
   public allocationCount: number = 0;
   public reuseCount: number = 0;
   public exhaustionCount: number = 0;
@@ -51,8 +51,8 @@ export class AudioBufferPool {
 
   public acquire(sourceData: Float32Array): BufferLease {
     // Try to find an inactive lease
-    let lease = this.pool.find(l => !l.isActive);
-    
+    let lease = this.pool.find((l) => !l.isActive);
+
     if (lease) {
       this.reuseCount++;
     } else {
@@ -64,7 +64,7 @@ export class AudioBufferPool {
     }
 
     lease.isActive = true;
-    
+
     // Copy data into the leased buffer
     if (sourceData.length === this.bufferSize) {
       lease.data.set(sourceData);
@@ -81,14 +81,14 @@ export class AudioBufferPool {
   private releaseBuffer(lease: BufferLease) {
     // No-op, just wait for the next acquire to find isActive === false
   }
-  
+
   public getMetrics() {
     return {
       poolSize: this.pool.length,
       allocationCount: this.allocationCount,
       reuseCount: this.reuseCount,
       exhaustionCount: this.exhaustionCount,
-      activeCount: this.pool.filter(l => l.isActive).length
+      activeCount: this.pool.filter((l) => l.isActive).length,
     };
   }
 }

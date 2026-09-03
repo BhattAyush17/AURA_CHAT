@@ -1,0 +1,6 @@
+- [x] Create `src/music/types/provider.ts` for abstraction and state.
+- [x] Refine `src/auth/GoogleIdentityService.ts` to ensure it works for music auth without modifying global aura login implicitly.
+- [x] Create `src/music/providers/GoogleMusicProvider.ts` implementing `MusicProviderAdapter`.
+- [x] Update `src/sense/SensePanel.tsx` to handle provider selection UI and discrete connection states.
+- [x] Verify build via `npm run build`.
+- [x] Create `walkthrough.md` with final report.

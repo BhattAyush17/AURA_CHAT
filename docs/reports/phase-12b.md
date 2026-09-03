@@ -27,7 +27,7 @@ sarcasm without voice perception still reads at 2/5.
   Every decision (`move`, `goal`, social signals, SWM influences,
   `strategy`, `initiative`, `clarify`, `mem`, `lang`, `reg`) is printed per
   turn and checked against the gold annotation.
-- **Sarcasm floor**: 5 pure-text sarcasm probes with *no* perception tags
+- **Sarcasm floor**: 5 pure-text sarcasm probes with _no_ perception tags
   are scored separately, then blended into the sarcasm dimension so the
   composite cannot hide the limit.
 
@@ -37,24 +37,24 @@ Run: `npx tsx scripts/test-banter-benchmark.ts`
 
 ## 2. Scorecard (0–10)
 
-| # | Dimension | Score | Detail |
-|---|---|---|---|
-| 1 | Conversation Understanding | **10.0** | move+goal+strategy right on 38/38 turns |
-| 2 | Social Understanding | **10.0** | SWM influences fired on 7/7 beats |
-| 3 | Humor Understanding | **10.0** | playfulness read on 10/10 joke turns |
-| 4 | Sarcasm Recognition | **5.7** | 2/2 perception-tagged + 2/5 text-only probes |
-| 5 | Friendly Banter | **10.0** | playful + casual + non-lecture on 14/14 roasting turns |
-| 6 | Emotional Awareness | **10.0** | presence, not questions: 9/9 vulnerability turns |
-| 7 | Language Matching | **10.0** | tracked every turn; sequence PURE_ENGLISH → HINGLISH |
-| 8 | Register Matching | **10.0** | CASUAL/PLAYFUL on all 5 banter register turns |
-| 9 | Conversation Flow | **10.0** | 23/23: zero forced clarifications, zero derails, interruption handled |
-| 10 | Memory Usage | **10.0** | 3/3 callbacks consumed (correction, inside joke, loan) |
-| 11 | Initiative | **10.0** | Continue on flow, Ask on questions, gentle on silences |
-| 12 | **Human-likeness (composite)** | **9.7** | weighted blend of 1–11 |
+| #   | Dimension                      | Score    | Detail                                                                |
+| --- | ------------------------------ | -------- | --------------------------------------------------------------------- |
+| 1   | Conversation Understanding     | **10.0** | move+goal+strategy right on 38/38 turns                               |
+| 2   | Social Understanding           | **10.0** | SWM influences fired on 7/7 beats                                     |
+| 3   | Humor Understanding            | **10.0** | playfulness read on 10/10 joke turns                                  |
+| 4   | Sarcasm Recognition            | **5.7**  | 2/2 perception-tagged + 2/5 text-only probes                          |
+| 5   | Friendly Banter                | **10.0** | playful + casual + non-lecture on 14/14 roasting turns                |
+| 6   | Emotional Awareness            | **10.0** | presence, not questions: 9/9 vulnerability turns                      |
+| 7   | Language Matching              | **10.0** | tracked every turn; sequence PURE_ENGLISH → HINGLISH                  |
+| 8   | Register Matching              | **10.0** | CASUAL/PLAYFUL on all 5 banter register turns                         |
+| 9   | Conversation Flow              | **10.0** | 23/23: zero forced clarifications, zero derails, interruption handled |
+| 10  | Memory Usage                   | **10.0** | 3/3 callbacks consumed (correction, inside joke, loan)                |
+| 11  | Initiative                     | **10.0** | Continue on flow, Ask on questions, gentle on silences                |
+| 12  | **Human-likeness (composite)** | **9.7**  | weighted blend of 1–11                                                |
 
 **Verdict: Yes** — the decisions AURA made in this conversation are the
 decisions a close friend makes. The remaining distance from a human friend
-is the text-only sarcasm floor and the *execution* of the lines — the
+is the text-only sarcasm floor and the _execution_ of the lines — the
 judgment is already there.
 
 ---
@@ -68,11 +68,11 @@ judgment is already there.
   Reflect/Energetic — the friend says "Oyeeeeeee saale!", not "congratulations".
 - **[8]/[9] "Pata nahi. Khush hoon... phir bhi lag raha hai kuch change
   ho gaya." / "darr lag raha hai expectations ka"** → `move=Comfort
-  strategy=Comfort clarify=false`; SWM `need-connection + need-identity +
-  need-security`. Vulnerability is met with presence; **zero clarification
+strategy=Comfort clarify=false`; SWM `need-connection + need-identity +
+need-security`. Vulnerability is met with presence; **zero clarification
   questions** on the 9 emotional turns.
 - **[10] "Abe band kar." ⟵ INTERRUPTION** → `strategy=Observe
-  initiative=Wait` — AURA yields to the interruption instead of clamping.
+initiative=Wait` — AURA yields to the interruption instead of clamping.
 - **[21] "Nahi yaar. Abhi mood nahi."** → SWM `boundary-opportunity`,
   `strategy=Reflect initiative=Redirect` — AURA backs off exactly like the
   gold ("Waise force bhi nahi kar raha. Bas bola.").

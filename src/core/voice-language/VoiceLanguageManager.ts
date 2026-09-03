@@ -1,4 +1,8 @@
-import { VoiceLanguageObservation, ResolvedVoiceLanguage, VoiceLanguageProviderAdapter } from "./VoiceLanguageTypes";
+import {
+  VoiceLanguageObservation,
+  ResolvedVoiceLanguage,
+  VoiceLanguageProviderAdapter,
+} from "./VoiceLanguageTypes";
 import { VoiceLanguageResolver } from "./VoiceLanguageResolver";
 import { VoiceLanguagePolicy } from "./VoiceLanguagePolicy";
 import { VoiceSpeechProfileManager } from "./VoiceSpeechProfile";
@@ -35,21 +39,29 @@ export class VoiceLanguageManager {
     };
 
     // Subscribe to global adaptive communication profile
-    this.unsubscribeAdaptive = AdaptiveCommunicationAnalyzer.getInstance().subscribe((adaptiveProfile) => {
-      // Only react if confidence is high (meaning stable preference)
-      if (adaptiveProfile.overallConfidence > 0.6) {
-        if (adaptiveProfile.language.primary === "hindi" && adaptiveProfile.language.hindiRatio > 0.8) {
-          // Soft-shift response hint if user is solidly in Hindi
-          if (this.state.responseLanguage !== "hindi") {
-            const newResponseLanguage = this.policy.determineResponseLanguage({
-              ...this.state,
-              detectedLanguage: "hindi",
-            }, this.state.responseLanguage);
-            this.updateState({ responseLanguage: newResponseLanguage });
+    this.unsubscribeAdaptive = AdaptiveCommunicationAnalyzer.getInstance().subscribe(
+      (adaptiveProfile) => {
+        // Only react if confidence is high (meaning stable preference)
+        if (adaptiveProfile.overallConfidence > 0.6) {
+          if (
+            adaptiveProfile.language.primary === "hindi" &&
+            adaptiveProfile.language.hindiRatio > 0.8
+          ) {
+            // Soft-shift response hint if user is solidly in Hindi
+            if (this.state.responseLanguage !== "hindi") {
+              const newResponseLanguage = this.policy.determineResponseLanguage(
+                {
+                  ...this.state,
+                  detectedLanguage: "hindi",
+                },
+                this.state.responseLanguage,
+              );
+              this.updateState({ responseLanguage: newResponseLanguage });
+            }
           }
         }
-      }
-    });
+      },
+    );
   }
 
   public setAdapter(adapter: VoiceLanguageProviderAdapter) {
@@ -60,7 +72,10 @@ export class VoiceLanguageManager {
   public setPreferredLanguage(preferredLanguage: string) {
     this.state.preferredLanguage = preferredLanguage;
     // Re-evaluate response language with new preferred language
-    const newResponseLanguage = this.policy.determineResponseLanguage(this.state, this.state.responseLanguage);
+    const newResponseLanguage = this.policy.determineResponseLanguage(
+      this.state,
+      this.state.responseLanguage,
+    );
     this.updateState({ responseLanguage: newResponseLanguage });
   }
 
@@ -74,17 +89,21 @@ export class VoiceLanguageManager {
   }
 
   public observe(observation: VoiceLanguageObservation) {
-    const resolvedPartial = this.resolver.resolve(observation, this.state.preferredLanguage, this.state);
-    
+    const resolvedPartial = this.resolver.resolve(
+      observation,
+      this.state.preferredLanguage,
+      this.state,
+    );
+
     // Combine to get new base state
     const newStateBase = {
       ...this.state,
-      ...resolvedPartial
+      ...resolvedPartial,
     };
 
     // Determine speech profile
     const profile = this.profileManager.resolveProfile(newStateBase);
-    
+
     // Interpret the transcript if text exists
     let interpreted = undefined;
     if (observation.text) {
@@ -92,7 +111,10 @@ export class VoiceLanguageManager {
     }
 
     // Determine final response language
-    const newResponseLanguage = this.policy.determineResponseLanguage(newStateBase, this.state.responseLanguage);
+    const newResponseLanguage = this.policy.determineResponseLanguage(
+      newStateBase,
+      this.state.responseLanguage,
+    );
 
     this.updateState({
       ...resolvedPartial,
@@ -134,7 +156,7 @@ export class VoiceLanguageManager {
       this.listeners.delete(listener);
       // Clean up adaptive subscription if this is the last UI listener (optional lifecycle management)
       if (this.listeners.size === 0 && this.unsubscribeAdaptive) {
-         // Keep adaptive sub alive globally since VoiceLanguageManager is a singleton/long-lived
+        // Keep adaptive sub alive globally since VoiceLanguageManager is a singleton/long-lived
       }
     };
   }
@@ -176,6 +198,6 @@ export class VoiceLanguageManager {
   }
 
   private notifyListeners() {
-    this.listeners.forEach(listener => listener(this.state));
+    this.listeners.forEach((listener) => listener(this.state));
   }
 }

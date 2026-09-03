@@ -2,7 +2,10 @@ import { chromium } from "playwright";
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
 const ctx = browser.contexts()[0];
 const page = ctx.pages().find((p) => p.url().startsWith("http://127.0.0.1:5173"));
-if (!page) { console.log("NO PAGE"); process.exit(0); }
+if (!page) {
+  console.log("NO PAGE");
+  process.exit(0);
+}
 const r = await page.evaluate(() => ({
   rc2: !!window.__rc2,
   wrappedSR: !!window.__rc2WrappedSR,

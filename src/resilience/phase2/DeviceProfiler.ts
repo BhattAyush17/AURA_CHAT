@@ -29,15 +29,12 @@ export class DeviceProfiler {
   private recentFps: number[] = [];
 
   constructor() {
-    const cores = typeof navigator !== "undefined"
-      ? navigator.hardwareConcurrency || 2
-      : 4;
-    const memGB = typeof navigator !== "undefined"
-      ? (navigator as any).deviceMemory || 4
-      : 8;
-    const isMobile = typeof navigator !== "undefined"
-      ? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-      : false;
+    const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 2 : 4;
+    const memGB = typeof navigator !== "undefined" ? (navigator as any).deviceMemory || 4 : 8;
+    const isMobile =
+      typeof navigator !== "undefined"
+        ? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+        : false;
 
     this.profile = {
       score: 70, // conservative default until measured
@@ -174,10 +171,16 @@ export class DeviceProfiler {
 
       const debugInfo = (gl as WebGLRenderingContext).getExtension("WEBGL_debug_renderer_info");
       if (debugInfo) {
-        const renderer = (gl as WebGLRenderingContext).getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        const renderer = (gl as WebGLRenderingContext).getParameter(
+          debugInfo.UNMASKED_RENDERER_WEBGL,
+        );
         const rendererLower = (renderer || "").toLowerCase();
 
-        if (/adreno 7|adreno 6[3-9]|mali-g[78]|apple gpu|apple m[1-4]|nvidia|radeon rx|geforce/i.test(rendererLower)) {
+        if (
+          /adreno 7|adreno 6[3-9]|mali-g[78]|apple gpu|apple m[1-4]|nvidia|radeon rx|geforce/i.test(
+            rendererLower,
+          )
+        ) {
           return "high";
         }
         if (/adreno 5|adreno 6[0-2]|mali-g[56]|intel (iris|uhd)/i.test(rendererLower)) {

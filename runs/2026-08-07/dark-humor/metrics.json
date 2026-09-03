@@ -1,0 +1,46 @@
+{
+  "dataset": "dark-humor",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 83,
+    "avgHumanity": 8.233333333333333,
+    "realism": 8.2,
+    "productionReady": true,
+    "pipelineMsAvg": 2464
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1942,
+      "llmWords": 5
+    },
+    {
+      "turn": 2,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3169,
+      "llmWords": 9
+    },
+    {
+      "turn": 3,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 6.7,
+      "feelsHuman": false,
+      "pipelineMs": 2282,
+      "llmWords": 6
+    }
+  ]
+}

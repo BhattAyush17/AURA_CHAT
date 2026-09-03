@@ -1,0 +1,72 @@
+{
+  "id": "dark-humor",
+  "name": "Dark Humor",
+  "trust": 0.7,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Life bhi QA engineer hai.",
+      "behavior": {
+        "act": "joke",
+        "tags": ["joke", "dark"],
+        "intensity": 0.5,
+        "playfulness": 0.8
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["inform", "small-talk"],
+        "strategy": ["Reflect", "Observe", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "Khushi deploy hi nahi hone deti.",
+      "behavior": {
+        "act": "joke",
+        "tags": ["joke", "dark"],
+        "intensity": 0.5,
+        "playfulness": 0.8
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["inform", "small-talk"],
+        "strategy": ["Reflect", "Observe", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "😂",
+      "behavior": {
+        "act": "reaction",
+        "tags": ["laugh", "emoji"],
+        "intensity": 0.4,
+        "playfulness": 1
+      },
+      "emo": {
+        "energy": 0.7
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["small-talk"],
+        "strategy": ["Observe", "Listen", "Reflect"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # AURA Phase 9.1 — Executive Decision Audit
 
-Question asked: not *"is the Executive running?"* but *"is the Executive making the correct
-decisions — every turn?"*
+Question asked: not _"is the Executive running?"_ but _"is the Executive making the correct
+decisions — every turn?"_
 
 Method: 20 curated turns driven through the real `ConversationExecutive.plan()` chain
 (StrategyPlanner → ClarificationPolicy → ConfidenceManager → InitiativePolicy → plan).
@@ -13,13 +13,13 @@ would decide). Harness: `scripts/test-executive-decisions.ts`.
 
 ## 1. Scorecard
 
-| Measure | Result |
-|---|---|
-| **Decision Accuracy** | Gate correctness **11/15 (73%)** · Human comparison **1/5 (20%)** |
-| **Decision Confidence** | Confidence is well-calibrated on gates (High only on strong STT/behavior; Medium in gray zone; Low on degraded STT) — but a repair/rejection turn is rated **High(0.90)** while the decision is wrong. Confidence measures hearing, not understanding. |
-| **Reasoning** | Every decision carries a rationale (e.g. `strategy: Clarify | STT confidence 0.40 < 0.45`). Reasoning is transparent — and reveals *wrong* premises (e.g. `moderate vulnerability` on a rejection turn). |
+| Measure                   | Result                                                                                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Decision Accuracy**     | Gate correctness **11/15 (73%)** · Human comparison **1/5 (20%)**                                                                                                                                                                                           |
+| **Decision Confidence**   | Confidence is well-calibrated on gates (High only on strong STT/behavior; Medium in gray zone; Low on degraded STT) — but a repair/rejection turn is rated **High(0.90)** while the decision is wrong. Confidence measures hearing, not understanding.      |
+| **Reasoning**             | Every decision carries a rationale (e.g. `strategy: Clarify                                                                                                                                                                                                 | STT confidence 0.40 < 0.45`). Reasoning is transparent — and reveals *wrong* premises (e.g. `moderate vulnerability` on a rejection turn). |
 | **Alternative Decisions** | The full ranked strategy ladder is visible per turn (e.g. `Clarify(10) Answer(0) Ask(0)`). When a turn scores zero everywhere, the planner falls to the `Observe` hard floor — alternatives exist but are not reasoned about (no "closest plausible" path). |
-| **Human Comparison** | 4 of 5 benchmark turns are decided differently from a human. Details below. |
+| **Human Comparison**      | 4 of 5 benchmark turns are decided differently from a human. Details below.                                                                                                                                                                                 |
 
 ## 2. What the Executive gets right (gates pass)
 
@@ -37,7 +37,7 @@ machinery is real and behaves as designed.
    word boundaries nor punctuation.
 2. **Clarification fires on backchannels** — "Yeah yeah" is correctly read as Observe by the
    StrategyPlanner (Gate 1.5) but `ClarificationPolicy.ts:41` independently declares
-   *"input is too short to disambiguate"* → clarify=true. The plan says both "no push" and
+   _"input is too short to disambiguate"_ → clarify=true. The plan says both "no push" and
    "clarify first" in the same turn. The two policies are not ordered or reconciled.
 3. **`clarification.required` never reaches the InitiativePolicy** — on hedged input and
    gray-zone STT the plan requires clarification yet initiative stays Continue/Observe.
@@ -46,13 +46,13 @@ machinery is real and behaves as designed.
 
 ## 4. Findings — human-benchmark failures (conversational cognition gaps)
 
-| Turn | Human decides | Executive decides | Gap |
-|---|---|---|---|
-| "Actually... wait... let me explain." | Wait — yield the floor; the user is self-correcting | Observe (passes only because Observe≈no-push; not because "wait" is understood) | No HOLD detection |
-| "No... that's not what I meant." | Repair — acknowledge misalignment, ask one question | **Comfort** (vulnerability 0.45 > 0.35) with **High** confidence, no clarification | No REJECTION/REPAIR detection; vulnerability heuristic misfires |
-| "Hmm?" | Clarify/Ask — prompt for more, not a request | **Answer** (question-mark overrides ambiguity) | isQuestion treats any `?` as a question; ambiguity not considered |
-| "Well... actually I meant the other one" | Follow the re-anchor (Reflect/Listen) | Observe | No self-repair detection |
-| "And then I thought... you know..." | Wait or soft nudge | **Comfort** (vulnerability 0.4), no wait | Trailing-off not modeled; vulnerability heuristic misfires |
+| Turn                                     | Human decides                                       | Executive decides                                                                  | Gap                                                               |
+| ---------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| "Actually... wait... let me explain."    | Wait — yield the floor; the user is self-correcting | Observe (passes only because Observe≈no-push; not because "wait" is understood)    | No HOLD detection                                                 |
+| "No... that's not what I meant."         | Repair — acknowledge misalignment, ask one question | **Comfort** (vulnerability 0.45 > 0.35) with **High** confidence, no clarification | No REJECTION/REPAIR detection; vulnerability heuristic misfires   |
+| "Hmm?"                                   | Clarify/Ask — prompt for more, not a request        | **Answer** (question-mark overrides ambiguity)                                     | isQuestion treats any `?` as a question; ambiguity not considered |
+| "Well... actually I meant the other one" | Follow the re-anchor (Reflect/Listen)               | Observe                                                                            | No self-repair detection                                          |
+| "And then I thought... you know..."      | Wait or soft nudge                                  | **Comfort** (vulnerability 0.4), no wait                                           | Trailing-off not modeled; vulnerability heuristic misfires        |
 
 The user's two example turns are the two worst cases:
 
@@ -67,7 +67,7 @@ The user's two example turns are the two worst cases:
 
 - The Executive models **per-turn surface signals** (STT, emotion, behavior tags, length,
   question marks) but has **no conversational-state model**: no repair state, no
-  rejection/acceptance of the *previous* turn, no hold/turn-taking signals, no awareness
+  rejection/acceptance of the _previous_ turn, no hold/turn-taking signals, no awareness
   that this utterance responds to AURA's own last utterance.
 - `isQuestion` is a pure syntax test; "Hmm?" has the same shape as "Where?".
 - Emotion defaults leak: any vulnerability > 0.35 contributes Comfort even when the text is
@@ -77,7 +77,7 @@ The user's two example turns are the two worst cases:
 
 1. Normalize punctuation before social-detector matching (greeting/farewell/backchannel).
 2. Add a deterministic **HOLD gate**: markers `wait`, `hold on`, `one sec`, `let me
-   explain`, `let me think` → strategy Listen + initiative Wait, no clarification.
+explain`, `let me think` → strategy Listen + initiative Wait, no clarification.
 3. Add a deterministic **REJECTION/REPAIR gate**: markers `that's not what i meant`,
    `that's wrong`, `you misunderstood`, `no, i`, `i didn't say` → strategy Reflect/Clarify,
    initiative Ask, clarification required (the user's "Repair → Clarify → Restart" ladder).
@@ -85,7 +85,7 @@ The user's two example turns are the two worst cases:
    turns the StrategyPlanner already classified as backchannel/continuation.
 5. Pass `clarification.required` into InitiativePolicy so "clarify first" forces initiative
    Ask.
-6. Gate the Comfort contribution on *why* vulnerability fired (behavior tags), so a
+6. Gate the Comfort contribution on _why_ vulnerability fired (behavior tags), so a
    rejection turn cannot read as fragility.
 
 ## 7. Verdict
@@ -95,5 +95,5 @@ The Executive is deterministic, explainable, and correct on standard turns — a
 rejection, and cannot distinguish "Hmm?" from a real question. Decision Accuracy against a
 human baseline: **20%** on the cognition-sensitive turns, **73%** on standard gates.
 The fix is small and fully deterministic (Section 6) — the same architectural pattern
-already proven in Phases 8/8.1. Until then, the Executive decides *something* every turn,
+already proven in Phases 8/8.1. Until then, the Executive decides _something_ every turn,
 but on conversational repair it decides the wrong thing confidently.

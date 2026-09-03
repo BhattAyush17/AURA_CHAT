@@ -34,14 +34,14 @@ export interface ProviderAdapter {
 
   /**
    * The core method to handle a conversational turn.
-   * Providers receive the raw user text, the processed cognitive block, 
+   * Providers receive the raw user text, the processed cognitive block,
    * and any pre-computed behavior analysis.
    */
   processTurn(
     userText: string,
     cognitiveBlock: string,
     behaviorAnalysis: BehaviorAnalysis | null,
-    context?: Record<string, any>
+    context?: Record<string, any>,
   ): Promise<void>;
 
   /**

@@ -56,7 +56,11 @@ export type ProbeListener = (result: ProbeResult) => void;
 
 // ─── Diagnosis Logic ────────────────────────────────────────────────
 
-function diagnose(events: ProbeEvent[], errorCode: string | null, hasTranscript: boolean): { diagnosis: string; success: boolean } {
+function diagnose(
+  events: ProbeEvent[],
+  errorCode: string | null,
+  hasTranscript: boolean,
+): { diagnosis: string; success: boolean } {
   const names = events.map((e) => e.event);
 
   // Error-based diagnoses
@@ -64,17 +68,37 @@ function diagnose(events: ProbeEvent[], errorCode: string | null, hasTranscript:
     switch (errorCode) {
       case "not-allowed":
       case "service-not-allowed":
-        return { diagnosis: "Permission Failure — microphone access denied by user or browser policy", success: false };
+        return {
+          diagnosis: "Permission Failure — microphone access denied by user or browser policy",
+          success: false,
+        };
       case "audio-capture":
-        return { diagnosis: "Microphone Ownership Conflict — another app or tab may be using the mic", success: false };
+        return {
+          diagnosis: "Microphone Ownership Conflict — another app or tab may be using the mic",
+          success: false,
+        };
       case "network":
-        return { diagnosis: "Speech Recognition Backend Failure — browser could not reach its cloud STT service", success: false };
+        return {
+          diagnosis:
+            "Speech Recognition Backend Failure — browser could not reach its cloud STT service",
+          success: false,
+        };
       case "no-speech":
-        return { diagnosis: "No Speech Detected — mic was active but no voice was heard within the timeout", success: false };
+        return {
+          diagnosis:
+            "No Speech Detected — mic was active but no voice was heard within the timeout",
+          success: false,
+        };
       case "aborted":
-        return { diagnosis: "Recognition Aborted — the session was cancelled before completing", success: false };
+        return {
+          diagnosis: "Recognition Aborted — the session was cancelled before completing",
+          success: false,
+        };
       case "language-not-supported":
-        return { diagnosis: "Language Not Supported — the browser does not support the requested language", success: false };
+        return {
+          diagnosis: "Language Not Supported — the browser does not support the requested language",
+          success: false,
+        };
       default:
         return { diagnosis: `Unknown Error: ${errorCode}`, success: false };
     }
@@ -90,14 +114,16 @@ function diagnose(events: ProbeEvent[], errorCode: string | null, hasTranscript:
 
   if (hasResult && hasTranscript) {
     return {
-      diagnosis: "Browser Speech Recognition Working — if Aura voice still fails, the issue is in Aura's integration layer",
+      diagnosis:
+        "Browser Speech Recognition Working — if Aura voice still fails, the issue is in Aura's integration layer",
       success: true,
     };
   }
 
   if (hasStart && hasSpeechDetected && !hasResult) {
     return {
-      diagnosis: "Audio Heard, No Transcript Produced — browser detected speech but failed to transcribe it",
+      diagnosis:
+        "Audio Heard, No Transcript Produced — browser detected speech but failed to transcribe it",
       success: false,
     };
   }
@@ -118,13 +144,17 @@ function diagnose(events: ProbeEvent[], errorCode: string | null, hasTranscript:
 
   if (hasStart && hasEnd && !hasSpeechDetected && !hasResult) {
     return {
-      diagnosis: "Recognition Started Then Ended Without Input — no speech was detected within the timeout window",
+      diagnosis:
+        "Recognition Started Then Ended Without Input — no speech was detected within the timeout window",
       success: false,
     };
   }
 
   if (!hasStart && !hasEnd) {
-    return { diagnosis: "Probe did not execute — SpeechRecognition may not be available", success: false };
+    return {
+      diagnosis: "Probe did not execute — SpeechRecognition may not be available",
+      success: false,
+    };
   }
 
   return { diagnosis: "Inconclusive — partial event sequence received", success: false };
@@ -168,7 +198,9 @@ export class SpeechRecognitionProbe {
 
   subscribe(listener: ProbeListener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   getResult(): ProbeResult {
@@ -213,7 +245,11 @@ export class SpeechRecognitionProbe {
 
   stop(): void {
     if (!this.recognition) return;
-    try { this.recognition.stop(); } catch { /* safe */ }
+    try {
+      this.recognition.stop();
+    } catch {
+      /* safe */
+    }
   }
 
   // ─── Event Binding ──────────────────────────────────────────────
@@ -342,7 +378,11 @@ export class SpeechRecognitionProbe {
   private notify(): void {
     const snapshot = this.getResult();
     for (const listener of this.listeners) {
-      try { listener(snapshot); } catch { /* diagnostics must never crash */ }
+      try {
+        listener(snapshot);
+      } catch {
+        /* diagnostics must never crash */
+      }
     }
   }
 

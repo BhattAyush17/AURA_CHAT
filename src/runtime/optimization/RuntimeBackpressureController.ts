@@ -12,7 +12,7 @@ export class RuntimeBackpressureController {
     provider: "normal",
     memory: "normal",
     expression: "normal",
-    telemetry: "normal"
+    telemetry: "normal",
   };
 
   private constructor() {}
@@ -41,8 +41,14 @@ export class RuntimeBackpressureController {
       this.telemetry.logEvent({
         subsystem: "BackpressureController",
         severity: "warning",
-        data: { event: "PressureSpike", currentPressure: pressureLevel, state: this.pressureState, turnId: "system", thread: "main" },
-        timestamp: Date.now()
+        data: {
+          event: "PressureSpike",
+          currentPressure: pressureLevel,
+          state: this.pressureState,
+          turnId: "system",
+          thread: "main",
+        },
+        timestamp: Date.now(),
       });
     }
   }

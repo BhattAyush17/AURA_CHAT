@@ -130,7 +130,7 @@ Every conversational turn flows through a decoupled, speculatively-optimized pip
    - **Circuit Validation:** `degradation.level` checks Redis health. If `redis` is unavailable, the system defaults to synchronous processing.
    - **Async Publish:** `_safe_background()` executes `publish_transcript()` injecting the turn into `aura:transcripts`.
    - **Cache Retrieval:** The server queries Redis for the precompiled `AnalyzeResponse` generated during the _previous_ turn's consumer execution.
-     - **[AUDIT RISK] Permanent 1-Turn Context Lag**: Because the frontend reads the response instantaneously, it reads the *previous* turn's cache before the consumer has finished processing the *current* turn. The LLM is permanently injected with behavioral instructions that are one step behind.
+     - **[AUDIT RISK] Permanent 1-Turn Context Lag**: Because the frontend reads the response instantaneously, it reads the _previous_ turn's cache before the consumer has finished processing the _current_ turn. The LLM is permanently injected with behavioral instructions that are one step behind.
    - **Immediate Return:** The cached `AnalyzeResponse` is returned to the client in `<20ms`.
 
 4. **Background Offline Analytical Execution (`behavior_engine_consumer.py`)**
@@ -163,7 +163,7 @@ AURA operates under strict **fail-open** reliability engineering:
 | :---------------------------- | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
 | **Redis Down**                | Bypass Brain 3 Stream + Cache. Fallback to inline sync processing in `server.py`. | Latency increases (~800ms) but chat works seamlessly.                    |
 | **Supabase pgvector Down**    | `store_memory` fails gracefully via `_safe_background`. DB queries short-circuit. | Loss of long-term episodic memory enrichment. Live chat unaffected.      |
-| **Gemini Embedding API Down** | Embedding chain fails over to Cohere (MRL Truncated) or Local FastEmbed. | Seamless transition, provided cache key collision risk is patched.         |
+| **Gemini Embedding API Down** | Embedding chain fails over to Cohere (MRL Truncated) or Local FastEmbed.          | Seamless transition, provided cache key collision risk is patched.       |
 | **Complete System Collapse**  | Circuit forces `DegradationLevel.VOICE_ONLY`. Empty directives returned.          | AURA acts as a standard voice-relay bot. No behavioral context injected. |
 
 > [!IMPORTANT]

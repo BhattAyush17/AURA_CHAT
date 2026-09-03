@@ -49,17 +49,22 @@ export const isValidKey = (key: string | null | undefined, keyType?: string): bo
 };
 
 export const getGeminiKey = (): string | null => {
-  const key = getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "");
+  const key =
+    getCredential("aura_gemini_api_key") ||
+    (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string) : "");
   return isValidKey(key, "aura_gemini_api_key") ? key.trim() : null;
 };
 
 export const getOpenRouterKey = (): string | null => {
-  const key = getCredential("openrouter_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "");
+  const key =
+    getCredential("openrouter_api_key") ||
+    (import.meta.env.DEV ? (import.meta.env.VITE_OPENROUTER_API_KEY as string) : "");
   return isValidKey(key, "openrouter_api_key") ? key.trim() : null;
 };
 
 export const getSarvamKey = (): string | null => {
-  const key = getCredential("sarvam_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_SARVAM_API_KEY as string) : "");
+  const key =
+    getCredential("sarvam_api_key") ||
+    (import.meta.env.DEV ? (import.meta.env.VITE_SARVAM_API_KEY as string) : "");
   return isValidKey(key, "sarvam_api_key") ? key.trim() : null;
 };
-

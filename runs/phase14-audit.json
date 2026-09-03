@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-08-07T04:24:56.634Z",
+  "sections": {
+    "performance": [
+      {
+        "ttfb": 4,
+        "dcl": 139,
+        "load": 139,
+        "transfer": "1KB",
+        "heapMB": 22,
+        "consoleErrors": 1,
+        "httpErrors": 0
+      },
+      {
+        "ttfb": 4,
+        "dcl": 140,
+        "load": 140,
+        "transfer": "1KB",
+        "heapMB": 25,
+        "consoleErrors": 1,
+        "httpErrors": 0
+      },
+      {
+        "ttfb": 5,
+        "dcl": 151,
+        "load": 151,
+        "transfer": "1KB",
+        "heapMB": 23,
+        "consoleErrors": 1,
+        "httpErrors": 0
+      }
+    ],
+    "soak": {
+      "duration": "180s",
+      "heartbeats": [
+        {
+          "t": "30s",
+          "heapMB": 25,
+          "alive": true
+        },
+        {
+          "t": "60s",
+          "heapMB": 25,
+          "alive": true
+        },
+        {
+          "t": "90s",
+          "heapMB": 25,
+          "alive": true
+        },
+        {
+          "t": "120s",
+          "heapMB": 25,
+          "alive": true
+        },
+        {
+          "t": "150s",
+          "heapMB": 25,
+          "alive": true
+        },
+        {
+          "t": "180s",
+          "heapMB": 25,
+          "alive": true
+        }
+      ],
+      "errors": {
+        "console": ["Failed to load resource: net::ERR_CONNECTION_REFUSED"],
+        "page": [],
+        "http4xx5xx": [],
+        "cors": []
+      }
+    },
+    "network": {
+      "errorsWhileOffline": 3,
+      "errorsAfterReconnect": 0,
+      "pageAliveAfterReconnect": "complete",
+      "sampleErrors": [
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+        "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+      ]
+    },
+    "mobile": {
+      "layout": {
+        "hScroll": false,
+        "scrollWidth": 390,
+        "innerWidth": 390
+      },
+      "consoleErrors": 1,
+      "statusText": "tap mic to begin"
+    },
+    "voice": {
+      "statusTransitions": ["tap mic to begin"],
+      "sessionLog": [
+        "[AURA] 🖱️ Starting session...",
+        "[STTWatchdog] Escalating recovery to level 1 (health: 75, errors: 0)"
+      ],
+      "errors": {
+        "console": ["Failed to load resource: net::ERR_CONNECTION_REFUSED"],
+        "page": []
+      }
+    },
+    "a11y": {
+      "buttonsWithoutAriaOrText": 4,
+      "focusableCount": 17,
+      "hasLiveRegion": false
+    }
+  }
+}

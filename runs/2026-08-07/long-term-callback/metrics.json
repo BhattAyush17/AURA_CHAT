@@ -1,0 +1,46 @@
+{
+  "dataset": "long-term-callback",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 3,
+    "memoryUsed": 3,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 61,
+    "avgHumanity": 8,
+    "realism": 8,
+    "productionReady": false,
+    "pipelineMsAvg": 1977
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Answer",
+      "fidelity": 50,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2046,
+      "llmWords": 9
+    },
+    {
+      "turn": 2,
+      "strategy": "Encourage",
+      "fidelity": 50,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1782,
+      "llmWords": 9
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2103,
+      "llmWords": 9
+    }
+  ]
+}

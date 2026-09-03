@@ -35,12 +35,19 @@ import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import { transcribeAudio } from "./sarvamSTT";
 import { generateSpeech } from "./sarvamTTS";
 import { connectionState } from "@/config/connectionState";
+import { auraTelemetry, endProviderCall } from "@/telemetry";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
+import { buildMusicContext } from "@/lib/aura-actions";
+import { boundCognitiveBlock, boundMusicContextText } from "@/lib/cognitive-budget";
+import { playbackState } from "@/music/PlaybackState";
+import { resolvePositionPhraseToSeconds } from "@/music/DeicticResolver";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 import { useConversationalPauses } from "@/shared/useConversationalPauses";
 import { conversationState } from "@/runtime/ConversationStateManager";
 import { RuntimeManager } from "@/runtime/RuntimeManager";
+import type { AtmosphereContext } from "@/executive/AtmosphereContext";
+import { atmosphereFromComposer } from "@/executive/AtmosphereContext";
 import { buildModelQueue, MODEL_OPENROUTER_IDS } from "@/executive/ModelProfile";
 import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
@@ -107,6 +114,11 @@ const PROACTIVE_MIN_SILENCE_MS = 30000;
 
 // The Executive lives at module scope — zero re-render cost, no
 // useCallback churn, exactly one conversational mind per tab.
+const resolveSeekSeconds = (raw?: string): number | undefined => {
+  if (!raw || typeof raw !== "string") return undefined;
+  const secs = resolvePositionPhraseToSeconds(raw);
+  return secs !== null && secs >= 0 ? secs : undefined;
+};
 const extractStageDirections = (text: string) => {
   const directions: string[] = [];
 
@@ -114,18 +126,32 @@ const extractStageDirections = (text: string) => {
   const processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
     try {
       const data = JSON.parse(match);
-      if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
-        import("@/music/MusicService").then(({ musicService }) => {
-          musicService.processIntent({ 
-            type: "play", 
-            query: data.query || data.user_query,
-            mood: data.mood,
-            energy: data.energy,
-            genre: data.genre,
-            activity: data.activity,
-            intent: data.intent
-          });
-        });
+      if (
+        data.query ||
+        data.mood ||
+        data.activity ||
+        data.genre ||
+        data.intent === "similar" ||
+        data.user_query
+      ) {
+        import("@/music/MusicService")
+          .then(({ musicService }) => {
+            musicService
+              .processIntent({
+                type: "play",
+                query: data.query || data.user_query,
+                mood: data.mood,
+                energy: data.energy,
+                genre: data.genre,
+                activity: data.activity,
+                intent: data.intent,
+                ...(typeof data.start_at === "string" && data.start_at.trim()
+                  ? { startAtSeconds: resolveSeekSeconds(data.start_at) }
+                  : {}),
+              })
+              .catch((err) => console.error("[Sarvam] Background play failed:", err));
+          })
+          .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
       }
     } catch (e) {}
     return "";
@@ -138,25 +164,59 @@ const extractStageDirections = (text: string) => {
       if (val) {
         if (val.startsWith("PLAY_YOUTUBE:")) {
           const query = val.replace("PLAY_YOUTUBE:", "").trim();
-          import("@/music/MusicService").then(({ musicService }) => {
-            musicService.processIntent({ type: "play", query });
-          });
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              musicService
+                .processIntent({ type: "play", query })
+                .catch((err) => console.error("[Sarvam] Background play failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
         } else if (val === "STOP_YOUTUBE") {
-          import("@/music/MusicService").then(({ musicService }) => {
-            musicService.processIntent({ type: "stop" });
-          });
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              musicService
+                .processIntent({ type: "stop" })
+                .catch((err) => console.error("[Sarvam] Background stop failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
         } else if (val === "PAUSE_MUSIC") {
-          import("@/music/MusicService").then(({ musicService }) => {
-            musicService.processIntent({ type: "pause" });
-          });
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              musicService
+                .processIntent({ type: "pause" })
+                .catch((err) => console.error("[Sarvam] Background pause failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
         } else if (val === "RESUME_MUSIC") {
-          import("@/music/MusicService").then(({ musicService }) => {
-            musicService.processIntent({ type: "resume" });
-          });
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              musicService
+                .processIntent({ type: "resume" })
+                .catch((err) => console.error("[Sarvam] Background resume failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
+        } else if (val.startsWith("SEEK:")) {
+          const seekPhrase = val.replace("SEEK:", "").trim();
+          const seekSecs = resolveSeekSeconds(seekPhrase);
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              if (seekSecs === undefined) {
+                console.warn("[Sarvam] Could not resolve seek target:", seekPhrase);
+                return;
+              }
+              musicService
+                .seek(seekSecs * 1000)
+                .catch((err) => console.error("[Sarvam] Background seek failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
         } else if (val === "NEXT_SONG") {
-          import("@/music/MusicService").then(({ musicService }) => {
-            musicService.processIntent({ type: "next" });
-          });
+          import("@/music/MusicService")
+            .then(({ musicService }) => {
+              musicService
+                .processIntent({ type: "next" })
+                .catch((err) => console.error("[Sarvam] Background next failed:", err));
+            })
+            .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
         } else if (val === "PREV_SONG") {
           import("@/music/MusicService").then(({ musicService }) => {
             musicService.processIntent({ type: "previous" });
@@ -423,6 +483,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const isSpeakingRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const currentTurnIdRef = useRef<number>(0);
+  const atmosphereRef = useRef<AtmosphereContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const activeGainRef = useRef<GainNode | null>(null);
   const fallbackTranscriptRef = useRef<string>("");
@@ -490,16 +551,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   const setupMicAnalyser = useCallback(async () => {
     if ((scriptProcessorRef as any).current) return;
-    
+
     try {
       const coordinator = MicrophoneCoordinator.getInstance();
       await coordinator.acquireMicrophone();
-      
+
       const onMicData = (msg: any) => {
         if (msg.type === "PCM_DATA" && msg.lease) {
           const pcmCopy = new Float32Array(msg.lease.data);
           msg.lease.release();
-          
+
           if (msg.probability !== undefined ? msg.probability >= 0.5 : frameRms(pcmCopy) > 0.02) {
             lastAudioActivityRef.current = performance.now();
           }
@@ -532,13 +593,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       };
 
       coordinator.subscribeToStream(onMicData);
-      
+
       scriptProcessorRef.current = {
         disconnect: () => {
           coordinator.unsubscribeFromStream(onMicData);
-        }
+        },
       } as any;
-      
+
       startTracking();
     } catch (err) {
       console.warn("[Voice] Audio processing setup failed:", err);
@@ -1048,17 +1109,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
   // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
-    async (
-      userText: string,
-      apiKey: string,
-      lang: string,
-      isHiddenPrompt: boolean = false,
-    ) => {
+    async (userText: string, apiKey: string, lang: string, isHiddenPrompt: boolean = false) => {
       // ── Bulletproof cleanup for any turn entry (voice or text) ──
       stopSpeech();
       stopRecognition();
       conversationalPauses.resetForNewTurn();
-
 
       // Keep the flag for this turn's plan + prompt, then clear it.
       const wasPreviousTurnInterrupted = prevTurnInterruptedRef.current;
@@ -1077,10 +1132,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         sessionStatsRef.current.turns += 1;
       }
 
-
-
       // ── Music Context Injection ──
-      const musicContextXML = "";
+      const musicContextXML = buildMusicContext();
 
       // Append to OR message buffer with XML metadata
       const newMessages: ChatMessage[] = [
@@ -1100,7 +1153,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         0,
         modeRef.current,
         userIdRef.current,
-        wasPreviousTurnInterrupted
+        wasPreviousTurnInterrupted,
       );
       if (behaviorResult) {
         prompts.processAnalysisForL2(behaviorResult);
@@ -1108,12 +1161,19 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
 
       // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
+      const realSilenceMs = Math.max(0, performance.now() - lastAudioActivityRef.current);
       const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
         userText,
         behaviorResult,
         modeRef.current,
+        atmosphereRef.current,
+        { wasInterruption: wasPreviousTurnInterrupted, silenceDurationMs: realSilenceMs },
       );
 
+      // Atmosphere relevance gate: only request backend grounding this turn when
+      // AdaptiveAttention deemed the surrounding world relevant.
+      const includeAtmosphere =
+        RuntimeManager.getInstance().getLastAtmosphereDecision()?.includeAtmosphere ?? false;
 
       // Extract emotional state for memory retrieval
       const l3_start = performance.now();
@@ -1122,7 +1182,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         playfulness: behaviorResult?.playfulness || 0,
         vulnerability: behaviorResult?.vulnerability || 0,
         trust: behaviorResult?.trust || 0,
-        anxiety: behaviorResult?.anxiety || 0
+        anxiety: behaviorResult?.anxiety || 0,
       };
 
       // Memory retrieval is now handled centrally by RuntimeManager
@@ -1166,7 +1226,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             })),
             client_memories: [], // Delegated to Centralized Cognitive Architecture
             memory_mode: "supabase",
-            cognitive_block: cognitiveBlock
+            cognitive_block: boundCognitiveBlock(cognitiveBlock),
+            executive_plan: RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            music_context_text: playbackState.getState().currentTrack
+              ? boundMusicContextText(buildMusicContext(userText))
+              : undefined,
+            include_atmosphere: includeAtmosphere,
           }),
         });
 
@@ -1331,6 +1396,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 if (data.event === "metadata") {
                   // Metadata received instantly - update UI state
                   connectionState.updateState({ active_llm: data.active_llm || "openrouter" });
+                  if (data.atmosphere) {
+                    atmosphereRef.current = atmosphereFromComposer(data.atmosphere);
+                  }
                 } else if (data.event === "text_chunk") {
                   lastTokenTsRef.current = Date.now();
                   firstTokenArrivedRef.current = true;
@@ -1360,7 +1428,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                         (match) => {
                           try {
                             const data = JSON.parse(match);
-                            if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
+                            if (
+                              data.query ||
+                              data.mood ||
+                              data.activity ||
+                              data.genre ||
+                              data.intent === "similar" ||
+                              data.user_query
+                            ) {
                               import("@/music/MusicService").then(({ musicService }) => {
                                 musicService.processIntent({
                                   type: "play",
@@ -1369,7 +1444,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                                   energy: data.energy,
                                   genre: data.genre,
                                   activity: data.activity,
-                                  intent: data.intent
+                                  intent: data.intent,
                                 });
                               });
                             }
@@ -1540,10 +1615,24 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       let success = false;
       const attempted: string[] = [];
 
+      // Begin a logical telemetry request for this LLM call (one per turn,
+      // shared with all the physical model attempts in the failover loop).
+      const openrouterRequestId = auraTelemetry.beginRequest();
+
       for (const modelToTry of modelQueue) {
         attempted.push(modelToTry);
         setActiveModel(modelToTry);
         if (attempted.length > 1) await new Promise((r) => setTimeout(r, 800));
+
+        // Begin a physical provider call. Sarvam voice routes LLM through
+        // OpenRouter, so the provider is openrouter; the model itself is the
+        // active model.
+        const callId = auraTelemetry.beginProviderCall({
+          provider: "openrouter",
+          model: modelToTry,
+          kind: attempted.length === 1 ? "PRIMARY" : "FALLBACK",
+        });
+        let firstTokenAt: number | null = null;
 
         fetchAbortRef.current = new AbortController();
         // 15s timeout prevents infinite hang on network issues
@@ -1711,6 +1800,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 firstTokenArrivedRef.current = true;
                 if (!firstTokenReceived) {
                   firstTokenReceived = true;
+                  firstTokenAt = performance.now();
                   pushConversationTrace("LLM_FIRST_TOKEN", {
                     provider: "openrouter",
                     latencyMs: performance.now() - l4_start,
@@ -1751,16 +1841,23 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                     (m) => {
                       try {
                         const d = JSON.parse(m);
-                        if (d.query || d.mood || d.activity || d.genre || d.intent === 'similar' || d.user_query) {
+                        if (
+                          d.query ||
+                          d.mood ||
+                          d.activity ||
+                          d.genre ||
+                          d.intent === "similar" ||
+                          d.user_query
+                        ) {
                           import("@/music/MusicService").then(({ musicService }) => {
-                            musicService.processIntent({ 
-                              type: "play", 
+                            musicService.processIntent({
+                              type: "play",
                               query: d.query || d.user_query,
                               mood: d.mood,
                               energy: d.energy,
                               genre: d.genre,
                               activity: d.activity,
-                              intent: d.intent
+                              intent: d.intent,
                             });
                           });
                         }
@@ -1794,6 +1891,13 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           pushConversationTrace("LLM_RESPONSE_COMPLETE");
           tryStartTTS();
           success = true;
+          endProviderCall(auraTelemetry, callId, {
+            status: "success",
+            ttftMs: firstTokenAt != null ? firstTokenAt - l4_start : undefined,
+            inputText: userText,
+            outputText: rawCompleteResponse,
+          });
+          auraTelemetry.endRequest(openrouterRequestId, { status: "success" });
           break;
         } catch (e: any) {
           clearTimeout(fetchTimeout);
@@ -1802,20 +1906,28 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             pushConversationTrace("LLM_ERROR", { error: "AbortError" });
             sessionStatsRef.current.abortedStreams += 1;
             success = true;
+            endProviderCall(auraTelemetry, callId, { status: "aborted" });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
           pushConversationTrace("LLM_ERROR", { error: e.message });
+          endProviderCall(auraTelemetry, callId, {
+            status: "error",
+            failureCode: String(e?.status || 500),
+            failureDetail: String(e?.message || ""),
+            inputText: userText,
+            outputText: rawCompleteResponse,
+          });
           // Phase 7: bump epoch so the previous model's drain queue dies
           streamEpochRef.current += 1;
         }
       }
 
       if (!success) {
+        auraTelemetry.endRequest(openrouterRequestId, { status: "error" });
         setLastError(`All models failed. Attempted: ${attempted.join(", ")}`);
         setStatus("error");
       }
-
 
       // Record assistant turn once complete
       if (success && completeResponse) {
@@ -1896,7 +2008,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Phase 8: a new session re-establishes language from the first
       // meaningful user message.
       languageManager.resetBuffer();
-
 
       if (isUserInitiated) {
         if (messagesRef.current.length === 0) {
@@ -2484,7 +2595,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         `perception: source=${ls.detectionSource} processing=${ls.processingEnabled ? "on" : "off"} noise=${ls.noiseLevel.toFixed(0)}dBFS`,
       "color: #8b5cf6; font-weight: bold;",
     );
-
   }, [behavior, transcript_, teardownMicAnalyser, getListeningState]);
 
   const clearChat = useCallback(() => {

@@ -1,0 +1,46 @@
+{
+  "dataset": "emotional-breakdown",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 83,
+    "avgHumanity": 8.666666666666666,
+    "realism": 8.7,
+    "productionReady": true,
+    "pipelineMsAvg": 2232
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2092,
+      "llmWords": 7
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2253,
+      "llmWords": 4
+    },
+    {
+      "turn": 3,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2351,
+      "llmWords": 5
+    }
+  ]
+}

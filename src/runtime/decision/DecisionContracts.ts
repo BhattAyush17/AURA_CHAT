@@ -1,10 +1,22 @@
 // src/runtime/decision/DecisionContracts.ts
 
-export type ConversationType = 
-  | "Greeting" | "QuickFact" | "FollowUp" | "Teaching" | "Coding" 
-  | "Reasoning" | "Brainstorming" | "Emotional" | "Personal" 
-  | "Debate" | "Storytelling" | "Interview" | "CreativeWriting" 
-  | "DecisionMaking" | "DeepReflection" | "Unknown";
+export type ConversationType =
+  | "Greeting"
+  | "QuickFact"
+  | "FollowUp"
+  | "Teaching"
+  | "Coding"
+  | "Reasoning"
+  | "Brainstorming"
+  | "Emotional"
+  | "Personal"
+  | "Debate"
+  | "Storytelling"
+  | "Interview"
+  | "CreativeWriting"
+  | "DecisionMaking"
+  | "DeepReflection"
+  | "Unknown";
 
 export type ConversationState = "Listening" | "Processing" | "Speaking" | "Idle" | "Interrupted";
 export type ResponseSelection = "Direct" | "Reflective" | "Probing" | "Empathetic" | "Analytical";
@@ -43,7 +55,7 @@ export interface RuntimeDecision {
   memoryPriority: Contracts.MemoryPriority;
   providerRecommendation: Contracts.ProviderRecommendation;
   runtimePolicy: Contracts.RuntimePolicy;
-  
+
   // Immutability enforced through readonly properties or freezing the object.
   // We use standard properties here, but the builder will Object.freeze() the result.
 }

@@ -1,0 +1,46 @@
+{
+  "dataset": "teaching",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 83,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 2941
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Clarify",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1355,
+      "llmWords": 7
+    },
+    {
+      "turn": 2,
+      "strategy": "Answer",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 4398,
+      "llmWords": 77
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 67,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3070,
+      "llmWords": 73
+    }
+  ]
+}

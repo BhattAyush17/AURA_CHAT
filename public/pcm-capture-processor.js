@@ -5,17 +5,17 @@
 class PcmCaptureProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    
+
     // Configuration via processorOptions, with sensible defaults
     this.bufferSize = options?.processorOptions?.bufferSize || 1024;
     this.calibrationLimit = options?.processorOptions?.calibrationLimit || 200; // Tuned for Hindi phonology
-    this.gateMultiplier = options?.processorOptions?.gateMultiplier || 1.8;     // Lowered for Hindi speech patterns
+    this.gateMultiplier = options?.processorOptions?.gateMultiplier || 1.8; // Lowered for Hindi speech patterns
     this.noiseFloorAlpha = options?.processorOptions?.noiseFloorAlpha || 0.005;
 
     // State
     this.noiseFloor = 0.02;
     this.calibrationFrames = 0;
-    
+
     // Efficient memory management: Pre-allocate typed array to avoid garbage collection
     this.buffer = new Float32Array(this.bufferSize);
     this.bufferOffset = 0;
@@ -23,7 +23,7 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
 
   /**
    * Calculates the Root Mean Square (RMS) energy of the audio chunk.
-   * @param {Float32Array} channelData 
+   * @param {Float32Array} channelData
    * @returns {number}
    */
   calculateRMS(channelData) {
@@ -43,7 +43,8 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
 
     // Calibration phase — learn noise floor in the initial frames
     if (this.calibrationFrames < this.calibrationLimit) {
-      this.noiseFloor = (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
+      this.noiseFloor =
+        (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
       this.calibrationFrames++;
       return true;
     }
@@ -63,12 +64,9 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
       if (this.bufferOffset >= this.bufferSize) {
         // Create a copy of the buffer to transfer ownership
         const chunk = new Float32Array(this.buffer);
-        
-        this.port.postMessage(
-          { pcmData: chunk.buffer, rms: rms }, 
-          [chunk.buffer]
-        );
-        
+
+        this.port.postMessage({ pcmData: chunk.buffer, rms: rms }, [chunk.buffer]);
+
         this.bufferOffset = 0;
       }
     }

@@ -40,7 +40,7 @@ export interface AuraSeed {
   tensions: string[];
 
   // AURA'S EVOLVING WORLDVIEW — beliefs she holds that have been shaped by the user
-  // Max 2 entries. Each max 80 chars. 
+  // Max 2 entries. Each max 80 chars.
   aura_beliefs?: string[];
 
   // WHAT WORKS — communication patterns that land with this person
@@ -137,9 +137,10 @@ export const buildSeedInjection = (seed: AuraSeed | null): string => {
     .map(([d, insight, v]) => `  ${v} [${d}d ago] ${insight}`)
     .join("\n");
 
-  const beliefsLine = seed.aura_beliefs && seed.aura_beliefs.length > 0
-    ? `EVOLVING BELIEFS:\n${seed.aura_beliefs.map((b) => `  * ${b}`).join("\n")}`
-    : `EVOLVING BELIEFS: none yet.`;
+  const beliefsLine =
+    seed.aura_beliefs && seed.aura_beliefs.length > 0
+      ? `EVOLVING BELIEFS:\n${seed.aura_beliefs.map((b) => `  * ${b}`).join("\n")}`
+      : `EVOLVING BELIEFS: none yet.`;
 
   const thoughtLine = seed.thought_stream
     ? `ACTIVE THOUGHT [${seed.thought_stream.stage.toUpperCase()}]: "${seed.thought_stream.active_thought}"`
@@ -385,7 +386,9 @@ export function enforceSizeCeiling(seed: AuraSeed): AuraSeed {
   s.growth = s.growth.slice(-MAX_GROWTH_ENTRIES).map((g) => g.slice(0, MAX_GROWTH_CHARS));
   s.tensions = s.tensions.slice(-MAX_TENSION_ENTRIES).map((t) => t.slice(0, MAX_TENSION_CHARS));
   if (s.aura_beliefs) {
-    s.aura_beliefs = s.aura_beliefs.slice(-MAX_BELIEF_ENTRIES).map((b) => b.slice(0, MAX_BELIEF_CHARS));
+    s.aura_beliefs = s.aura_beliefs
+      .slice(-MAX_BELIEF_ENTRIES)
+      .map((b) => b.slice(0, MAX_BELIEF_CHARS));
   }
   s.resonance.avoid = s.resonance.avoid.slice(0, 3).map((a) => a.slice(0, 20));
 
@@ -471,11 +474,13 @@ export function legacyToAuraSeed(data: SeedData, uid: string): AuraSeed {
     aura_beliefs: [],
     resonance: { receives_best: "questions", avoid: [] },
     thread: threadMatch?.[1]?.slice(0, MAX_THREAD_CHARS) ?? "Continuing from previous sessions.",
-    thought_stream: thoughtMatch ? {
-      stage: thoughtMatch[1].toLowerCase() as any,
-      active_thought: thoughtMatch[2],
-      updated_at: Math.floor(data.updatedAt / 1000),
-    } : undefined,
+    thought_stream: thoughtMatch
+      ? {
+          stage: thoughtMatch[1].toLowerCase() as any,
+          active_thought: thoughtMatch[2],
+          updated_at: Math.floor(data.updatedAt / 1000),
+        }
+      : undefined,
   };
 }
 
@@ -522,7 +527,8 @@ export function parseCrystallizationOutput(raw: string, fallbackUid: string): Au
       if (!parsed.thought_stream.active_thought || !parsed.thought_stream.stage) {
         delete parsed.thought_stream;
       } else {
-        parsed.thought_stream.updated_at = parsed.thought_stream.updated_at || Math.floor(Date.now() / 1000);
+        parsed.thought_stream.updated_at =
+          parsed.thought_stream.updated_at || Math.floor(Date.now() / 1000);
       }
     }
 

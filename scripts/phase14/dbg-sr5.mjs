@@ -11,14 +11,18 @@ const devs = await page.evaluate(async () => {
 console.log("AUDIO INPUTS:", JSON.stringify(devs));
 for (const d of devs) {
   const r = await page.evaluate(async ({ deviceId, label }) => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } } });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: deviceId } },
+    });
     const ac = new AudioContext();
     const src = ac.createMediaStreamSource(stream);
     const an = ac.createAnalyser();
     an.fftSize = 1024;
     src.connect(an);
     const buf = new Float32Array(an.fftSize);
-    let peak = 0, sum = 0, n = 0;
+    let peak = 0,
+      sum = 0,
+      n = 0;
     await new Promise((res) => {
       const iv = setInterval(() => {
         an.getFloatTimeDomainData(buf);
@@ -26,14 +30,21 @@ for (const d of devs) {
         for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
         rms = Math.sqrt(rms / buf.length);
         if (rms > peak) peak = rms;
-        sum += rms; n++;
-        if (n >= 12) { clearInterval(iv); res(); }
+        sum += rms;
+        n++;
+        if (n >= 12) {
+          clearInterval(iv);
+          res();
+        }
       }, 500);
     });
     stream.getTracks().forEach((t) => t.stop());
     return { label, peak, mean: sum / n };
   }, d);
-  console.log("DEVICE:", JSON.stringify({ label: r.label, peak: r.peak.toFixed(4), mean: r.mean.toFixed(4) }));
+  console.log(
+    "DEVICE:",
+    JSON.stringify({ label: r.label, peak: r.peak.toFixed(4), mean: r.mean.toFixed(4) }),
+  );
 }
 await page.close();
 await browser.close();

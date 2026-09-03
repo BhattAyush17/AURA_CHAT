@@ -124,9 +124,7 @@ export class ConversationPreservation {
       return "";
     }
 
-    const parts: string[] = [
-      "[CONVERSATION RECOVERY CONTEXT — Session was interrupted]",
-    ];
+    const parts: string[] = ["[CONVERSATION RECOVERY CONTEXT — Session was interrupted]"];
 
     if (this.snapshot.topic) {
       parts.push(`Previous topic: ${this.snapshot.topic}`);
@@ -141,9 +139,7 @@ export class ConversationPreservation {
       parts.push(`Last AURA said: "${this.snapshot.lastAssistantIntent}"`);
     }
     parts.push(`Turn count: ${this.snapshot.turnCount}`);
-    parts.push(
-      "Resume naturally. Do not mention the interruption unless the user does."
-    );
+    parts.push("Resume naturally. Do not mention the interruption unless the user does.");
     parts.push("[/CONVERSATION RECOVERY CONTEXT]");
 
     return parts.join("\n");
@@ -178,7 +174,7 @@ export class ConversationPreservation {
       if (stored.sessionId === this.snapshot.sessionId || age < MAX_AGE) {
         this.snapshot = { ...stored, sessionId: this.snapshot.sessionId };
         console.log(
-          `[ConversationPreservation] Restored conversation state (topic: "${stored.topic}", turns: ${stored.turnCount})`
+          `[ConversationPreservation] Restored conversation state (topic: "${stored.topic}", turns: ${stored.turnCount})`,
         );
         this.emit({ kind: "conversation_restored", ts: performance.now() });
       }

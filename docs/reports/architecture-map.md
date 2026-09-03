@@ -5,10 +5,11 @@
 
 ## 1. Executive Summary
 
-AURA is an adaptive, multimodal conversational agent. This document maps the *actual* implemented architecture within the repository.
+AURA is an adaptive, multimodal conversational agent. This document maps the _actual_ implemented architecture within the repository.
 The architecture successfully implements the canonical cognitive pipeline (Phases A–F), utilizing a unified `RuntimeManager` as the gateway for cognitive execution and `SenseManager` for perception.
 
 **Architectural Paradigm:**
+
 - **Perception:** A multi-sense framework (Voice, Music) driven by `SenseManager` and `PerceptionFusionLayer`.
 - **Cognition & Human State:** Isolated from raw signals; operates on probabilistic hypotheses.
 - **Decision:** Explicitly arbitrates behavior (`SPEAK`, `WAIT`, `BACKCHANNEL`) based on interpreted cognition.
@@ -92,21 +93,22 @@ AURA_CHAT/
 
 ## 4. Architectural Layer Map
 
-| Layer | Responsibility | Key Files |
-|-------|---------------|-----------|
-| **Human** | Environment/Speech | `AudioContext` (Browser) |
-| **Perception** | Raw signal observation | `useVoiceAcoustics.ts`, `pcm-capture-processor.js`, `silero_vad.onnx` |
-| **Sense Runtime** | Canonical Sense interface | `SenseManager.ts`, `VoiceSense.ts`, `MusicSense.ts` |
-| **Fusion Layer** | Evidence & temporal baseline | `PerceptionFusionLayer.ts` |
-| **Human State** | Affective inference & decay | `HumanStateModel.ts` |
-| **Cognition** | Prompt & context formation | `ConversationInterpreter.ts` |
-| **Decision** | Behavior Arbitration | `RuntimeDecisionBuilder.ts`, `RuntimeManager.routeDecision` |
-| **Execution** | Instructing providers | `RuntimeManager.ts` |
-| **Providers** | Generating response | `useLive.ts`, `useSarvam.ts`, `useProvider.ts` |
+| Layer             | Responsibility               | Key Files                                                             |
+| ----------------- | ---------------------------- | --------------------------------------------------------------------- |
+| **Human**         | Environment/Speech           | `AudioContext` (Browser)                                              |
+| **Perception**    | Raw signal observation       | `useVoiceAcoustics.ts`, `pcm-capture-processor.js`, `silero_vad.onnx` |
+| **Sense Runtime** | Canonical Sense interface    | `SenseManager.ts`, `VoiceSense.ts`, `MusicSense.ts`                   |
+| **Fusion Layer**  | Evidence & temporal baseline | `PerceptionFusionLayer.ts`                                            |
+| **Human State**   | Affective inference & decay  | `HumanStateModel.ts`                                                  |
+| **Cognition**     | Prompt & context formation   | `ConversationInterpreter.ts`                                          |
+| **Decision**      | Behavior Arbitration         | `RuntimeDecisionBuilder.ts`, `RuntimeManager.routeDecision`           |
+| **Execution**     | Instructing providers        | `RuntimeManager.ts`                                                   |
+| **Providers**     | Generating response          | `useLive.ts`, `useSarvam.ts`, `useProvider.ts`                        |
 
 ## 5. Runtime Call Graph
 
 **Standard Processing Flow:**
+
 1. User speaks → `useVoiceAcoustics.ts` captures PCM, Silero processes VAD, updates `voicePerceptionStore.ts`.
 2. Provider hook (`useSarvam.ts` or `useProvider.ts`) triggers processing at speech end.
 3. Provider hook calls `RuntimeManager.getInstance().processCognitiveTurn()`.
@@ -122,10 +124,10 @@ AURA_CHAT/
 
 ## 6. Sense Architecture
 
-| Sense | Implementation | Runtime | Evidence | Fusion | Cognition | Status |
-|-------|---------------|---------|----------|--------|-----------|--------|
-| **Voice** | `VoiceSense.ts` | Adapts `useVoiceAcoustics` | `speechProbability` | Validated | Yes | Canonical |
-| **Music** | `MusicSense.ts` | Adapts `MusicService` | `track`, `state` | Validated | Yes | Canonical |
+| Sense     | Implementation  | Runtime                    | Evidence            | Fusion    | Cognition | Status    |
+| --------- | --------------- | -------------------------- | ------------------- | --------- | --------- | --------- |
+| **Voice** | `VoiceSense.ts` | Adapts `useVoiceAcoustics` | `speechProbability` | Validated | Yes       | Canonical |
+| **Music** | `MusicSense.ts` | Adapts `MusicService`      | `track`, `state`    | Validated | Yes       | Canonical |
 
 ## 7. Voice Pipeline
 
@@ -158,20 +160,20 @@ Execution is deferred back to the provider hook which translates the `action` in
 
 ## 12. Provider Architecture
 
-| Provider | Cognition Pipeline | Decision Handler | Streaming | Status |
-|----------|-------------------|------------------|-----------|--------|
-| **Gemini Live** | `processCognitiveTurn` | Honors `action` | Native WS | Canonical |
-| **Sarvam** | `processCognitiveTurn` | Honors `action` | Custom TTS | Canonical |
-| **OpenRouter** | `processCognitiveTurn` | Honors `action` | Custom TTS | Canonical |
+| Provider        | Cognition Pipeline     | Decision Handler | Streaming  | Status    |
+| --------------- | ---------------------- | ---------------- | ---------- | --------- |
+| **Gemini Live** | `processCognitiveTurn` | Honors `action`  | Native WS  | Canonical |
+| **Sarvam**      | `processCognitiveTurn` | Honors `action`  | Custom TTS | Canonical |
+| **OpenRouter**  | `processCognitiveTurn` | Honors `action`  | Custom TTS | Canonical |
 
 ## 13. State Ownership
 
-| State | Owner | Lifetime | Mutable? | Consumers |
-|-------|-------|----------|----------|-----------|
-| Perception (Acoustic) | `voicePerceptionStore` | High Frequency (ms) | Yes | `VoiceSense` |
-| Music State | `MusicService` | Session | Yes | `MusicSense`, App UI |
-| Human State (Affective) | `HumanStateModel` | Session (Decays) | Yes | `ConversationInterpreter` |
-| Local Chat History | `aura-memory.ts` | Persistent (Local) | Yes | Provider Prompts |
+| State                   | Owner                  | Lifetime            | Mutable? | Consumers                 |
+| ----------------------- | ---------------------- | ------------------- | -------- | ------------------------- |
+| Perception (Acoustic)   | `voicePerceptionStore` | High Frequency (ms) | Yes      | `VoiceSense`              |
+| Music State             | `MusicService`         | Session             | Yes      | `MusicSense`, App UI      |
+| Human State (Affective) | `HumanStateModel`      | Session (Decays)    | Yes      | `ConversationInterpreter` |
+| Local Chat History      | `aura-memory.ts`       | Persistent (Local)  | Yes      | Provider Prompts          |
 
 ## 14. Telemetry / Observability Map
 
@@ -211,15 +213,15 @@ graph TD
 
 ## 19. File-to-Responsibility Index
 
-| File | Responsibility | Used By | Status |
-|------|---------------|---------|--------|
-| `RuntimeManager.ts` | Central orchestration | Provider Hooks | Canonical |
-| `ConversationInterpreter.ts` | Prompt contextualization | `RuntimeManager` | Canonical |
-| `HumanStateModel.ts` | Affective Intelligence | `ConversationInterpreter`| Canonical |
-| `SenseManager.ts` | Perception Aggregation | `RuntimeManager` | Canonical |
-| `PerceptionFusionLayer.ts` | Temporal Analytics | `SenseManager` | Canonical |
-| `ProviderAdapter.ts` | Universal Contract | Provider Hooks | Canonical |
-| `useVoiceAcoustics.ts` | Raw Mic Processing | Providers/Store | Core Pipeline |
+| File                         | Responsibility           | Used By                   | Status        |
+| ---------------------------- | ------------------------ | ------------------------- | ------------- |
+| `RuntimeManager.ts`          | Central orchestration    | Provider Hooks            | Canonical     |
+| `ConversationInterpreter.ts` | Prompt contextualization | `RuntimeManager`          | Canonical     |
+| `HumanStateModel.ts`         | Affective Intelligence   | `ConversationInterpreter` | Canonical     |
+| `SenseManager.ts`            | Perception Aggregation   | `RuntimeManager`          | Canonical     |
+| `PerceptionFusionLayer.ts`   | Temporal Analytics       | `SenseManager`            | Canonical     |
+| `ProviderAdapter.ts`         | Universal Contract       | Provider Hooks            | Canonical     |
+| `useVoiceAcoustics.ts`       | Raw Mic Processing       | Providers/Store           | Core Pipeline |
 
 ## 20. Developer Navigation Guide
 
@@ -234,7 +236,7 @@ graph TD
 All perception runs through `SenseManager` -> `RuntimeManager`. Provider hooks call the manager and enforce `ExecutionAction`.
 
 **TARGET:**
-Phase F (Affective State) is partially implemented by `HumanStateModel` acting upon Voice temporal features and Linguistic text. This fulfills the architecture described in the specs. 
+Phase F (Affective State) is partially implemented by `HumanStateModel` acting upon Voice temporal features and Linguistic text. This fulfills the architecture described in the specs.
 
 **GAP:**
 No integration of visual/biometric/multimodal contexts outside of Voice and generic sentiment text, but the architecture allows easy integration via `SenseManager`.
@@ -251,13 +253,16 @@ No integration of visual/biometric/multimodal contexts outside of Voice and gene
 ## 23. Architectural Health Assessment
 
 ### STABLE
+
 - `RuntimeManager` pipeline.
 - `SenseManager` and `PerceptionFusionLayer` evidence generation.
 - Provider abstraction and `ProviderExecutionDirective` routing.
 
 ### LEGACY / RISK
+
 - `<audio_context>` is still generated inside `useVoiceAcoustics` and used in OpenRouter/Sarvam string manipulation. This is redundant and should be safely pruned in a future cleanup.
 
 ### NEXT RECOMMENDED WORK
+
 - Full removal of `<audio_context>` dependency in provider prompts.
 - Add real-time UI visualization (e.g. in `FlightRecorderOverlay`) for the new probabilistic `HumanStateModel` dimensions (Valence, Arousal, Tension).

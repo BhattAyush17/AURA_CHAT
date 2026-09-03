@@ -23,7 +23,7 @@ export class PredictiveResourceScheduler {
     const reservation: ResourceReservation = {
       audioBuffers: 50,
       memoryTimeoutMs: 500,
-      workerCapacity: "normal"
+      workerCapacity: "normal",
     };
 
     if (decision.conversationMomentum === "Fast") {

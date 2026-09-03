@@ -180,7 +180,7 @@ export interface PlaybackProvider {
   name: string;
 
   initialize(): Promise<void>;
-  play(trackId: string): Promise<void>;
+  play(trackId: string, startAtSeconds?: number): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   seek(positionMs: number): Promise<void>;

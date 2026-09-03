@@ -27,7 +27,7 @@ export class TelemetryDispatcher {
 
     if (!this.isFlushScheduled) {
       this.isFlushScheduled = true;
-      if (typeof window !== "undefined" && 'requestIdleCallback' in window) {
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
         (window as any).requestIdleCallback(() => this.flush(), { timeout: 1000 });
       } else {
         setTimeout(() => this.flush(), 1000);

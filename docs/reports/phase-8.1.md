@@ -10,8 +10,8 @@ Run: `npx tsx scripts/test-register.ts` (ALL PASS), `npx tsx scripts/test-langua
 
 Phase 8 made Language a deterministic Executive decision. Phase 8.1 makes Register the second.
 
-- Language answers: *"What language should AURA speak?"*
-- Register answers: *"How should AURA sound?"*
+- Language answers: _"What language should AURA speak?"_
+- Register answers: _"How should AURA sound?"_
 
 Both are Executive decisions. The LLM never infers either — it realizes them.
 
@@ -70,12 +70,12 @@ ambiguous turn never hijacks momentum.
 
 `determineRelationshipStage({sessionTurn, hasPersonalHistory, trust})`:
 
-| Stage | Turn / trust condition | Permitted registers |
-|---|---|---|
-| NEW | < 3 turns | NEUTRAL, PROFESSIONAL, ACADEMIC, SUPPORTIVE |
-| ACQUAINTING | ≥ 3 | + CASUAL, PLAYFUL |
-| COMFORTABLE | ≥ 10, or (history ∧ ≥5) | + INTIMATE (confidence capped 0.6) |
-| INTIMATE | ≥ 20 ∧ trust ≥ 0.65 | INTIMATE full |
+| Stage       | Turn / trust condition  | Permitted registers                         |
+| ----------- | ----------------------- | ------------------------------------------- |
+| NEW         | < 3 turns               | NEUTRAL, PROFESSIONAL, ACADEMIC, SUPPORTIVE |
+| ACQUAINTING | ≥ 3                     | + CASUAL, PLAYFUL                           |
+| COMFORTABLE | ≥ 10, or (history ∧ ≥5) | + INTIMATE (confidence capped 0.6)          |
+| INTIMATE    | ≥ 20 ∧ trust ≥ 0.65     | INTIMATE full                               |
 
 Gating is a single clamp: a register not permitted at the current stage is treated as NEUTRAL
 with zero confidence — it can never build momentum. Intimacy must be earned:
@@ -133,20 +133,20 @@ Detected Language, Detected Register, Language Confidence, Register Confidence, 
 Language, Conversation Register, Prompt Directive, TTS Output, Observed Response, Expected
 Response, and "Did AURA naturally mirror the user's communication style? YES / NO (+ why)".
 
-| Scenario | Target turns | What to watch |
-|---|---|---|
-| Pure English | 10 | stays PURE_ENGLISH, no Hindi leakage |
-| Pure Hindi | 10 | stays PURE_HINDI |
-| Hinglish | 10 | balance mirrored, technical terms kept as spoken |
-| Formal English | 8 | PROFESSIONAL/ACADEMIC respected |
-| Academic English | 8 | ACADEMIC, no slang |
-| Professional interview | 10 | register survives brief "Bro" type slips |
-| Casual friends | 12 | CASUAL from turn 3+, no flip on one polite line |
-| Late-night conversation | 8 | casual/low-energy, no formality creep |
-| Emotional support | 10 | SUPPORTIVE, warmth before information |
-| Technical discussion | 8 | ACADEMIC/PROFESSIONAL, language keeps English terms |
-| Playful banter | 8 | PLAYFUL matched, never forced |
-| Relationship progression | 8+ | NEW → ACQUAINTING → COMFORTABLE; intimacy only after earned |
+| Scenario                 | Target turns | What to watch                                               |
+| ------------------------ | ------------ | ----------------------------------------------------------- |
+| Pure English             | 10           | stays PURE_ENGLISH, no Hindi leakage                        |
+| Pure Hindi               | 10           | stays PURE_HINDI                                            |
+| Hinglish                 | 10           | balance mirrored, technical terms kept as spoken            |
+| Formal English           | 8            | PROFESSIONAL/ACADEMIC respected                             |
+| Academic English         | 8            | ACADEMIC, no slang                                          |
+| Professional interview   | 10           | register survives brief "Bro" type slips                    |
+| Casual friends           | 12           | CASUAL from turn 3+, no flip on one polite line             |
+| Late-night conversation  | 8            | casual/low-energy, no formality creep                       |
+| Emotional support        | 10           | SUPPORTIVE, warmth before information                       |
+| Technical discussion     | 8            | ACADEMIC/PROFESSIONAL, language keeps English terms         |
+| Playful banter           | 8            | PLAYFUL matched, never forced                               |
+| Relationship progression | 8+           | NEW → ACQUAINTING → COMFORTABLE; intimacy only after earned |
 
 Success: the user never consciously notices adaptation — they feel "she's speaking the way I
 speak", not "she's changing personalities".

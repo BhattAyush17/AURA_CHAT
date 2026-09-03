@@ -10,11 +10,11 @@ export class SenseRecoveryPolicy {
 
   getDelay(attempts: number): number {
     if (attempts >= this.MAX_ATTEMPTS) return -1; // -1 indicates terminal failure
-    
+
     // Exponential backoff with jitter
     const delay = Math.min(this.MAX_DELAY, this.BASE_DELAY * Math.pow(2, attempts));
     const jitter = delay * 0.1 * Math.random();
-    
+
     return delay + jitter;
   }
 

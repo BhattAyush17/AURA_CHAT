@@ -1,0 +1,26 @@
+{
+  "mode": "REAL_BROWSER_REAL_MIC_REAL_GEMINI",
+  "environment": {
+    "browser": "N/A",
+    "headless": true,
+    "microphone": false,
+    "gemini": false,
+    "device": "N/A",
+    "os": "Linux"
+  },
+  "sampleCount": 0,
+  "realTimeCertification": "NOT_VERIFIED",
+  "latency": {
+    "speechToFirstAudio": null,
+    "speechToPlayback": null,
+    "endpointToFirstAudio": null,
+    "geminiTtfb": null,
+    "auraCognition": null,
+    "decision": null
+  },
+  "bargeIn": {},
+  "streaming": {},
+  "resourceSafety": {},
+  "invalidTurns": [],
+  "limitations": ["REAL INTERACTIVE MICROPHONE ENVIRONMENT UNAVAILABLE"]
+}

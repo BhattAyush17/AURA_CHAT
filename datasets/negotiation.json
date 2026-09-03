@@ -1,0 +1,63 @@
+{
+  "id": "negotiation",
+  "name": "Negotiation",
+  "trust": 0.4,
+  "hasPersonalHistory": false,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Ye price zyada hai.",
+      "behavior": {
+        "act": "claim",
+        "tags": ["negotiation"],
+        "intensity": 0.5,
+        "frustration": 0.3
+      },
+      "emo": {
+        "frustration": 0.3,
+        "energy": 0.5
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["debate", "inform"],
+        "strategy": ["Answer", "Reflect", "Ask"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Middle ground?",
+      "behavior": {
+        "act": "question",
+        "tags": ["negotiation"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Deal?",
+      "behavior": {
+        "act": "question",
+        "tags": ["negotiation"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

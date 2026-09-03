@@ -1,0 +1,551 @@
+{
+  "dataset": {
+    "id": "confidence-testing",
+    "name": "Confidence Testing",
+    "trust": 0.5,
+    "hasPersonalHistory": true,
+    "languageMode": "english",
+    "durationMinutes": 14,
+    "turns": [
+      {
+        "text": "I think you're wrong.",
+        "behavior": {
+          "act": "challenge",
+          "tags": ["debate"],
+          "intensity": 0.6
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["debate"],
+          "strategy": ["Challenge", "Answer", "Reflect"],
+          "register": ["NEUTRAL", "CASUAL"],
+          "language": ["PURE_ENGLISH"],
+          "memoryPolicy": "Ignore"
+        }
+      },
+      {
+        "text": "Prove it.",
+        "behavior": {
+          "act": "challenge",
+          "tags": ["debate"],
+          "intensity": 0.6
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["debate"],
+          "strategy": ["Answer", "Challenge"],
+          "register": ["NEUTRAL", "CASUAL"],
+          "language": ["PURE_ENGLISH"],
+          "memoryPolicy": "Ignore"
+        }
+      },
+      {
+        "text": "Change my mind.",
+        "behavior": {
+          "act": "challenge",
+          "tags": ["debate"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["debate"],
+          "strategy": ["Answer", "Challenge", "Reflect"],
+          "register": ["NEUTRAL", "CASUAL"],
+          "language": ["PURE_ENGLISH"],
+          "memoryPolicy": "Ignore"
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:18:17.422Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "I think you're wrong.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["debate"]
+      },
+      "understanding": {
+        "move": "Repair",
+        "literal": "repair",
+        "goal": "express-uncertainty",
+        "implicit": null,
+        "expected": "clarification",
+        "social": ["hesitation(0.70)"],
+        "clarify": true
+      },
+      "swm": ["repair-ritual"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -3 words",
+          "clarification unblocked the conversation",
+          "thread continued naturally",
+          "move: Repair (0.95)",
+          "expected: clarification"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 1,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Clarify",
+        "initiative": "Ask",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Clarify\nlanguage: PURE_ENGLISH (confidence 1.00, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.00, stable since turn 1) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nclarify first: do NOT answer yet — ask ONE short clarifying question (reason: Clarification required before generation — user expressed uncertainty about their own input; user is repairing the previous reading)\ninitiative: Ask — at most one question\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 0.95, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 272,
+      "llm": "What makes you say that?",
+      "speech": {
+        "speed": 0.95,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good", "good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -3 words",
+          "clarification unblocked the conversation",
+          "thread continued naturally",
+          "move: Repair (0.95)",
+          "expected: clarification"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": true,
+        "initiative": true,
+        "budget": true,
+        "percent": 100
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2000,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Repair/express-uncertainty",
+        "swm": "repair-ritual",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Clarify",
+        "plan": "Tiny/Ask/conf:High",
+        "prompt": "272t",
+        "llm": "5w",
+        "speech": "speed:0.95",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Prove it.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["debate"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: 0 words",
+          "clarification unblocked the conversation",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 1,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Clarify",
+        "initiative": "Ask",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Clarify\nlanguage: PURE_ENGLISH (confidence 1.00, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.00, stable since turn 2) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nclarify first: do NOT answer yet — ask ONE short clarifying question (reason: Clarification required before generation — input is too short to disambiguate)\ninitiative: Ask — at most one question\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 0.95, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 259,
+      "llm": "Prove what exactly?",
+      "speech": {
+        "speed": 0.95,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good", "good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: 0 words",
+          "clarification unblocked the conversation",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": true,
+        "initiative": true,
+        "budget": true,
+        "percent": 100
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1021,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Clarify",
+        "plan": "Tiny/Ask/conf:High",
+        "prompt": "259t",
+        "llm": "3w",
+        "speech": "speed:0.95",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Change my mind.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["debate"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "PURE_ENGLISH",
+        "confidence": 1,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Observe",
+        "initiative": "Observe",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Observe\nlanguage: PURE_ENGLISH (confidence 1.00, stable since turn 1) — respond entirely in natural English — do not insert Hindi\nregister: NEUTRAL (confidence 0.00, stable since turn 3) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Observe — acknowledge briefly and let them lead — no questions, no pushing\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 265,
+      "llm": "I'm not here to argue—just to chat if you'd like.",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2357,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "PURE_ENGLISH",
+        "register": "NEUTRAL",
+        "executive": "Observe",
+        "plan": "Short/Observe/conf:High",
+        "prompt": "265t",
+        "llm": "10w",
+        "speech": "speed:1.00",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 94,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 1793
+  }
+}

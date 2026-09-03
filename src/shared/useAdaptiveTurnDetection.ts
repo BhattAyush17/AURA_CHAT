@@ -77,9 +77,9 @@ const STORAGE_KEY = "aura_speech_profile";
 
 // EMA smoothing factors
 const EMA_PAUSE = 0.08;
-const EMA_RATE = 0.10;
+const EMA_RATE = 0.1;
 const EMA_PATIENCE = 0.07;
-const EMA_INTERRUPT = 0.10;
+const EMA_INTERRUPT = 0.1;
 
 // Patience multipliers per conversation mode
 const PATIENCE_MAP: Record<ConversationMode, number> = {
@@ -112,11 +112,16 @@ const PERSONALITY_BIAS: Record<string, number> = {
 
 // ─── Context classification patterns ────────────────────────────────
 
-const CMD_RE = /^(stop|play|pause|skip|next|open|close|set|turn|switch|show|hide|mute|unmute|volume|timer|remind|alarm|call|send|cancel|delete|undo|search|find|go to)\b/i;
-const QST_RE = /^(what|who|where|when|why|how|is|are|do|does|did|can|could|would|should|will|shall|have|has|had)\b/i;
-const EMO_RE = /\b(feel|feeling|felt|hurts?|miss|scared|afraid|anxious|worried|sad|happy|angry|frustrated|lonely|love|hate|depressed|overwhelmed|stressed|lost|confused|broken|grateful|sorry|forgive|cry|crying|tears|painful)\b/gi;
-const REF_RE = /\b(wonder|thinking about|reflect|contemplate|realize|meaning|purpose|life|death|existence|regret|remember when|used to|back then|years ago|growing up|believe|soul)\b/i;
-const STORY_RE = /\b(so basically|let me tell you|you know what happened|this one time|i was at|and then|so we|after that|long story|funny thing|get this|picture this)\b/i;
+const CMD_RE =
+  /^(stop|play|pause|skip|next|open|close|set|turn|switch|show|hide|mute|unmute|volume|timer|remind|alarm|call|send|cancel|delete|undo|search|find|go to)\b/i;
+const QST_RE =
+  /^(what|who|where|when|why|how|is|are|do|does|did|can|could|would|should|will|shall|have|has|had)\b/i;
+const EMO_RE =
+  /\b(feel|feeling|felt|hurts?|miss|scared|afraid|anxious|worried|sad|happy|angry|frustrated|lonely|love|hate|depressed|overwhelmed|stressed|lost|confused|broken|grateful|sorry|forgive|cry|crying|tears|painful)\b/gi;
+const REF_RE =
+  /\b(wonder|thinking about|reflect|contemplate|realize|meaning|purpose|life|death|existence|regret|remember when|used to|back then|years ago|growing up|believe|soul)\b/i;
+const STORY_RE =
+  /\b(so basically|let me tell you|you know what happened|this one time|i was at|and then|so we|after that|long story|funny thing|get this|picture this)\b/i;
 
 const ELONGATED_RE = /\b(h+m{3,}|s+o{3,}|o+k+a{3,}y|y+e+a{3,}h)\b/i;
 const INCOMPLETE_RE = /\b(i think|the problem is|what happened was|so basically|and then)\s*$/i;
@@ -138,7 +143,12 @@ function jitter(base: number, fraction = 0.1): number {
   return base + (Math.random() * 2 - 1) * range;
 }
 
-function classifyMode(text: string, wordCount: number, emotionalIntensity: number, storytellingScore: number): ConversationMode {
+function classifyMode(
+  text: string,
+  wordCount: number,
+  emotionalIntensity: number,
+  storytellingScore: number,
+): ConversationMode {
   const t = text.trim();
 
   const emoMatches = t.match(EMO_RE);
@@ -164,22 +174,24 @@ function getSemanticCompletionScore(text: string): number {
 function getThinkingConfidence(text: string): number {
   const t = text.toLowerCase();
   let score = 0;
-  
+
   if (TRAILING_FILLER_RE.test(t)) score += 0.5;
-  
+
   const midFillers = t.match(/\b(um|umm|uh|uhh|hmm|let me think)\b/g);
   if (midFillers) score += midFillers.length * 0.2;
-  
+
   if (ELONGATED_RE.test(t)) score += 0.4;
   if (INCOMPLETE_RE.test(t)) score += 0.5;
   if (SELF_CORRECT_RE.test(t)) score += 0.4;
-  
+
   return Math.min(1.0, score);
 }
 
 function getEmotionPauseBonus(text: string): number {
   const t = text.toLowerCase();
-  const emoMatches = t.match(/\b(sad|afraid|hurt|miss|lonely|overwhelmed|crying|painful|broken|devastated|scared)\b/g);
+  const emoMatches = t.match(
+    /\b(sad|afraid|hurt|miss|lonely|overwhelmed|crying|painful|broken|devastated|scared)\b/g,
+  );
   if (!emoMatches) return 0;
   return Math.min(500, emoMatches.length * 100);
 }
@@ -343,7 +355,7 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
   const auraStartedSpeakingRef = useRef<number | null>(null);
   const sessionInterruptionsRef = useRef(0);
   const sessionStartRef = useRef<number>(performance.now());
-  
+
   // Last telemetry for debug
   const lastMetricsRef = useRef({ sem: 0.5, think: 0, emo: 0 });
 
@@ -388,15 +400,11 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
   // ── Profile learning ────────────────────────────────────────────
 
   const updateProfile = useCallback(
-    (observed: {
-      pauseMs?: number;
-      wpm?: number;
-      wordCount?: number;
-    }) => {
+    (observed: { pauseMs?: number; wpm?: number; wordCount?: number }) => {
       const p = profileRef.current;
-      
+
       // Session Recalibration: faster learning in first 2 mins
-      const isEarlySession = (performance.now() - sessionStartRef.current) < 120_000;
+      const isEarlySession = performance.now() - sessionStartRef.current < 120_000;
       const emaMult = isEarlySession ? 2.0 : 1.0;
 
       if (observed.pauseMs && observed.pauseMs > 50) {
@@ -408,8 +416,12 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
         } else {
           p.deep_pause_ms = ema(p.deep_pause_ms, observed.pauseMs, EMA_PAUSE * emaMult);
         }
-        
-        p.response_patience = ema(p.response_patience, Math.min(1, observed.pauseMs / 2000), EMA_PATIENCE * emaMult);
+
+        p.response_patience = ema(
+          p.response_patience,
+          Math.min(1, observed.pauseMs / 2000),
+          EMA_PATIENCE * emaMult,
+        );
       }
       if (observed.wpm && observed.wpm > 0) {
         p.speaking_rate = ema(p.speaking_rate, observed.wpm, EMA_RATE * emaMult);
@@ -427,21 +439,21 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
 
   const registerFalseDetection = useCallback(() => {
     const p = profileRef.current;
-    
-    const isEarlySession = (performance.now() - sessionStartRef.current) < 120_000;
+
+    const isEarlySession = performance.now() - sessionStartRef.current < 120_000;
     const emaMult = isEarlySession ? 2.0 : 1.0;
 
     p.interruption_count += 1;
     sessionInterruptionsRef.current += 1;
-    
+
     const adj = Math.min(150, 80 + p.interruption_count * 5);
     p.comfort_pause_ms = Math.min(2200, p.comfort_pause_ms + adj);
     p.response_patience = Math.min(1.0, p.response_patience + 0.08);
     p.interruption_rate = ema(p.interruption_rate, 1.0, 0.15 * emaMult);
-    
+
     // Decrease interruptibility score
     p.interruptibility_score = ema(p.interruptibility_score, 0.0, EMA_INTERRUPT * emaMult);
-    
+
     console.log(
       `%c⏸️ FALSE DETECTION #${p.interruption_count}: comfort_pause → ${p.comfort_pause_ms.toFixed(0)}ms`,
       "color: #f59e0b; font-weight: bold;",
@@ -490,7 +502,7 @@ export function useAdaptiveTurnDetection(threshold = DEFAULT_THRESHOLD) {
       session_interruptions: sessionInterruptionsRef.current,
       semantic_completion: lastMetricsRef.current.sem,
       thinking_confidence: lastMetricsRef.current.think,
-      emotion_bonus: lastMetricsRef.current.emo
+      emotion_bonus: lastMetricsRef.current.emo,
     };
   }, []);
 

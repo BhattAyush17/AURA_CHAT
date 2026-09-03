@@ -9,7 +9,15 @@ const r = await page.evaluate(() => ({
   keyLen: (sessionStorage.getItem("openrouter_api_key") || "").length,
   sk: (sessionStorage.getItem("sarvam_api_key") || "").slice(0, 10),
   brain: localStorage.getItem("aura_active_brain"),
-  rc2: window.__rc2 ? { boot: window.__rc2.boot, srC: window.__rc2.srConstructed, srS: window.__rc2.srStarted, stt: window.__rc2.stt.length, tts: window.__rc2.tts.length } : null,
+  rc2: window.__rc2
+    ? {
+        boot: window.__rc2.boot,
+        srC: window.__rc2.srConstructed,
+        srS: window.__rc2.srStarted,
+        stt: window.__rc2.stt.length,
+        tts: window.__rc2.tts.length,
+      }
+    : null,
   body: document.body.innerText.slice(0, 150).replace(/\n/g, " | "),
   vis: document.visibilityState,
   micBtn: !!document.querySelector('button[class*="h-28 w-28"]'),

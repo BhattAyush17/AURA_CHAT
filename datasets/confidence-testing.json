@@ -1,0 +1,67 @@
+{
+  "id": "confidence-testing",
+  "name": "Confidence Testing",
+  "trust": 0.5,
+  "hasPersonalHistory": true,
+  "languageMode": "english",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "I think you're wrong.",
+      "behavior": {
+        "act": "challenge",
+        "tags": ["debate"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["debate"],
+        "strategy": ["Challenge", "Answer", "Reflect"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Prove it.",
+      "behavior": {
+        "act": "challenge",
+        "tags": ["debate"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["debate"],
+        "strategy": ["Answer", "Challenge"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Change my mind.",
+      "behavior": {
+        "act": "challenge",
+        "tags": ["debate"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["debate"],
+        "strategy": ["Answer", "Challenge", "Reflect"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-import { Track } from './types';
-import { musicEvents } from './PlaybackEvents';
+import { Track } from "./types";
+import { musicEvents } from "./PlaybackEvents";
 
 export class QueueManager {
   private queue: Track[] = [];
@@ -9,7 +9,7 @@ export class QueueManager {
   setQueue(tracks: Track[]) {
     this.queue = [...tracks];
     this.currentIdx = 0;
-    musicEvents.emit('queueChanged', this.queue);
+    musicEvents.emit("queueChanged", this.queue);
   }
 
   addTrack(track: Track, next: boolean = false) {
@@ -18,7 +18,7 @@ export class QueueManager {
     } else {
       this.queue.push(track);
     }
-    musicEvents.emit('queueChanged', this.queue);
+    musicEvents.emit("queueChanged", this.queue);
   }
 
   getNext(): Track | null {
@@ -55,7 +55,7 @@ export class QueueManager {
   clear() {
     this.queue = [];
     this.currentIdx = -1;
-    musicEvents.emit('queueChanged', this.queue);
+    musicEvents.emit("queueChanged", this.queue);
   }
 
   shuffle() {
@@ -68,7 +68,7 @@ export class QueueManager {
     }
     this.queue = current ? [current, ...rest] : rest;
     this.currentIdx = current ? 0 : -1;
-    musicEvents.emit('queueChanged', this.queue);
+    musicEvents.emit("queueChanged", this.queue);
   }
 }
 

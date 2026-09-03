@@ -30,7 +30,16 @@ await page.evaluate(async () => {
   r.interimResults = true;
   r.lang = "en-US";
   const t0 = performance.now();
-  for (const ev of ["start", "audiostart", "soundstart", "speechstart", "result", "nomatch", "error", "end"]) {
+  for (const ev of [
+    "start",
+    "audiostart",
+    "soundstart",
+    "speechstart",
+    "result",
+    "nomatch",
+    "error",
+    "end",
+  ]) {
     try {
       r["on" + ev] = (e) => {
         let extra = "";
@@ -45,10 +54,16 @@ await page.evaluate(async () => {
   }
   log("SR_STARTING");
   r.start();
-  window.__stop = () => { clearInterval(meter); stream.getTracks().forEach((t) => t.stop()); };
+  window.__stop = () => {
+    clearInterval(meter);
+    stream.getTracks().forEach((t) => t.stop());
+  };
 });
 await page.waitForTimeout(15000);
-const l = await page.evaluate(() => { window.__stop(); return window.__log; });
+const l = await page.evaluate(() => {
+  window.__stop();
+  return window.__log;
+});
 const rms = l.filter((x) => x.startsWith("rms="));
 const nonRms = l.filter((x) => !x.startsWith("rms="));
 const peaks = rms.map((x) => parseFloat(x.slice(4))).sort((a, b) => b - a);

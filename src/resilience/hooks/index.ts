@@ -62,19 +62,15 @@ function getOrCreateOrchestrator(): ResilienceOrchestrator {
 }
 
 export function useResilience(): ResilienceAPI {
-  const orchestratorRef = useRef<ResilienceOrchestrator>(
-    getOrCreateOrchestrator()
-  );
+  const orchestratorRef = useRef<ResilienceOrchestrator>(getOrCreateOrchestrator());
 
   const [mode, setMode] = useState<ExperienceMode>("HEALTHY");
-  const [policy, setPolicy] = useState<AdaptationPolicy>(
-    orchestratorRef.current.getPolicy()
-  );
+  const [policy, setPolicy] = useState<AdaptationPolicy>(orchestratorRef.current.getPolicy());
   const [health, setHealth] = useState<ExperienceHealthSnapshot>(
-    orchestratorRef.current.experienceEngine.getSnapshot()
+    orchestratorRef.current.experienceEngine.getSnapshot(),
   );
   const [resilience, setResilience] = useState<ResilienceState>(
-    orchestratorRef.current.getResilienceState()
+    orchestratorRef.current.getResilienceState(),
   );
   const [isRecovering, setIsRecovering] = useState(false);
 
@@ -108,12 +104,9 @@ export function useResilience(): ResilienceAPI {
     };
   }, []);
 
-  const onEvent = useCallback(
-    (listener: (event: ResilienceEvent) => void): (() => void) => {
-      return orchestratorRef.current.addEventListener(listener);
-    },
-    []
-  );
+  const onEvent = useCallback((listener: (event: ResilienceEvent) => void): (() => void) => {
+    return orchestratorRef.current.addEventListener(listener);
+  }, []);
 
   return useMemo(
     () => ({
@@ -125,7 +118,7 @@ export function useResilience(): ResilienceAPI {
       isRecovering,
       onEvent,
     }),
-    [mode, policy, health, resilience, isRecovering, onEvent]
+    [mode, policy, health, resilience, isRecovering, onEvent],
   );
 }
 

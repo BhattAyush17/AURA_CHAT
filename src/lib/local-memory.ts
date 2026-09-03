@@ -12,13 +12,16 @@
  * layers never know which storage backend is active.
  */
 
-// ─── Types ───────────────────────────────────────────────────────
+// ─── Memory Tiers ─────────────────────────────────────────────────
+
+export type MemoryTier = "ephemeral" | "short_term" | "durable";
 
 export interface LocalMemoryEntry {
   content: string;
   emotional_tags: Record<string, number>;
   timestamp: number; // epoch ms
   keywords: string[];
+  tier: MemoryTier;
 }
 
 export interface MemoryResult {
@@ -32,39 +35,172 @@ export interface MemoryResult {
 
 const MAX_ENTRIES = 50;
 const MAX_RESULTS = 5;
-const SIMILARITY_FLOOR = 0.60;
+const SIMILARITY_FLOOR = 0.6;
 const DEDUPE_WINDOW_MS = 5000; // 5s window to prevent duplicate stores
+
+// Tier-specific caps
+const TIER_CAPS: Record<MemoryTier, number> = {
+  ephemeral: 5, // Very short-lived, current interaction only
+  short_term: 20, // Active session/recent thread
+  durable: 30, // Stable meaningful information
+};
+
+// Tier decay: ephemeral expires after 5 minutes, short_term after 2 hours
+const TIER_TTL_MS: Record<MemoryTier, number> = {
+  ephemeral: 5 * 60 * 1000, // 5 minutes
+  short_term: 2 * 60 * 60 * 1000, // 2 hours
+  durable: Infinity, // Never expires automatically
+};
 
 // Stopwords for keyword extraction (English + Hindi/Hinglish)
 const STOP_WORDS = new Set([
-  "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "could",
-  "should", "may", "might", "can", "to", "of", "in", "for", "on",
-  "with", "at", "by", "from", "as", "into", "through", "during",
-  "before", "after", "above", "below", "between", "out", "off",
-  "over", "under", "again", "then", "once", "here", "there", "when",
-  "where", "why", "how", "all", "both", "each", "few", "more", "most",
-  "other", "some", "such", "no", "nor", "not", "only", "own", "same",
-  "so", "than", "too", "very", "just", "because", "but", "and", "or",
-  "if", "while", "about", "up", "what", "which", "who", "whom",
-  "this", "that", "these", "those", "am", "it", "its", "my", "me",
-  "we", "our", "you", "your", "he", "him", "she", "her", "they",
-  "them", "i",
+  "a",
+  "an",
+  "the",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "can",
+  "to",
+  "of",
+  "in",
+  "for",
+  "on",
+  "with",
+  "at",
+  "by",
+  "from",
+  "as",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "out",
+  "off",
+  "over",
+  "under",
+  "again",
+  "then",
+  "once",
+  "here",
+  "there",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "both",
+  "each",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "no",
+  "nor",
+  "not",
+  "only",
+  "own",
+  "same",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "because",
+  "but",
+  "and",
+  "or",
+  "if",
+  "while",
+  "about",
+  "up",
+  "what",
+  "which",
+  "who",
+  "whom",
+  "this",
+  "that",
+  "these",
+  "those",
+  "am",
+  "it",
+  "its",
+  "my",
+  "me",
+  "we",
+  "our",
+  "you",
+  "your",
+  "he",
+  "him",
+  "she",
+  "her",
+  "they",
+  "them",
+  "i",
   // Hindi / Hinglish
-  "mujhe", "hai", "hain", "ka", "ki", "ke", "ko", "se", "ne", "par",
-  "ye", "wo", "kya", "aur", "ya", "nahi", "ho", "tha", "thi", "bhi",
-  "mein", "hum", "tum", "aap", "yeh", "woh", "kab", "kaise",
+  "mujhe",
+  "hai",
+  "hain",
+  "ka",
+  "ki",
+  "ke",
+  "ko",
+  "se",
+  "ne",
+  "par",
+  "ye",
+  "wo",
+  "kya",
+  "aur",
+  "ya",
+  "nahi",
+  "ho",
+  "tha",
+  "thi",
+  "bhi",
+  "mein",
+  "hum",
+  "tum",
+  "aap",
+  "yeh",
+  "woh",
+  "kab",
+  "kaise",
 ]);
 
 // ─── Storage Helpers ─────────────────────────────────────────────
 
-function storageKey(userId: string): string {
+function storageKey(userId: string, tier?: MemoryTier): string {
+  if (tier) return `aura_memories_${tier}_${userId}`;
   return `aura_memories_${userId}`;
 }
 
-function loadEntries(userId: string): LocalMemoryEntry[] {
+function loadEntries(userId: string, tier?: MemoryTier): LocalMemoryEntry[] {
   try {
-    const raw = localStorage.getItem(storageKey(userId));
+    const raw = localStorage.getItem(storageKey(userId, tier));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -73,12 +209,30 @@ function loadEntries(userId: string): LocalMemoryEntry[] {
   }
 }
 
-function saveEntries(userId: string, entries: LocalMemoryEntry[]): void {
+function saveEntries(userId: string, entries: LocalMemoryEntry[], tier?: MemoryTier): void {
   try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(entries));
+    localStorage.setItem(storageKey(userId, tier), JSON.stringify(entries));
   } catch (e) {
     console.warn("[LocalMemory] Failed to save:", e);
   }
+}
+
+function loadAllEntries(userId: string): LocalMemoryEntry[] {
+  return [
+    ...loadEntries(userId, "ephemeral"),
+    ...loadEntries(userId, "short_term"),
+    ...loadEntries(userId, "durable"),
+  ];
+}
+
+function isExpired(entry: LocalMemoryEntry): boolean {
+  const ttl = TIER_TTL_MS[entry.tier];
+  if (ttl === Infinity) return false;
+  return Date.now() - entry.timestamp > ttl;
+}
+
+function evictExpired(entries: LocalMemoryEntry[]): LocalMemoryEntry[] {
+  return entries.filter((e) => !isExpired(e));
 }
 
 // ─── Keyword Extraction ──────────────────────────────────────────
@@ -168,45 +322,52 @@ function scoreRecency(timestampMs: number): number {
 // ─── Public API ──────────────────────────────────────────────────
 
 /**
- * Store a memory entry in localStorage.
- * Evicts oldest entry when at capacity.
+ * Store a memory entry in localStorage with tier awareness.
+ * Evicts oldest entries per tier when at capacity.
  * Deduplicates within a 5-second window to prevent double-stores.
  *
+ * @param content - The memory content to store
+ * @param userId - User identifier
+ * @param emotionalTags - Emotional tags for this memory
+ * @param tier - Memory tier (ephemeral/short_term/durable). Auto-detected if not specified.
  * @returns true on success
  */
 export function storeLocalMemory(
   content: string,
   userId: string,
   emotionalTags: Record<string, number>,
+  tier?: MemoryTier,
 ): boolean {
   try {
     if (!content || content.trim().length < 3) return false;
 
-    const entries = loadEntries(userId);
+    const detectedTier = tier ?? inferMemoryTier(content, emotionalTags);
+    const entries = loadEntries(userId, detectedTier);
 
     // Deduplicate: skip if the same content was stored within DEDUPE_WINDOW_MS
     const now = Date.now();
     const isDupe = entries.some(
-      (e) => e.content === content.slice(0, 500) && (now - e.timestamp) < DEDUPE_WINDOW_MS,
+      (e) => e.content === content.slice(0, 500) && now - e.timestamp < DEDUPE_WINDOW_MS,
     );
-    if (isDupe) return true; // silently skip, report success
+    if (isDupe) return true;
 
     const keywords = extractKeywords(content);
     const entry: LocalMemoryEntry = {
-      content: content.slice(0, 500), // cap content length
+      content: content.slice(0, 500),
       emotional_tags: emotionalTags,
       timestamp: now,
       keywords,
+      tier: detectedTier,
     };
 
     entries.push(entry);
 
-    // Evict oldest entries to stay at cap
-    while (entries.length > MAX_ENTRIES) {
+    // Evict oldest entries to stay at cap (respect tier)
+    while (entries.length > TIER_CAPS[detectedTier]) {
       entries.shift();
     }
 
-    saveEntries(userId, entries);
+    saveEntries(userId, entries, detectedTier);
     return true;
   } catch (e) {
     console.warn("[LocalMemory] store failed:", e);
@@ -215,39 +376,109 @@ export function storeLocalMemory(
 }
 
 /**
+ * Infer the appropriate memory tier based on content and emotional context.
+ * This enables automatic tier assignment without explicit specification.
+ */
+function inferMemoryTier(content: string, emotionalTags: Record<string, number>): MemoryTier {
+  const lower = content.toLowerCase();
+
+  // Explicit preferences or important context → durable
+  if (
+    lower.includes("remember") ||
+    lower.includes("always") ||
+    lower.includes("never") ||
+    lower.includes("important") ||
+    lower.includes("preference") ||
+    lower.includes("remind me") ||
+    Object.keys(emotionalTags).some((k) => k.includes("important") || k.includes("preference"))
+  ) {
+    return "durable";
+  }
+
+  // Music associations with personal meaning → durable
+  if (
+    lower.includes("reminds me") ||
+    lower.includes("nostalgic") ||
+    lower.includes("special") ||
+    lower.includes("memory") ||
+    lower.includes("meaning")
+  ) {
+    return "durable";
+  }
+
+  // Generic reactions → ephemeral
+  if (
+    lower.includes("nice") ||
+    lower.includes("cool") ||
+    lower.includes("okay") ||
+    lower.includes("ok") ||
+    lower.includes("sure") ||
+    lower === "yeah" ||
+    lower === "yes" ||
+    lower === "no"
+  ) {
+    return "ephemeral";
+  }
+
+  // Default to short_term
+  return "short_term";
+}
+
+/**
  * Retrieve memories from localStorage matching the query and emotional state.
+ * Respects tier hierarchy: durable > short_term > ephemeral.
+ * Automatically cleans expired entries.
  *
  * Retrieval cascade:
  *   1. Emotional tag overlap with current L1 state
  *   2. Keyword overlap on content string
- *   3. Sort by recency
+ *   3. Sort by recency (within tier preference)
  *   4. Return top 5 as list[dict] with similarity=0.60
  *
+ * @param query - Search query
+ * @param userId - User identifier
+ * @param emotionalState - Current emotional state for matching
+ * @param options - Optional retrieval options
  * @returns Array of MemoryResult matching the L3 interface contract
  */
 export function retrieveLocalMemories(
   query: string,
   userId: string,
   emotionalState: Record<string, number>,
+  options?: {
+    tier?: MemoryTier;
+    includeExpired?: boolean;
+  },
 ): MemoryResult[] {
-  const entries = loadEntries(userId);
+  let entries = loadAllEntries(userId);
+
+  // Filter by tier if specified
+  if (options?.tier) {
+    entries = entries.filter((e) => e.tier === options.tier);
+  }
+
+  // Remove expired entries unless explicitly included
+  if (!options?.includeExpired) {
+    entries = evictExpired(entries);
+  }
+
   if (entries.length === 0) return [];
 
   const queryKeywords = extractKeywords(query, 8);
 
-  // Score every entry
+  // Score every entry with tier bonus
   const scored = entries.map((entry) => {
     const emotionalMatch = scoreEmotionalMatch(emotionalState, entry.emotional_tags);
     const keywordMatch = scoreKeywordOverlap(queryKeywords, entry.keywords);
     const contentMatch = scoreContentKeywordOverlap(queryKeywords, entry.content);
     const recency = scoreRecency(entry.timestamp);
 
-    // Weighted composite: emotion 0.30, keywords 0.25, content 0.15, recency 0.30
+    // Tier bonus: durable memories get priority boost
+    const tierBonus = entry.tier === "durable" ? 0.15 : entry.tier === "short_term" ? 0.05 : 0;
+
+    // Weighted composite: emotion 0.30, keywords 0.25, content 0.15, recency 0.30, tier 0.15
     const composite =
-      emotionalMatch * 0.30 +
-      keywordMatch * 0.25 +
-      contentMatch * 0.15 +
-      recency * 0.30;
+      emotionalMatch * 0.3 + keywordMatch * 0.25 + contentMatch * 0.15 + recency * 0.3 + tierBonus;
 
     return {
       entry,
@@ -270,6 +501,7 @@ export function retrieveLocalMemories(
       timestamp: s.entry.timestamp,
       keywords: s.entry.keywords,
       source: "local_browser",
+      tier: s.entry.tier,
     },
     similarity: SIMILARITY_FLOOR,
     emotional_match: Math.round(s.emotionalMatch * 100) / 100,
@@ -277,18 +509,38 @@ export function retrieveLocalMemories(
 }
 
 /**
- * Get current local memory count for a user.
+ * Get current local memory count for a user, optionally by tier.
  */
-export function getLocalMemoryCount(userId: string): number {
-  return loadEntries(userId).length;
+export function getLocalMemoryCount(userId: string, tier?: MemoryTier): number {
+  if (tier) {
+    return loadEntries(userId, tier).filter((e) => !isExpired(e)).length;
+  }
+  return loadAllEntries(userId).filter((e) => !isExpired(e)).length;
 }
 
 /**
- * Clear all local memories for a user.
+ * Get memory counts broken down by tier.
  */
-export function clearLocalMemories(userId: string): void {
+export function getMemoryCountsByTier(userId: string): Record<MemoryTier, number> {
+  return {
+    ephemeral: getLocalMemoryCount(userId, "ephemeral"),
+    short_term: getLocalMemoryCount(userId, "short_term"),
+    durable: getLocalMemoryCount(userId, "durable"),
+  };
+}
+
+/**
+ * Clear all local memories for a user, optionally by tier.
+ */
+export function clearLocalMemories(userId: string, tier?: MemoryTier): void {
   try {
-    localStorage.removeItem(storageKey(userId));
+    if (tier) {
+      localStorage.removeItem(storageKey(userId, tier));
+    } else {
+      localStorage.removeItem(storageKey(userId, "ephemeral"));
+      localStorage.removeItem(storageKey(userId, "short_term"));
+      localStorage.removeItem(storageKey(userId, "durable"));
+    }
   } catch {
     // no-op
   }

@@ -15,6 +15,11 @@ import { SenseManager } from "@/sense/SenseManager/SenseManager";
 import type { SenseEvidenceV1 } from "@/sense/SenseManager/types";
 import type { ProviderExecutionDirective, ExecutionAction } from "@/providers/core/ProviderAdapter";
 import { AdaptiveCommunicationAnalyzer } from "./language/AdaptiveCommunicationAnalyzer";
+import {
+  getAdaptiveAttentionLayer,
+  type AtmosphereRelevanceDecision,
+} from "./attention/AdaptiveAttentionLayer";
+import type { AtmosphereContext } from "@/executive/AtmosphereContext";
 import { memoryGateway } from "@/lib/memory-gateway";
 import { getCurrentUserId } from "@/lib/user-identity";
 import { ConversationExecutive } from "@/executive/ConversationExecutive";
@@ -44,6 +49,13 @@ export class RuntimeManager {
   private decisionTelemetry = DecisionTelemetry.getInstance();
   private timingDiff = TimingDiffTelemetry.getInstance();
   private conversationExecutive = new ConversationExecutive();
+
+  // Last-turn outputs exposed to providers. Both are byproducts of
+  // processCognitiveTurn / buildInitialCognitiveSnapshot; storing them avoids
+  // recomputation and lets a provider read the decision it needs when
+  // building its outbound request.
+  private lastAtmosphereDecision: AtmosphereRelevanceDecision | null = null;
+  private lastExecutivePrompt: string = "";
 
   private constructor() {}
 
@@ -83,10 +95,47 @@ export class RuntimeManager {
     return this.lifecycleManager;
   }
 
+  /**
+   * Atmosphere relevance decision for the most recent cognitive turn.
+   * Providers read `.includeAtmosphere` to decide whether to ask the backend
+   * for world grounding this turn. `null` before the first turn.
+   */
+  public getLastAtmosphereDecision(): AtmosphereRelevanceDecision | null {
+    return this.lastAtmosphereDecision;
+  }
+
+  /**
+   * The `[EXECUTIVE PLAN]` directive built for the most recent cognitive turn.
+   * Empty string before the first turn.
+   */
+  public getLastExecutivePrompt(): string {
+    return this.lastExecutivePrompt;
+  }
+
   public dispose() {
     this.speechCoordinator.flush();
     this.microphoneSupervisor.dispose();
     this.lifecycleManager.dispose();
+  }
+
+  /**
+   * Emotional state vector for memory retrieval/storage.
+   *
+   * `BehaviorAnalysis` has no `emotionalTags` field — it carries the flat
+   * `frustration`/`playfulness`/`vulnerability`/`trust`/`anxiety` scores. The
+   * previous `backendBehavior?.emotionalTags ?? {}` therefore always resolved
+   * to `{}`, and `scoreEmotionalMatch` returns 0 for an empty state, so
+   * emotional matching contributed nothing to ranking. This mirrors the
+   * mapping the OpenRouter and Sarvam providers already build.
+   */
+  private emotionalStateOf(behavior: BehaviorAnalysis | null): Record<string, number> {
+    return {
+      frustration: behavior?.frustration ?? 0,
+      playfulness: behavior?.playfulness ?? 0,
+      vulnerability: behavior?.vulnerability ?? 0,
+      trust: behavior?.trust ?? 0,
+      anxiety: behavior?.anxiety ?? 0,
+    };
   }
 
   /**
@@ -97,11 +146,17 @@ export class RuntimeManager {
    * Phase A contract: the fused evidence is the ONLY intake Cognition receives
    * from the perception layer. An empty result keeps the pre-wiring behavior
    * byte-identical — absence of evidence stays absence.
+   *
+   * `atmosphere` and `turnSignals` were already being passed by the OpenRouter
+   * and Sarvam providers but were not declared here, so JS silently dropped
+   * them. They are now accepted and threaded through.
    */
   public async processCognitiveTurn(
     text: string,
     backendBehavior: BehaviorAnalysis | null,
     mode: string = "adaptive",
+    atmosphere: AtmosphereContext | null = null,
+    turnSignals: { wasInterruption?: boolean; silenceDurationMs?: number } = {},
   ): Promise<string> {
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
@@ -122,7 +177,8 @@ export class RuntimeManager {
 
     // 3. Centralized Memory & Cognitive Context Wiring
     const userId = getCurrentUserId();
-    const retrievedMemories = await memoryGateway.retrieveMemories(text, userId, backendBehavior?.emotionalTags ?? {});
+    const emotionalState = this.emotionalStateOf(backendBehavior);
+    const retrievedMemories = await memoryGateway.retrieveMemories(text, userId, emotionalState);
     
     const stableFacts = retrievedMemories.filter(m => m.metadata?.tier === "stable").map(m => m.content);
     const recentAndCurrent = retrievedMemories.filter(m => m.metadata?.tier !== "stable");
@@ -131,7 +187,7 @@ export class RuntimeManager {
       input: {
         text,
         sttConfidence: 1,
-        wasInterruption: false,
+        wasInterruption: turnSignals.wasInterruption ?? false,
         audioRms: 0,
         languageMode: "unknown",
       },
@@ -146,15 +202,38 @@ export class RuntimeManager {
       },
       timing: {
         turnCount: this.conversationRuntime.getState().turnCount,
+        ...(turnSignals.silenceDurationMs !== undefined
+          ? { silenceDurationMs: turnSignals.silenceDurationMs }
+          : {}),
       },
+      atmosphere,
       behaviorAnalysis: backendBehavior
     });
 
     // Generate Execution Plan
     const plan = this.conversationExecutive.plan(ctx);
 
+    // Record the atmosphere relevance decision and the plan directive for this
+    // turn so providers can read them after the fact (see getLastAtmosphereDecision
+    // / getLastExecutivePrompt). Both are computed here regardless, so exposing
+    // them adds no work — it only stops the values being discarded.
+    this.lastAtmosphereDecision = getAdaptiveAttentionLayer().assessAtmosphere(text, atmosphere);
+    this.lastExecutivePrompt = this.conversationExecutive.translatePlanToPrompt(plan);
+
     // 4. Interpret Backend Intelligence for Frontend Execution
-    const response = ConversationInterpreter.getInstance().processTurn(text, backendBehavior, evidence, plan, mode);
+    // The interpreter already accepts atmosphere + the relevance decision; it
+    // renders only the dimensions marked relevant, so an irrelevant or absent
+    // atmosphere still yields an empty block.
+    const response = ConversationInterpreter.getInstance().processTurn(
+      text,
+      backendBehavior,
+      evidence,
+      plan,
+      mode,
+      null,
+      atmosphere,
+      this.lastAtmosphereDecision,
+    );
 
     // 4b. Social Presence — global, provider-independent contextual evaluation.
     // Consumes existing signals without re-implementing them.
@@ -228,7 +307,7 @@ export class RuntimeManager {
     // 6. Asynchronously persist memory
     setTimeout(() => {
       try {
-        memoryGateway.storeMemory(text, userId, backendBehavior?.emotionalTags ?? {});
+        memoryGateway.storeMemory(text, userId, emotionalState);
       } catch (e) {
         console.error("[RuntimeManager] Error storing memory:", e);
       }
@@ -241,8 +320,15 @@ export class RuntimeManager {
    * Generates a pre-formatted Cognitive Context string for Gemini session initialization.
    * This retrieves the latest UserIdentity and AdaptiveCommunication profile without 
    * blocking or triggering an active conversation turn.
+   *
+   * `atmosphere` is already supplied by useLiveNext (browser temporal context)
+   * but was previously undeclared and therefore dropped.
    */
-  public async buildInitialCognitiveSnapshot(userId: string, mode: string = "adaptive"): Promise<string> {
+  public async buildInitialCognitiveSnapshot(
+    userId: string,
+    mode: string = "adaptive",
+    atmosphere: AtmosphereContext | null = null,
+  ): Promise<string> {
     // 1. Fetch any generic/top-level relevant memories
     // Now supported by passing an empty query to the backend which returns 
     // relevance-ranked stable facts and current state within context limits.
@@ -271,6 +357,7 @@ export class RuntimeManager {
       timing: {
         turnCount: 0,
       },
+      atmosphere,
       behaviorAnalysis: null
     });
 
@@ -278,8 +365,19 @@ export class RuntimeManager {
     const plan = this.conversationExecutive.plan(ctx);
 
     // 4. Format the final snapshot using the Interpreter
-    // We pass empty arrays for evidence/behavior as they are not applicable on session start
-    const snapshot = ConversationInterpreter.getInstance().processTurn("", null, [], plan, mode);
+    // We pass empty arrays for evidence/behavior as they are not applicable on session start.
+    // There is no user text on session start, so no dimension can be relevance-
+    // matched; the decision is left unset and the atmosphere block stays empty.
+    const snapshot = ConversationInterpreter.getInstance().processTurn(
+      "",
+      null,
+      [],
+      plan,
+      mode,
+      null,
+      atmosphere,
+      null,
+    );
 
     
     return snapshot;

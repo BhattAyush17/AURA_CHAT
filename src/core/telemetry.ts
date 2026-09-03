@@ -42,7 +42,7 @@ export const getConversationLatencies = () => {
     if (ev.event === "LLM_FIRST_TOKEN" && !llmFirstToken) llmFirstToken = time;
     if (ev.event === "TRANSCRIPT_READY" && !sttResult) sttResult = time;
     if (ev.event === "MIC_CLICK" && !micStart) micStart = time;
-    
+
     // Stop looking backward if we see a new session start
     if (ev.event === "SESSION_STARTED" && micStart) break;
   }
@@ -60,14 +60,15 @@ export const getConversationLatencies = () => {
 export const getConversationFingerprint = () => {
   const trace = getConversationTrace();
   if (trace.length === 0) return "No events";
-  
+
   const lastEvent = trace[trace.length - 1];
-  
+
   if (lastEvent.event === "SESSION_RECOVERED") return "Session Automatically Recovered";
-  if (lastEvent.event.includes("STT_ERROR") || lastEvent.event === "STT_START_FAILED") return "Speech Recognition Failure";
+  if (lastEvent.event.includes("STT_ERROR") || lastEvent.event === "STT_START_FAILED")
+    return "Speech Recognition Failure";
   if (lastEvent.event.includes("LLM_ERROR")) return "Model Response Failure";
   if (lastEvent.event.includes("TTS_ERROR")) return "Speech Synthesis Failure";
   if (lastEvent.event.includes("PLAYBACK_ERROR")) return "Audio Playback Failure";
-  
+
   return "Running / Unknown";
 };

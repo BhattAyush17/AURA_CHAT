@@ -1,0 +1,27 @@
+src/audioRuntime/MicrophoneCoordinator.ts(203,89): error TS2322: Type '"warn"' is not assignable to type '"error" | "info" | "warning"'.
+src/hooks/useVoiceAcoustics.ts(59,9): error TS2451: Cannot redeclare block-scoped variable 'rmsSamplesRef'.
+src/hooks/useVoiceAcoustics.ts(60,9): error TS2451: Cannot redeclare block-scoped variable 'rmsSamplesRef'.
+src/providers/gemini/useAudioPipeline.ts(338,5): error TS2322: Type '(sessionRef: React.MutableRefObject<LiveSession | null>, sessionStateRef: React.MutableRefObject<string>, isSessionReadyRef: React.MutableRefObject<boolean>, perfRef: React.MutableRefObject<PerfTimings>, isFirstChunkOfTurnRef: React.MutableRefObject<boolean>, pauseSinceLastTurnRef: React.MutableRefObject<number>, la...' is not assignable to type '(stream: MediaStream, sessionRef: MutableRefObject<any>, sessionStateRef: MutableRefObject<string>, isSessionReadyRef: MutableRefObject<boolean>, perfRef: MutableRefObject<...>, isFirstChunkOfTurnRef: MutableRefObject<...>, pauseSinceLastTurnRef: MutableRefObject<...>, lastTurnEndTimeRef: MutableRefObject<...>, last...'.
+  Types of parameters 'sessionRef' and 'stream' are incompatible.
+    Property 'current' is missing in type 'MediaStream' but required in type 'MutableRefObject<any>'.
+src/providers/gemini/useLive.ts(561,9): error TS2322: Type '() => Promise<AudioContext | null>' is not assignable to type '() => Promise<void>'.
+  Type 'Promise<AudioContext | null>' is not assignable to type 'Promise<void>'.
+    Type 'AudioContext | null' is not assignable to type 'void'.
+      Type 'null' is not assignable to type 'void'.
+src/providers/gemini/useLive.ts(562,24): error TS2554: Expected 9 arguments, but got 8.
+src/providers/openrouter/useProvider.ts(750,14): error TS2304: Cannot find name 'micAnalyserRef'.
+src/providers/openrouter/useProvider.ts(1592,21): error TS2304: Cannot find name 'micAnalyserRef'.
+src/providers/openrouter/useProvider.ts(1592,21): error TS2554: Expected 0 arguments, but got 1.
+src/providers/openrouter/useProvider.ts(1694,19): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1695,17): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1715,11): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1716,9): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1732,23): error TS2304: Cannot find name 'micStreamRef'.
+src/providers/openrouter/useProvider.ts(1744,13): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1745,11): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1838,14): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1840,17): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1841,18): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/openrouter/useProvider.ts(1864,34): error TS2304: Cannot find name 'audioCtxRef'.
+src/providers/sarvam/useSarvam.ts(1486,24): error TS2304: Cannot find name 'getSystemPromptForPersonality'.
+src/providers/sarvam/useSarvam.ts(2252,23): error TS2554: Expected 0 arguments, but got 1.

@@ -11,7 +11,7 @@
 
 **Gemini is NOT currently a true AURA provider. It is a second, independent assistant living beside AURA.**
 
-The Gemini provider shares AURA's *prompt content* (personality prompt, seed, behavior text, cognitive directive strings) but does not participate in AURA's *runtime*: no Executive, no MemoryGateway, no ConversationStateManager, no Turn Engine, no AURA telemetry. Gemini decides everything itself inside its Live session. The "AURA SOUL = SOUL, PROVIDER = BODY" principle is structurally not violated by Gemini's realtime audio architecture (that part is valid and correct) — it is violated by the *soul itself* not being connected on the Gemini path.
+The Gemini provider shares AURA's _prompt content_ (personality prompt, seed, behavior text, cognitive directive strings) but does not participate in AURA's _runtime_: no Executive, no MemoryGateway, no ConversationStateManager, no Turn Engine, no AURA telemetry. Gemini decides everything itself inside its Live session. The "AURA SOUL = SOUL, PROVIDER = BODY" principle is structurally not violated by Gemini's realtime audio architecture (that part is valid and correct) — it is violated by the _soul itself_ not being connected on the Gemini path.
 
 **CURRENT GEMINI INTEGRATION SCORE: 3.5/10** (details in §30)
 
@@ -42,58 +42,59 @@ Auth: header `x-goog-api-key` (SDK internal); key from `getGeminiKey` (`aura_gem
 
 ## 3. AURA SOUL INVENTORY (operational status)
 
-| Module | Status | Evidence |
-|---|---|---|
-| Executive (`src/executive/ConversationExecutive.ts`, 19 files) | OPERATIONAL but Sarvam-only | imported only by `src/providers/sarvam/useSarvam.ts`; ZERO refs in `src/providers/gemini/` |
-| RuntimeManager (`src/runtime/RuntimeManager.ts`) | OPERATIONAL, Gemini-connected | `processCognitiveTurn` called at useLive.ts:374 |
-| ConversationInterpreter (`src/runtime/conversationInterpreter/`) | OPERATIONAL via RuntimeManager | reached through processCognitiveTurn |
-| validation suite (`src/runtime/validation/*`, 4 files) | DEAD / BROKEN | imports nonexistent `../integration/IntegrationTelemetry` (TS2307); nothing imports them |
-| backend metacognition (`backend/core/pipeline.py`, ATF) | DEAD / BROKEN | `ModuleNotFoundError: backend.core.thought_field.Ecology` on import; never reachable |
-| MemoryGateway (`src/lib/memory-gateway.ts`) | OPERATIONAL, NOT on Gemini path | openrouter:42,889,1503,1515; sarvam:38,1243,2174,2186; ZERO imports in `src/providers/gemini/` |
-| StorageManager + BrowserAdapter | OPERATIONAL, Gemini-connected (seed only) | useLive.ts:74,225-233,477 (`loadSeed/saveSeed/load/save`, key `aura_storage_conversations`) |
-| ConversationStateManager | OPERATIONAL, NOT on Gemini path | only `src/providers/sarvam/useSarvam.ts`, `src/providers/openrouter/useProvider.ts`; zero global subscribers |
-| Turn Engine (conversationInterpreter + planners) | OPERATIONAL, partially reached | via RuntimeManager string injection; exact cross-brain wiring incomplete |
-| Voice Orchestrator (`src/core/useVoiceOrchestrator.ts`) | OPERATIONAL, serves all | initializes RuntimeManager (:35); routes providers (:172) |
-| Behavior client (`src/lib/behavior-client.ts`) | OPERATIONAL, Gemini-connected | analyzeForTurn :348, fireSpeculative :581; backend `analyzeBehavior` reachable |
-| MusicService + QueueManager + PlaybackState + PlayerStateMachine | OPERATIONAL but ORPHANED on Gemini path | no listener for the events Gemini dispatches (§11) |
-| PlaybackEngine (UI route) | DEAD | `setProvider()` never called anywhere; UI actions never reach MusicService |
-| MusicSense | OPERATIONAL but unconsumed | collects; no consumer |
-| Vision / VisionSense | NOT IMPLEMENTED | `src/vision/` — see §12 |
-| ProviderRegistry / CredentialManager / ProviderHealth / VoiceSettings | OPERATIONAL | `src/lib/registry.ts`, `credentials.ts`; Gemini uses `getGeminiKey` (env/sessionStorage, outside CredentialManager) |
-| Media Runtime / VAD / SpeechEventAssembler / Trace Runtime / Latency Budget | FROZEN (contracts); not runtime-executed by Gemini | Gemini uses own worklet + server auto-VAD + own state machine |
-| FlightRecorder (`src/lib/flight-recorder.ts`) | DEAD | not imported by any provider path |
-| ResilienceOrchestrator | OPERATIONAL (device scoring) | console: `[ResilienceOrchestrator] Started. Device score: 68` |
-| ConversationTelemetry / IntegrationTelemetry | BROKEN | IntegrationTelemetry missing module; validation dead (§9) |
+| Module                                                                      | Status                                             | Evidence                                                                                                            |
+| --------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Executive (`src/executive/ConversationExecutive.ts`, 19 files)              | OPERATIONAL but Sarvam-only                        | imported only by `src/providers/sarvam/useSarvam.ts`; ZERO refs in `src/providers/gemini/`                          |
+| RuntimeManager (`src/runtime/RuntimeManager.ts`)                            | OPERATIONAL, Gemini-connected                      | `processCognitiveTurn` called at useLive.ts:374                                                                     |
+| ConversationInterpreter (`src/runtime/conversationInterpreter/`)            | OPERATIONAL via RuntimeManager                     | reached through processCognitiveTurn                                                                                |
+| validation suite (`src/runtime/validation/*`, 4 files)                      | DEAD / BROKEN                                      | imports nonexistent `../integration/IntegrationTelemetry` (TS2307); nothing imports them                            |
+| backend metacognition (`backend/core/pipeline.py`, ATF)                     | DEAD / BROKEN                                      | `ModuleNotFoundError: backend.core.thought_field.Ecology` on import; never reachable                                |
+| MemoryGateway (`src/lib/memory-gateway.ts`)                                 | OPERATIONAL, NOT on Gemini path                    | openrouter:42,889,1503,1515; sarvam:38,1243,2174,2186; ZERO imports in `src/providers/gemini/`                      |
+| StorageManager + BrowserAdapter                                             | OPERATIONAL, Gemini-connected (seed only)          | useLive.ts:74,225-233,477 (`loadSeed/saveSeed/load/save`, key `aura_storage_conversations`)                         |
+| ConversationStateManager                                                    | OPERATIONAL, NOT on Gemini path                    | only `src/providers/sarvam/useSarvam.ts`, `src/providers/openrouter/useProvider.ts`; zero global subscribers        |
+| Turn Engine (conversationInterpreter + planners)                            | OPERATIONAL, partially reached                     | via RuntimeManager string injection; exact cross-brain wiring incomplete                                            |
+| Voice Orchestrator (`src/core/useVoiceOrchestrator.ts`)                     | OPERATIONAL, serves all                            | initializes RuntimeManager (:35); routes providers (:172)                                                           |
+| Behavior client (`src/lib/behavior-client.ts`)                              | OPERATIONAL, Gemini-connected                      | analyzeForTurn :348, fireSpeculative :581; backend `analyzeBehavior` reachable                                      |
+| MusicService + QueueManager + PlaybackState + PlayerStateMachine            | OPERATIONAL but ORPHANED on Gemini path            | no listener for the events Gemini dispatches (§11)                                                                  |
+| PlaybackEngine (UI route)                                                   | DEAD                                               | `setProvider()` never called anywhere; UI actions never reach MusicService                                          |
+| MusicSense                                                                  | OPERATIONAL but unconsumed                         | collects; no consumer                                                                                               |
+| Vision / VisionSense                                                        | NOT IMPLEMENTED                                    | `src/vision/` — see §12                                                                                             |
+| ProviderRegistry / CredentialManager / ProviderHealth / VoiceSettings       | OPERATIONAL                                        | `src/lib/registry.ts`, `credentials.ts`; Gemini uses `getGeminiKey` (env/sessionStorage, outside CredentialManager) |
+| Media Runtime / VAD / SpeechEventAssembler / Trace Runtime / Latency Budget | FROZEN (contracts); not runtime-executed by Gemini | Gemini uses own worklet + server auto-VAD + own state machine                                                       |
+| FlightRecorder (`src/lib/flight-recorder.ts`)                               | DEAD                                               | not imported by any provider path                                                                                   |
+| ResilienceOrchestrator                                                      | OPERATIONAL (device scoring)                       | console: `[ResilienceOrchestrator] Started. Device score: 68`                                                       |
+| ConversationTelemetry / IntegrationTelemetry                                | BROKEN                                             | IntegrationTelemetry missing module; validation dead (§9)                                                           |
 
 ---
 
 ## 4. GEMINI INTEGRATION MATRIX
 
-| AURA Soul Component | Gemini | OpenRouter | Sarvam | Correct State |
-|---|---|---|---|---|
-| Executive | BYPASSED (RuntimeManager string only) | PARTIAL (RuntimeManager string only) | FULL (ConversationExecutive imported) | All three through ONE AURA executive seam |
-| Personality | PARTIAL (shared prompt + seed + mirroring block) | FULL (shared prompt) | FULL (shared prompt) | ONE authoritative personality source |
-| Memory | BYPASSED (seed + broken local write) | FULL (MemoryGateway) | FULL (MemoryGateway) | MemoryGateway for all |
-| MemoryGateway | MISSING (0 imports) | FULL (:889,1503,1515) | FULL (:1243,2174,2186) | Same |
-| Context | PARTIAL (buildContext(mode) + THREAD refs) | PARTIAL | PARTIAL | AURA-owned context assembler |
-| Emotion | PARTIAL (backend text analysis + raw audio; sensing_state null) | PARTIAL (acoustic XML) | PARTIAL (acoustic XML) | One AURA behavior pipeline |
-| Behavior | PARTIAL (behaviorText injected) | PARTIAL | PARTIAL | Same |
-| Metacognition | MISSING (not operational anywhere) | MISSING | MISSING | Operationalize or remove |
-| Music | BROKEN (tools → zero listeners) | PARTIAL (processIntent → MusicService) | PARTIAL | AURA-owned music action seam |
-| MusicSense | BYPASSED | BYPASSED | BYPASSED | Feed context to all |
-| Vision | NOT IMPLEMENTED | NOT IMPLEMENTED | NOT IMPLEMENTED | Future |
-| Tools | PARTIAL (4 decls; 2 broken) | PARTIAL | PARTIAL | AURA-owned tool registry |
-| Conversation State | DUPLICATED (own state machine; CSM bypassed) | FULL (CSM) | FULL (CSM) | CSM authoritative; Gemini keeps session mechanics |
-| Turn Engine | PARTIAL (string directives) | PARTIAL | PARTIAL | Full normalization |
-| VAD | PROVIDER-SPECIFIC/CORRECT (server auto-VAD = session mechanics) | AURA VAD | AURA VAD | Provider mechanics OK; AURA turn policy on top |
-| Telemetry | PARTIAL (latency events, shadow timing) | PARTIAL | PARTIAL | One trace model |
-| Resilience | PARTIAL (transport reconnect + cascade) | PARTIAL | PARTIAL | One resilience policy |
+| AURA Soul Component | Gemini                                                          | OpenRouter                             | Sarvam                                | Correct State                                     |
+| ------------------- | --------------------------------------------------------------- | -------------------------------------- | ------------------------------------- | ------------------------------------------------- |
+| Executive           | BYPASSED (RuntimeManager string only)                           | PARTIAL (RuntimeManager string only)   | FULL (ConversationExecutive imported) | All three through ONE AURA executive seam         |
+| Personality         | PARTIAL (shared prompt + seed + mirroring block)                | FULL (shared prompt)                   | FULL (shared prompt)                  | ONE authoritative personality source              |
+| Memory              | BYPASSED (seed + broken local write)                            | FULL (MemoryGateway)                   | FULL (MemoryGateway)                  | MemoryGateway for all                             |
+| MemoryGateway       | MISSING (0 imports)                                             | FULL (:889,1503,1515)                  | FULL (:1243,2174,2186)                | Same                                              |
+| Context             | PARTIAL (buildContext(mode) + THREAD refs)                      | PARTIAL                                | PARTIAL                               | AURA-owned context assembler                      |
+| Emotion             | PARTIAL (backend text analysis + raw audio; sensing_state null) | PARTIAL (acoustic XML)                 | PARTIAL (acoustic XML)                | One AURA behavior pipeline                        |
+| Behavior            | PARTIAL (behaviorText injected)                                 | PARTIAL                                | PARTIAL                               | Same                                              |
+| Metacognition       | MISSING (not operational anywhere)                              | MISSING                                | MISSING                               | Operationalize or remove                          |
+| Music               | BROKEN (tools → zero listeners)                                 | PARTIAL (processIntent → MusicService) | PARTIAL                               | AURA-owned music action seam                      |
+| MusicSense          | BYPASSED                                                        | BYPASSED                               | BYPASSED                              | Feed context to all                               |
+| Vision              | NOT IMPLEMENTED                                                 | NOT IMPLEMENTED                        | NOT IMPLEMENTED                       | Future                                            |
+| Tools               | PARTIAL (4 decls; 2 broken)                                     | PARTIAL                                | PARTIAL                               | AURA-owned tool registry                          |
+| Conversation State  | DUPLICATED (own state machine; CSM bypassed)                    | FULL (CSM)                             | FULL (CSM)                            | CSM authoritative; Gemini keeps session mechanics |
+| Turn Engine         | PARTIAL (string directives)                                     | PARTIAL                                | PARTIAL                               | Full normalization                                |
+| VAD                 | PROVIDER-SPECIFIC/CORRECT (server auto-VAD = session mechanics) | AURA VAD                               | AURA VAD                              | Provider mechanics OK; AURA turn policy on top    |
+| Telemetry           | PARTIAL (latency events, shadow timing)                         | PARTIAL                                | PARTIAL                               | One trace model                                   |
+| Resilience          | PARTIAL (transport reconnect + cascade)                         | PARTIAL                                | PARTIAL                               | One resilience policy                             |
 
 ---
 
 ## 5. EXECUTIVE AUDIT
 
 **Real path for Gemini:**
+
 ```
 USER → Gemini Live → inputTranscription → handleUserTurn
   → RuntimeManager.processCognitiveTurn(text, result)   useLive.ts:374
@@ -113,10 +114,12 @@ USER → Gemini Live → inputTranscription → handleUserTurn
 ## 6. MEMORY AUDIT
 
 **AURA → Gemini (retrieval):** `MemoryGateway.retrieveMemories`/`formatForPrompt` NEVER called on the Gemini path (0 imports of memory-gateway in `src/providers/gemini/`). Gemini receives:
+
 - Seed block (localStorage `aura_seed_${userId}`) via StorageManager — useLive.ts:225-233 (mounted into systemInstruction as `seedBlock`, useWebSocket.ts:288)
 - Session history natively inside the Live session (128k window)
 
 **Gemini → AURA (write):**
+
 - `saveMemory` tool → `addMemory` → `localStorage.setItem("aura_memories", ...)` (useLive.ts:109,117)
 - Reader (`src/lib/local-memory.ts:62`) reads `aura_memories_${userId}` → **KEY MISMATCH — writes are never read; saved memories are orphaned.**
 - Per-turn history saved via StorageManager (`aura_storage_conversations`) at useLive.ts:228,232,477 (session-scoped, not L3 memory).
@@ -128,13 +131,15 @@ USER → Gemini Live → inputTranscription → handleUserTurn
 ## 7. PERSONALITY / CONTEXT AUDIT
 
 **Personality — mostly shared, correct:**
+
 - `getSystemPromptForPersonality(activeOpts.personality, activeOpts.seedBlock)` (useWebSocket.ts:288) — same authoritative prompt source as OpenRouter/Sarvam (`src/lib/gemini-prompt.ts`).
 - Gemini adds `[ADAPTIVE MIRRORING]` + `[INTERRUPTION BEHAVIOR]` blocks (:289-290) — provider-native, justified (language mirroring for a speech session; interruption behavior for auto-VAD). Correct provider-specific addition.
 
 **Context — partial:**
+
 - `prompts.buildContext(currentMode)` (useLive.ts:372) → per-mode context block → sent as mid-session realtime text with every turn (:383).
 - `[THREAD]` reference every 5 turns (:406-416) — lightweight topic continuity.
-- `[MUSIC CONTEXT]` PROMISED BUT NEVER INJECTED: `gemini-prompt.ts` states *"When music is active, you will see [music state] in your context — use it to enrich your responses"* — nothing ever injects music state into any provider's context (Gemini, OpenRouter, Sarvam). The model is told about a context field that never arrives.
+- `[MUSIC CONTEXT]` PROMISED BUT NEVER INJECTED: `gemini-prompt.ts` states _"When music is active, you will see [music state] in your context — use it to enrich your responses"_ — nothing ever injects music state into any provider's context (Gemini, OpenRouter, Sarvam). The model is told about a context field that never arrives.
 
 **Duplication:** personality content is assembled per-provider (Gemini: `getSystemPromptForPersonality` + local mode blocks; Sarvam/OpenRouter: same source). Minor duplication, same source of truth — acceptable.
 
@@ -145,13 +150,14 @@ USER → Gemini Live → inputTranscription → handleUserTurn
 **Raw audio → Gemini's own model:** real — the Live session is audio-in/audio-out; the model perceives prosody natively.
 
 **Audio → AURA behavior → structured evidence → Gemini:** PARTIAL.
+
 - `analyzeForTurn(audio.currentRmsRef, pauseSinceLastTurnRef)` at useLive.ts:348 → `behavior-client.analyzeBehavior(text)` → backend HTTP `analyzeBehavior` → **text-only regex analysis** (server code, main.py) → `behaviorText` injected into turn text (:383). Sensing_state: backend sets `sensing_state=None` in eager path (main.py:530,622) → `useResponseTiming` always sees null → defaults. Line 873-874 (where sensing_state is built) is inside the broken pipeline.py path — unreachable.
 - Speculative analysis on every input transcription (:581) — runs in parallel, does not block the turn.
 - `speechStyleDetector.detectStyle(text)` (:375) → style instruction block (:377) — server-side text analysis.
 - Acoustic XML (pitch/energy/rate) is generated for OpenRouter/Sarvam only; Gemini never receives it.
 - `emotion_sounds` assets are paralinguistic TTS clips — not used by Gemini (used by OR/Sarvam paths).
 
-**Verdict:** Gemini receives AURA *text-based* behavior enrichment, never acoustic emotion evidence; the model's own audio perception is the dominant emotion channel. `updateAnalysis` tool is UI-only state (useLive.ts:590-597).
+**Verdict:** Gemini receives AURA _text-based_ behavior enrichment, never acoustic emotion evidence; the model's own audio perception is the dominant emotion channel. `updateAnalysis` tool is UI-only state (useLive.ts:590-597).
 
 ---
 
@@ -171,6 +177,7 @@ No artificial Gemini gap exists here — the subsystem itself is not operational
 ## 10. MUSIC AUDIT
 
 **Gemini request direction (USER: "Play something calm."):**
+
 ```
 USER → Gemini Live → model calls playYouTubeMusic(query)
   → useLive.ts:598-608 handler
@@ -178,6 +185,7 @@ USER → Gemini Live → model calls playYouTubeMusic(query)
   → window.dispatchEvent(new CustomEvent("playYouTubeMusic", {detail: query}))   :602
   → ???
 ```
+
 **The ??? is empty.** `rg "playYouTubeMusic|stopYouTubeMusic" src/` matches ONLY the two dispatcher files (useWebSocket.ts declarations, useLive.ts handler). **ZERO `addEventListener` anywhere in the app.** MusicService (src/music/) never receives the event. The model gets `{result: 'Playing "…" on YouTube now.'}` — a lie; nothing plays.
 
 **Reverse direction (playback state → Gemini):** `[MUSIC CONTEXT]` promise in gemini-prompt.ts is never fulfilled (see §7). No playback state ever reaches Gemini.
@@ -198,12 +206,12 @@ USER → Gemini Live → model calls playYouTubeMusic(query)
 
 Registered (useWebSocket.ts:294-337): `saveMemory`, `updateAnalysis`, `playYouTubeMusic`, `stopYouTubeMusic`.
 
-| Tool | Invocation | Execution | Reaches real system? |
-|---|---|---|---|
-| saveMemory | works | localStorage `aura_memories` (:109) | **NO — key mismatch with reader `aura_memories_${userId}`** (local-memory.ts:62) |
-| updateAnalysis | works | sets React state (UI-only) :590-597 | NO (no consumer) |
-| playYouTubeMusic | never fired in live test; if fired → dispatch | CustomEvent :602 | **NO — zero listeners** |
-| stopYouTubeMusic | same | CustomEvent :613 | **NO** |
+| Tool             | Invocation                                    | Execution                           | Reaches real system?                                                             |
+| ---------------- | --------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------- |
+| saveMemory       | works                                         | localStorage `aura_memories` (:109) | **NO — key mismatch with reader `aura_memories_${userId}`** (local-memory.ts:62) |
+| updateAnalysis   | works                                         | sets React state (UI-only) :590-597 | NO (no consumer)                                                                 |
+| playYouTubeMusic | never fired in live test; if fired → dispatch | CustomEvent :602                    | **NO — zero listeners**                                                          |
+| stopYouTubeMusic | same                                          | CustomEvent :613                    | **NO**                                                                           |
 
 Tool ownership rule: **AURA owns action semantics; Gemini requests them.** Today Gemini requests actions that AURA's runtime never executes. The minimum fix is a listener seam (or routing the event into MusicService's existing command path) + fixing the memory key.
 
@@ -212,10 +220,11 @@ Tool ownership rule: **AURA owns action semantics; Gemini requests them.** Today
 ## 13. CONVERSATION-STATE AUDIT
 
 **Duplicate ownership confirmed:**
+
 - AURA: `ConversationStateManager` (src/runtime/ConversationStateManager.ts) — imported ONLY by sarvam/openrouter; zero global subscribers even there; Gemini: not imported.
 - Gemini: owns its own session state machine (`wsState`/`sessionState` refs, `transition()`, `useStateMachine`) + server-side auto-VAD turn detection.
 
-**AURA vs Gemini disagreement risk:** AURA UI status (listening/thinking/speaking) is driven by Gemini's own callbacks (onStatusChange("listening") useWebSocket.ts:354); AURA's ConversationStateManager is not in the loop, so no contradiction is *currently possible* only because AURA state is not exercised on this path at all. Per §16-17 of the architecture: Gemini's session mechanics (server VAD, session state) are a VALID provider-native exception. What is missing is an AURA turn-policy layer on top (e.g., cooldown, topic state, initiative) — not present for Gemini.
+**AURA vs Gemini disagreement risk:** AURA UI status (listening/thinking/speaking) is driven by Gemini's own callbacks (onStatusChange("listening") useWebSocket.ts:354); AURA's ConversationStateManager is not in the loop, so no contradiction is _currently possible_ only because AURA state is not exercised on this path at all. Per §16-17 of the architecture: Gemini's session mechanics (server VAD, session state) are a VALID provider-native exception. What is missing is an AURA turn-policy layer on top (e.g., cooldown, topic state, initiative) — not present for Gemini.
 
 ---
 
@@ -223,17 +232,17 @@ Tool ownership rule: **AURA owns action semantics; Gemini requests them.** Today
 
 Frozen contracts (voice_runtime_architecture.md) vs Gemini reality:
 
-| Contract | Gemini reality | Verdict |
-|---|---|---|
-| Media owns physical sound | ✓ own worklet/playback | CORRECT |
-| Conversation never knows provider identities | ✗ turn path is provider-internal | BYPASSED |
-| Turn Engine owns turn state | ✗ Gemini server VAD + own refs | BYPASSED (provider mechanics ok, AURA policy absent) |
-| Providers framework-free | ✓ (hooks + ws lib) | CORRECT |
-| One Media-owned Silero VAD | ✗ server auto-VAD + worklet noise gate | ACCEPTABLE (native realtime) — must document as exception |
-| SpeechEventAssembler normalization | ✗ raw callbacks (inputTranscription/outputTranscription/functionCall) | PARTIAL — semantic contract equivalent exists (turn-complete/interruption events), no FinalTranscript (correct: do not fake) |
-| Transport Session Manager | ✗ bypassed (own connect/reconnect/cascade) | PARTIAL — should adopt for connection-state/retry/epoch mechanics |
-| Trace Runtime | ✗ no traces | MISSING |
-| Latency Budget | ~ (measurements exist; budget contract not enforced) | PARTIAL |
+| Contract                                     | Gemini reality                                                        | Verdict                                                                                                                      |
+| -------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Media owns physical sound                    | ✓ own worklet/playback                                                | CORRECT                                                                                                                      |
+| Conversation never knows provider identities | ✗ turn path is provider-internal                                      | BYPASSED                                                                                                                     |
+| Turn Engine owns turn state                  | ✗ Gemini server VAD + own refs                                        | BYPASSED (provider mechanics ok, AURA policy absent)                                                                         |
+| Providers framework-free                     | ✓ (hooks + ws lib)                                                    | CORRECT                                                                                                                      |
+| One Media-owned Silero VAD                   | ✗ server auto-VAD + worklet noise gate                                | ACCEPTABLE (native realtime) — must document as exception                                                                    |
+| SpeechEventAssembler normalization           | ✗ raw callbacks (inputTranscription/outputTranscription/functionCall) | PARTIAL — semantic contract equivalent exists (turn-complete/interruption events), no FinalTranscript (correct: do not fake) |
+| Transport Session Manager                    | ✗ bypassed (own connect/reconnect/cascade)                            | PARTIAL — should adopt for connection-state/retry/epoch mechanics                                                            |
+| Trace Runtime                                | ✗ no traces                                                           | MISSING                                                                                                                      |
+| Latency Budget                               | ~ (measurements exist; budget contract not enforced)                  | PARTIAL                                                                                                                      |
 
 ---
 
@@ -247,16 +256,16 @@ The seam lives at: **the turn/text boundary** — AURA assembles context → han
 
 ## 16. FAILURE / FALLBACK AUDIT
 
-| Failure | Gemini behavior (code + measured) | Remains alive? |
-|---|---|---|
+| Failure                  | Gemini behavior (code + measured)                                                       | Remains alive?                             |
+| ------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------ |
 | Model rejected/exhausted | cascade `LIVE_MODELS` → `All models in cascade exhausted.` (measured: 1008 × 2.5-flash) | ✗ session dies; no cross-provider fallback |
-| Connect timeout | connectTimeoutId → cleanup | partial |
-| Server goAway | closes session (:362-367), NO auto-reconnect logic → user must restart | partial |
-| Network drop | transport-level reconnect recovery via sendRealtimeText (~534) | partial |
-| API key invalid | 1007 abort (measured) | ✗ |
-| Microphone/audio fail | no explicit handling beyond AudioContext resume (:736) | partial |
-| AURA cognitive fail | analyzeForTurn wrapped in try/catch → falls back to raw text (:395-401) | ✓ Gemini stays usable |
-| Tool execution fail | tool returns `{result:"OK"}` regardless (:617) — failure invisible | ✗ silent lie |
+| Connect timeout          | connectTimeoutId → cleanup                                                              | partial                                    |
+| Server goAway            | closes session (:362-367), NO auto-reconnect logic → user must restart                  | partial                                    |
+| Network drop             | transport-level reconnect recovery via sendRealtimeText (~534)                          | partial                                    |
+| API key invalid          | 1007 abort (measured)                                                                   | ✗                                          |
+| Microphone/audio fail    | no explicit handling beyond AudioContext resume (:736)                                  | partial                                    |
+| AURA cognitive fail      | analyzeForTurn wrapped in try/catch → falls back to raw text (:395-401)                 | ✓ Gemini stays usable                      |
+| Tool execution fail      | tool returns `{result:"OK"}` regardless (:617) — failure invisible                      | ✗ silent lie                               |
 
 **Desired principle violated:** Gemini failure ≈ partial AURA failure because there is no cross-provider swap (e.g., fallback to OpenRouter) and no AURA resilience policy on this path. `ResilienceOrchestrator` scores devices but doesn't gate provider choice for Gemini.
 
@@ -275,6 +284,7 @@ speech → server VAD → inputTranscription (server-side)
 ```
 
 Classification:
+
 - analyzeForTurn (backend HTTP round-trip on the turn path when autoAudioTurn is on): **CRITICAL PATH — the single largest avoidable tax.** Speculative analysis runs in parallel (:581) but the authoritative path still awaits the backend.
 - processCognitiveTurn/detectStyle: string assembly, milliseconds — fine.
 - Memory retrieval: **absent** (not a tax, but also not enrichment).
@@ -283,6 +293,7 @@ Classification:
 - getResponseDelay (useResponseTiming :156,:539): sensing_state always null → constant defaults; adds a fixed post-first-audio delay per turn — small, currently deterministic.
 
 **Measured (headless, gemini-3.1, 2026-08-08):**
+
 - connect+setup: 548ms (run after-2), 795ms (cold music run)
 - greeting → firstToken: ~1.2s (both runs)
 - response delay applied: 245–279ms
@@ -302,6 +313,7 @@ Today: everything cognitive changes (memory, music, conversation state, telemetr
 Yes — they are wired to MemoryGateway/CSM/Executive/MusicService. **This asymmetry is the core defect.**
 
 **Couplings found (Gemini-specific logic that should be AURA-owned):**
+
 1. Personality/seed/mode context assembly inside useLive/promptOrchestrator (acceptable partial duplication — same prompt source).
 2. Behavior injection duplicated per provider (behavior-client shared; injection site provider-local).
 3. Music events as window CustomEvents with zero consumers — should be an AURA music command seam.
@@ -312,37 +324,37 @@ Yes — they are wired to MemoryGateway/CSM/Executive/MusicService. **This asymm
 
 ## 19. DUPLICATED / BYPASSED AURA LOGIC
 
-| Item | Status |
-|---|---|
-| ConversationStateManager | BYPASSED by Gemini (duplicated own state machine) |
-| MemoryGateway | BYPASSED by Gemini (seed + broken local write) |
-| Executive (class) | BYPASSED by Gemini (RuntimeManager string only) |
-| MusicService command seam | BYPASSED (events → zero listeners) |
-| PlaybackEngine (UI) | DEAD (setProvider never called) — redundant parallel engine |
-| FlightRecorder | DEAD |
-| validation suite | DEAD (missing IntegrationTelemetry) |
-| backend pipeline.py/ATF | DEAD (Ecology import error) |
-| sensing_state path | DEAD (pipeline.py unreachable → always null) |
-| `[MUSIC CONTEXT]` promise | UNFULFILLED (prompt lies to the model) |
-| saveMemory key | BROKEN (write/read mismatch) |
+| Item                      | Status                                                      |
+| ------------------------- | ----------------------------------------------------------- |
+| ConversationStateManager  | BYPASSED by Gemini (duplicated own state machine)           |
+| MemoryGateway             | BYPASSED by Gemini (seed + broken local write)              |
+| Executive (class)         | BYPASSED by Gemini (RuntimeManager string only)             |
+| MusicService command seam | BYPASSED (events → zero listeners)                          |
+| PlaybackEngine (UI)       | DEAD (setProvider never called) — redundant parallel engine |
+| FlightRecorder            | DEAD                                                        |
+| validation suite          | DEAD (missing IntegrationTelemetry)                         |
+| backend pipeline.py/ATF   | DEAD (Ecology import error)                                 |
+| sensing_state path        | DEAD (pipeline.py unreachable → always null)                |
+| `[MUSIC CONTEXT]` promise | UNFULFILLED (prompt lies to the model)                      |
+| saveMemory key            | BROKEN (write/read mismatch)                                |
 
 ---
 
 ## 20. MUST / SHOULD / DON'T-TOUCH MATRIX
 
-| Change | Gemini | AURA Core | Provider Layer | Required? | Risk |
-|---|---|---|---|---|---|
-| Fix saveMemory → MemoryGateway.storeMemory (or fix key to `aura_memories_${userId}`) | addMemory (:109) | — | — | MUST | Low |
-| Route music tool events into MusicService command path (or add ONE listener seam) | handler :602/:613 | musicEvents bus | — | MUST | Low |
-| Remove/fulfill `[MUSIC CONTEXT]` promise | — | gemini-prompt.ts | — | MUST | Low |
-| MemoryGateway retrieval in context assembly (retrieveMemories + formatForPrompt prepend to buildContext) | context assembly | — | — | SHOULD | Med (async, off critical path) |
-| Register Gemini turns with ConversationStateManager | handleUserTurn | CSM | — | SHOULD | Med |
-| Push Gemini traces into AURA telemetry (conversation traces + turn events) | callbacks | telemetry | — | SHOULD | Low |
-| Move backend behavior analysis off critical path (use speculative result; emit asynchronously) | useLive.ts:348 | behavior-client | backend | SHOULD | Med (latency win) |
-| Operationalize or remove metacognition (validation suite, pipeline.py, IntegrationTelemetry) | — | runtime/validation, backend | — | SHOULD (P3 cleanup) | Low |
-| Cross-provider fallback on cascade exhaustion (e.g., OR emergency) | reconnect | resilience | Transport Session Manager | SHOULD | Med |
-| Keep: realtime session, audio streaming, server auto-VAD, tools schema, systemInstruction construction, reconnect mechanics | — | — | — | MUST NOT CHANGE | — |
-| Vision (realtime frames) | — | — | — | FUTURE | — |
+| Change                                                                                                                      | Gemini            | AURA Core                   | Provider Layer            | Required?           | Risk                           |
+| --------------------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------- | ------------------------- | ------------------- | ------------------------------ |
+| Fix saveMemory → MemoryGateway.storeMemory (or fix key to `aura_memories_${userId}`)                                        | addMemory (:109)  | —                           | —                         | MUST                | Low                            |
+| Route music tool events into MusicService command path (or add ONE listener seam)                                           | handler :602/:613 | musicEvents bus             | —                         | MUST                | Low                            |
+| Remove/fulfill `[MUSIC CONTEXT]` promise                                                                                    | —                 | gemini-prompt.ts            | —                         | MUST                | Low                            |
+| MemoryGateway retrieval in context assembly (retrieveMemories + formatForPrompt prepend to buildContext)                    | context assembly  | —                           | —                         | SHOULD              | Med (async, off critical path) |
+| Register Gemini turns with ConversationStateManager                                                                         | handleUserTurn    | CSM                         | —                         | SHOULD              | Med                            |
+| Push Gemini traces into AURA telemetry (conversation traces + turn events)                                                  | callbacks         | telemetry                   | —                         | SHOULD              | Low                            |
+| Move backend behavior analysis off critical path (use speculative result; emit asynchronously)                              | useLive.ts:348    | behavior-client             | backend                   | SHOULD              | Med (latency win)              |
+| Operationalize or remove metacognition (validation suite, pipeline.py, IntegrationTelemetry)                                | —                 | runtime/validation, backend | —                         | SHOULD (P3 cleanup) | Low                            |
+| Cross-provider fallback on cascade exhaustion (e.g., OR emergency)                                                          | reconnect         | resilience                  | Transport Session Manager | SHOULD              | Med                            |
+| Keep: realtime session, audio streaming, server auto-VAD, tools schema, systemInstruction construction, reconnect mechanics | —                 | —                           | —                         | MUST NOT CHANGE     | —                              |
+| Vision (realtime frames)                                                                                                    | —                 | —                           | —                         | FUTURE              | —                              |
 
 ---
 
@@ -390,46 +402,46 @@ Current reality differs ONLY below the AURA line: Gemini bypasses the "normalize
 
 ## 23. TEST MATRIX (defined; where run, result recorded)
 
-| # | Test | Setup | Expected | Owner | Measured result |
-|---|---|---|---|---|---|
-| A | Normal conversation | headless CDP, fake mic | greeting → audio reply | Gemini | PASS (1.2s first token, stable LISTENING) |
-| B | Personality | prompt inspection | seed + personality present | Gemini | PASS (systemInstruction contains personality+seed) |
-| C | Memory retrieval | code trace | `[MEMORY CONTEXT]` present | AURA | FAIL — no retrieval on Gemini path |
-| D | Memory write | code trace + live | saveMemory → readable | AURA | FAIL — key mismatch (useLive:109 vs local-memory:62) |
-| E | Executive decision | code trace | decision gates response | AURA | FAIL — RuntimeManager strings advisory only |
-| F | Emotion/behavior | code trace | sensing_state in timing | AURA | FAIL — sensing_state always null |
-| G | Music command | LIVE (synthetic speech) | tool call → playback | Gemini→AURA | FAIL — 16 turns, 0 tool calls; 0 listeners |
-| H | Music state awareness | code trace | `[MUSIC CONTEXT]` injected | AURA | FAIL — promised, never injected |
-| I | Vision | code trace | frames in session | AURA | FAIL — not implemented (P4) |
-| J | Tools | live/code | 4 tools declared | Gemini | PARTIAL — 2 broken targets |
-| K | Interruption | not testable headless (no concurrent speech) | auto-VAD truncation | Gemini | NOT MEASURED |
-| L | Reconnect | code trace | transport reconnect | Gemini | PARTIAL — text-based recovery exists |
-| M | Provider failure → fallback | measured (old models) | cascade exhaustion | Gemini | FAIL — dies, no cross-provider swap |
-| N/O | OR/Sarvam after Gemini | code trace | independent | OR/Sarvam | PASS — fully independent paths |
-| P/Q/R/S/T | Long conversation, rapid turns, music+talk, vision+voice, cognitive failure | — | — | — | NOT TESTED headless (no speech harness); cognitive-failure fallback verified in code (:395-401) |
+| #         | Test                                                                        | Setup                                        | Expected                   | Owner       | Measured result                                                                                 |
+| --------- | --------------------------------------------------------------------------- | -------------------------------------------- | -------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| A         | Normal conversation                                                         | headless CDP, fake mic                       | greeting → audio reply     | Gemini      | PASS (1.2s first token, stable LISTENING)                                                       |
+| B         | Personality                                                                 | prompt inspection                            | seed + personality present | Gemini      | PASS (systemInstruction contains personality+seed)                                              |
+| C         | Memory retrieval                                                            | code trace                                   | `[MEMORY CONTEXT]` present | AURA        | FAIL — no retrieval on Gemini path                                                              |
+| D         | Memory write                                                                | code trace + live                            | saveMemory → readable      | AURA        | FAIL — key mismatch (useLive:109 vs local-memory:62)                                            |
+| E         | Executive decision                                                          | code trace                                   | decision gates response    | AURA        | FAIL — RuntimeManager strings advisory only                                                     |
+| F         | Emotion/behavior                                                            | code trace                                   | sensing_state in timing    | AURA        | FAIL — sensing_state always null                                                                |
+| G         | Music command                                                               | LIVE (synthetic speech)                      | tool call → playback       | Gemini→AURA | FAIL — 16 turns, 0 tool calls; 0 listeners                                                      |
+| H         | Music state awareness                                                       | code trace                                   | `[MUSIC CONTEXT]` injected | AURA        | FAIL — promised, never injected                                                                 |
+| I         | Vision                                                                      | code trace                                   | frames in session          | AURA        | FAIL — not implemented (P4)                                                                     |
+| J         | Tools                                                                       | live/code                                    | 4 tools declared           | Gemini      | PARTIAL — 2 broken targets                                                                      |
+| K         | Interruption                                                                | not testable headless (no concurrent speech) | auto-VAD truncation        | Gemini      | NOT MEASURED                                                                                    |
+| L         | Reconnect                                                                   | code trace                                   | transport reconnect        | Gemini      | PARTIAL — text-based recovery exists                                                            |
+| M         | Provider failure → fallback                                                 | measured (old models)                        | cascade exhaustion         | Gemini      | FAIL — dies, no cross-provider swap                                                             |
+| N/O       | OR/Sarvam after Gemini                                                      | code trace                                   | independent                | OR/Sarvam   | PASS — fully independent paths                                                                  |
+| P/Q/R/S/T | Long conversation, rapid turns, music+talk, vision+voice, cognitive failure | —                                            | —                          | —           | NOT TESTED headless (no speech harness); cognitive-failure fallback verified in code (:395-401) |
 
 ---
 
 ## 24–25. SCORES
 
-| Dimension | Current | Projected (after minimum wiring, Phases 1–3) |
-|---|---|---|
-| AURA architecture compatibility | 4 | 7 |
-| Executive integration | 1 | 5 |
-| Personality | 7 | 8 |
-| Memory | 2 | 7 |
-| Context | 5 | 7 |
-| Emotion | 4 | 6 |
-| Metacognition | 1 | 3 (global cleanup) |
-| Music | 1 | 7 |
-| Vision | 0 | 0 (P4) |
-| Tools | 3 | 8 |
-| Conversation state | 3 | 6 |
-| Voice Runtime | 3 | 6 |
-| Provider abstraction | 5 | 7 |
-| Resilience | 4 | 7 |
-| Diagnostics | 6 | 8 |
-| Latency | 8 | 8 (behavior moved off critical path) |
+| Dimension                       | Current | Projected (after minimum wiring, Phases 1–3) |
+| ------------------------------- | ------- | -------------------------------------------- |
+| AURA architecture compatibility | 4       | 7                                            |
+| Executive integration           | 1       | 5                                            |
+| Personality                     | 7       | 8                                            |
+| Memory                          | 2       | 7                                            |
+| Context                         | 5       | 7                                            |
+| Emotion                         | 4       | 6                                            |
+| Metacognition                   | 1       | 3 (global cleanup)                           |
+| Music                           | 1       | 7                                            |
+| Vision                          | 0       | 0 (P4)                                       |
+| Tools                           | 3       | 8                                            |
+| Conversation state              | 3       | 6                                            |
+| Voice Runtime                   | 3       | 6                                            |
+| Provider abstraction            | 5       | 7                                            |
+| Resilience                      | 4       | 7                                            |
+| Diagnostics                     | 6       | 8                                            |
+| Latency                         | 8       | 8 (behavior moved off critical path)         |
 
 **CURRENT GEMINI INTEGRATION SCORE: 3.5/10**
 **PROJECTED SCORE AFTER MINIMUM WIRING: ~7/10**

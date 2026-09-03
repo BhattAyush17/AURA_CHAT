@@ -1,12 +1,12 @@
 export class HumanResponsePlanner {
   public formatCognitiveBlock(
-    intent: string, 
-    state: string, 
-    agreement: string, 
-    perspective: string, 
+    intent: string,
+    state: string,
+    agreement: string,
+    perspective: string,
     architecture: string,
     ending: string,
-    depth: string
+    depth: string,
   ): string {
     return `
 [COGNITIVE ORCHESTRATION]

@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 from backend.infrastructure.logging import get_logger
 from backend.infrastructure.embedding_provider import embedding_provider
+from backend.infrastructure.runtime_telemetry import timing
 
 log = get_logger("chroma_service")
 
@@ -85,31 +86,38 @@ class ChromaBackgroundService:
             return await self._query_fts(text, user_id=None, n=n)
 
         try:
-            if embedding_cache:
-                query_emb = await embedding_cache.get_embedding(text)
-            else:
-                query_emb = await embedding_provider.embed(text)
+            async def _run_v1():
+                if embedding_cache:
+                    query_emb = await embedding_cache.get_embedding(text)
+                else:
+                    query_emb = await embedding_provider.embed(text)
 
-            if not query_emb:
-                return await self._query_fts(text, user_id=None, n=n)
+                if not query_emb:
+                    return await self._query_fts(text, user_id=None, n=n)
 
-            response = await self.supabase_client.rpc(
-                "match_memories",
-                {
-                    "query_embedding": list(query_emb),
-                    "match_user_id": None,
-                    "match_threshold": 0.0,
-                    "match_count": n
-                }
-            ).execute()
-            results = []
-            if response and hasattr(response, "data") and response.data:
-                for row in response.data:
-                    results.append({
-                        "text": row.get("turn_text", ""),
-                        "metadata": row.get("metadata", {})
-                    })
-            return results
+                response = await self.supabase_client.rpc(
+                    "match_memories",
+                    {
+                        "query_embedding": list(query_emb),
+                        "match_user_id": None,
+                        "match_threshold": 0.0,
+                        "match_count": n
+                    }
+                ).execute()
+                results = []
+                if response and hasattr(response, "data") and response.data:
+                    for row in response.data:
+                        results.append({
+                            # match_memories (v1) returns the text column
+                            # aliased as `content`; `turn_text` is v2's name.
+                            # Reading only turn_text yielded "" for every row.
+                            "text": row.get("content") or row.get("turn_text", ""),
+                            "metadata": row.get("metadata", {})
+                        })
+                return results
+
+            with timing("vector", "match_memories_v1"):
+                return await _run_v1()
         except Exception as e:
             log.warning("memory_query_failed", error=str(e), method="v1")
             return []
@@ -137,45 +145,63 @@ class ChromaBackgroundService:
             return await self._query_fts(text, user_id=user_id, n=n, max_age_days=max_age_days)
 
         try:
-            if embedding_cache:
-                query_emb = await embedding_cache.get_embedding(text)
-            else:
-                query_emb = await embedding_provider.embed(text)
+            async def _run_v2():
+                if embedding_cache:
+                    query_emb = await embedding_cache.get_embedding(text)
+                else:
+                    query_emb = await embedding_provider.embed(text)
 
-            if not query_emb:
-                return await self._query_fts(text, user_id=user_id, n=n, max_age_days=max_age_days)
+                if not query_emb:
+                    return await self._query_fts(text, user_id=user_id, n=n, max_age_days=max_age_days)
 
-            response = await self.supabase_client.rpc(
-                "match_memories_v2",
-                {
-                    "query_embedding": list(query_emb),
-                    "p_user_id": user_id,
-                    "match_threshold": threshold,
-                    "match_count": n,
-                    "recency_weight": RECENCY_WEIGHT,
-                    "max_age_days": max_age_days,
-                },
-            ).execute()
-            results = []
-            if response and hasattr(response, "data") and response.data:
-                for row in response.data:
-                    age_hours = row.get("age_hours", 0.0)
-                    results.append({
-                        "text": row.get("turn_text", ""),
-                        "metadata": row.get("metadata", {}),
-                        "similarity": round(row.get("similarity", 0.0), 3),
-                        "recency_score": round(row.get("recency_score", 0.0), 3),
-                        "final_score": round(row.get("final_score", 0.0), 3),
-                        "age_hours": round(age_hours, 1),
-                        "recency_label": _age_to_label(age_hours),
-                    })
-            return results
+                response = await self.supabase_client.rpc(
+                    "match_memories_v2",
+                    {
+                        "query_embedding": list(query_emb),
+                        "p_user_id": user_id,
+                        "match_threshold": threshold,
+                        "match_count": n,
+                        "recency_weight": RECENCY_WEIGHT,
+                        "max_age_days": max_age_days,
+                    },
+                ).execute()
+                results = []
+                if response and hasattr(response, "data") and response.data:
+                    for row in response.data:
+                        age_hours = row.get("age_hours", 0.0)
+                        results.append({
+                            "text": row.get("turn_text", ""),
+                            "metadata": row.get("metadata", {}),
+                            "similarity": round(row.get("similarity", 0.0), 3),
+                            "recency_score": round(row.get("recency_score", 0.0), 3),
+                            "final_score": round(row.get("final_score", 0.0), 3),
+                            "age_hours": round(age_hours, 1),
+                            "recency_label": _age_to_label(age_hours),
+                        })
+                return results
+
+            with timing("vector", "match_memories_v2"):
+                return await _run_v2()
         except Exception as e:
             err_msg = str(e).lower()
-            if "function does not exist" in err_msg:
-                log.error("rpc_missing", error=str(e), rpc="match_memories_v2")
-            else:
-                log.warning("memory_query_failed", error=str(e), method="v2")
+            # PostgREST reports a missing RPC as "Could not find the function
+            # public.match_memories_v2(...) in the schema cache". The old check
+            # only matched Postgres' own "function does not exist" wording, so
+            # an unapplied migration was logged as a generic query failure and
+            # was indistinguishable from "no memories matched".
+            if "could not find the function" in err_msg or "function does not exist" in err_msg:
+                log.error(
+                    "rpc_missing",
+                    error=str(e),
+                    rpc="match_memories_v2",
+                    hint="apply docs/migrations/002_match_memories_v2.sql",
+                )
+                # Degrade to the existing keyword path rather than returning
+                # nothing: retrieval stays useful until the migration lands.
+                return await self._query_fts(
+                    text, user_id=user_id, n=n, max_age_days=max_age_days
+                )
+            log.warning("memory_query_failed", error=str(e), method="v2")
             return []
 
     # ─── FTS Keyword Search Fallback ─────────────────────────────
@@ -190,52 +216,55 @@ class ChromaBackgroundService:
             return []
 
         try:
-            or_clauses = ",".join([f"turn_text.ilike.%{kw}%" for kw in keywords])
+            async def _run_fts():
+                or_clauses = ",".join([f"turn_text.ilike.%{kw}%" for kw in keywords])
 
-            q = (
-                self.supabase_client.table("aura_chroma_backup")
-                .select("turn_text, metadata, created_at")
-            )
-            if user_id:
-                q = q.eq("user_id", user_id)
-            q = q.or_(or_clauses).order("created_at", desc=True).limit(n * 2)
-            response = await q.execute()
-            results = []
-            now = datetime.utcnow()
+                q = (
+                    self.supabase_client.table("aura_chroma_backup")
+                    .select("turn_text, metadata, created_at")
+                )
+                if user_id:
+                    q = q.eq("user_id", user_id)
+                q = q.or_(or_clauses).order("created_at", desc=True).limit(n * 2)
+                response = await q.execute()
+                results = []
+                now = datetime.utcnow()
 
-            if response and hasattr(response, "data") and response.data:
-                for row in response.data:
-                    created = row.get("created_at", "")
-                    age_hours = 0.0
-                    if created:
-                        try:
-                            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-                            age_hours = (now - dt.replace(tzinfo=None)).total_seconds() / 3600
-                        except Exception:
-                            pass
+                if response and hasattr(response, "data") and response.data:
+                    for row in response.data:
+                        created = row.get("created_at", "")
+                        age_hours = 0.0
+                        if created:
+                            try:
+                                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                                age_hours = (now - dt.replace(tzinfo=None)).total_seconds() / 3600
+                            except Exception:
+                                pass
 
-                    if age_hours > max_age_days * 24:
-                        continue
+                        if age_hours > max_age_days * 24:
+                            continue
 
-                    turn_lower = (row.get("turn_text", "") or "").lower()
-                    hits = sum(1 for kw in keywords if kw in turn_lower)
-                    keyword_score = round(hits / len(keywords), 3)
-                    recency = round(max(0.0, 1.0 - (age_hours / (max_age_days * 24))), 3)
+                        turn_lower = (row.get("turn_text", "") or "").lower()
+                        hits = sum(1 for kw in keywords if kw in turn_lower)
+                        keyword_score = round(hits / len(keywords), 3)
+                        recency = round(max(0.0, 1.0 - (age_hours / (max_age_days * 24))), 3)
 
-                    results.append({
-                        "text": row.get("turn_text", ""),
-                        "metadata": row.get("metadata", {}),
-                        "similarity": keyword_score,
-                        "recency_score": recency,
-                        "final_score": round(keyword_score * 0.7 + recency * 0.3, 3),
-                        "age_hours": round(age_hours, 1),
-                        "recency_label": _age_to_label(age_hours),
-                    })
+                        results.append({
+                            "text": row.get("turn_text", ""),
+                            "metadata": row.get("metadata", {}),
+                            "similarity": keyword_score,
+                            "recency_score": recency,
+                            "final_score": round(keyword_score * 0.7 + recency * 0.3, 3),
+                            "age_hours": round(age_hours, 1),
+                            "recency_label": _age_to_label(age_hours),
+                        })
 
-            results.sort(key=lambda r: r["final_score"], reverse=True)
-            log.info("memory_fts_query", keywords=keywords, result_count=len(results[:n]))
-            return results[:n]
+                results.sort(key=lambda r: r["final_score"], reverse=True)
+                log.info("memory_fts_query", keywords=keywords, result_count=len(results[:n]))
+                return results[:n]
 
+            with timing("fts", "keyword_search"):
+                return await _run_fts()
         except Exception as e:
             log.warning("memory_fts_failed", error=str(e))
             return []
@@ -266,26 +295,30 @@ class ChromaBackgroundService:
         if not self.is_ready or not self.supabase_client:
             return
         try:
-            emb = None
-            if embedding_provider.is_available:
-                if embedding_cache:
-                    emb = await embedding_cache.get_embedding(text)
-                else:
-                    emb = await embedding_provider.embed(text)
+            async def _do_store():
+                emb = None
+                if embedding_provider.is_available:
+                    if embedding_cache:
+                        emb = await embedding_cache.get_embedding(text)
+                    else:
+                        emb = await embedding_provider.embed(text)
 
-            record = {
-                "user_id": metadata.get("user_id", ""),
-                "session_id": session_id,
-                "turn_text": text,
-                "metadata": metadata,
-                "embedding_id": embedding_id,
-                "created_at": datetime.utcnow().isoformat(),
-            }
-            if emb:
-                record["embedding"] = list(emb)
+                record = {
+                    "user_id": metadata.get("user_id", ""),
+                    "session_id": session_id,
+                    "turn_text": text,
+                    "metadata": metadata,
+                    "embedding_id": embedding_id,
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+                if emb:
+                    record["embedding"] = list(emb)
 
-            await self.supabase_client.table("aura_chroma_backup").upsert(record).execute()
-            log.info("memory_stored", mode="vector" if emb else "text_only")
+                await self.supabase_client.table("aura_chroma_backup").upsert(record).execute()
+                log.info("memory_stored", mode="vector" if emb else "text_only")
+
+            with timing("vector", "memory_upsert"):
+                await _do_store()
         except Exception as e:
             log.warning("memory_store_failed", error=str(e))
 

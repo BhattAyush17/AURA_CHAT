@@ -1,0 +1,547 @@
+{
+  "dataset": {
+    "id": "storytelling",
+    "name": "Storytelling",
+    "trust": 0.75,
+    "hasPersonalHistory": true,
+    "languageMode": "hinglish",
+    "durationMinutes": 14,
+    "turns": [
+      {
+        "text": "Kal ek ajeeb incident hua.",
+        "behavior": {
+          "act": "story",
+          "tags": ["story"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Reflect", "Answer"],
+          "goal": ["tell-story"],
+          "strategy": ["Listen", "Reflect", "Ask"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["storytelling-mode"]
+        }
+      },
+      {
+        "text": "Tu believe nahi karega.",
+        "behavior": {
+          "act": "story",
+          "tags": ["story", "playful"],
+          "intensity": 0.5,
+          "playfulness": 0.6
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Reflect", "Answer"],
+          "goal": ["tell-story"],
+          "strategy": ["Listen", "Reflect", "Ask"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["storytelling-mode"]
+        }
+      },
+      {
+        "text": "Aur phir sab ulta ho gaya.",
+        "behavior": {
+          "act": "story",
+          "tags": ["story"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "expected": {
+          "move": ["Reflect", "Answer"],
+          "goal": ["tell-story"],
+          "strategy": ["Listen", "Reflect", "Ask"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["storytelling-mode"]
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:20:42.622Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "Kal ek ajeeb incident hua.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["story"]
+      },
+      "understanding": {
+        "move": "Reflect",
+        "literal": "story",
+        "goal": "tell-story",
+        "implicit": null,
+        "expected": "listening",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": ["storytelling-mode"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -18 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Reflect",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Reflect then Listen\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 1) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 288,
+      "llm": "Haan batao, kya hua tha? (Simple, warm follow-up in Hinglish matching user's mix - keeps door open for details while staying concise)",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -18 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": false,
+        "percent": 67
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": false
+          }
+        ],
+        "score": 5,
+        "feelsHuman": false
+      },
+      "pipelineMs": 2865,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Reflect/tell-story",
+        "swm": "storytelling-mode",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Reflect",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "288t",
+        "llm": "22w",
+        "speech": "speed:1.00",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Tu believe nahi karega.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["story", "playful"]
+      },
+      "understanding": {
+        "move": "Reflect",
+        "literal": "story",
+        "goal": "tell-story",
+        "implicit": null,
+        "expected": "listening",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": ["storytelling-mode", "need-identity"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -18 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Reflect",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Reflect\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 2) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 285,
+      "llm": "Try kar ke to dekh lete hain! (Natural Hinglish pushback with playful challenge - aligns with user's hinted dramatic tone while keeping it light)",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -18 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": false,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": false,
+        "percent": 50
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "humor",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": false
+          }
+        ],
+        "score": 4,
+        "feelsHuman": false
+      },
+      "pipelineMs": 1967,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Reflect/tell-story",
+        "swm": "storytelling-mode,need-identity",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Reflect",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "285t",
+        "llm": "24w",
+        "speech": "speed:1.00",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Aur phir sab ulta ho gaya.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["story"]
+      },
+      "understanding": {
+        "move": "Reflect",
+        "literal": "story",
+        "goal": "tell-story",
+        "implicit": null,
+        "expected": "listening",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": ["storytelling-mode", "need-identity"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Reflect",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Reflect\nlanguage: HINGLISH / secondary HINDI (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 3) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 288,
+      "llm": "Ab suspense mat badhao yaar, seedha bata do! (Casual Hinglish nudge - balances curiosity with friendly impatience using natural conversational flow)",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Reflect (0.95)",
+          "expected: listening"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2115,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Reflect/tell-story",
+        "swm": "storytelling-mode,need-identity",
+        "memory": "Ignore(0)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Reflect",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "288t",
+        "llm": "21w",
+        "speech": "speed:1.00",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 67,
+    "avgHumanity": 6.333333333333333,
+    "realism": 6.3,
+    "productionReady": false,
+    "pipelineMsAvg": 2316
+  }
+}

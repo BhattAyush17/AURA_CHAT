@@ -1,6 +1,12 @@
 import { chromium } from "playwright";
 const browser = await chromium.launch({ channel: "chrome", headless: false });
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; RMX3371) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36" });
+const ctx = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  isMobile: true,
+  hasTouch: true,
+  userAgent:
+    "Mozilla/5.0 (Linux; Android 14; RMX3371) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36",
+});
 await ctx.grantPermissions(["microphone"], { origin: "http://localhost:5173" });
 const page = await ctx.newPage();
 await page.goto("http://localhost:5173/", { waitUntil: "load" });
@@ -31,7 +37,16 @@ await page.evaluate(async () => {
   r.interimResults = true;
   r.lang = "en-US";
   const t0 = performance.now();
-  for (const ev of ["start", "audiostart", "soundstart", "speechstart", "result", "nomatch", "error", "end"]) {
+  for (const ev of [
+    "start",
+    "audiostart",
+    "soundstart",
+    "speechstart",
+    "result",
+    "nomatch",
+    "error",
+    "end",
+  ]) {
     try {
       r["on" + ev] = (e) => {
         let extra = "";
@@ -46,12 +61,25 @@ await page.evaluate(async () => {
   }
   log("SR_STARTING");
   r.start();
-  window.__stop = () => { clearInterval(meter); stream.getTracks().forEach((t) => t.stop()); };
+  window.__stop = () => {
+    clearInterval(meter);
+    stream.getTracks().forEach((t) => t.stop());
+  };
 });
 await page.waitForTimeout(15000);
-const l = await page.evaluate(() => { window.__stop(); return window.__log; });
+const l = await page.evaluate(() => {
+  window.__stop();
+  return window.__log;
+});
 const rms = l.filter((x) => x.startsWith("rms="));
 const peaks = rms.map((x) => parseFloat(x.slice(4))).sort((a, b) => b - a);
 console.log("PEAK RMS top5:", peaks.slice(0, 5).join(" "));
-console.log("EVENTS:", JSON.stringify(l.filter((x) => !x.startsWith("rms=")), null, 1));
+console.log(
+  "EVENTS:",
+  JSON.stringify(
+    l.filter((x) => !x.startsWith("rms=")),
+    null,
+    1,
+  ),
+);
 await browser.close();

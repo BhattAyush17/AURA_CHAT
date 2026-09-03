@@ -58,4 +58,3 @@ export interface IVoicePipeline {
   // Gemini readiness tracking
   readinessSnapshot?: ReadinessSnapshot | null;
 }
-

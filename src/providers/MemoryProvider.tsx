@@ -17,19 +17,8 @@
  *   const { mode, retrieveMemories, storeMemory } = useMemory();
  */
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-} from "react";
-import {
-  memoryGateway,
-  type MemoryMode,
-  type MemoryResult,
-} from "@/lib/memory-gateway";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { memoryGateway, type MemoryMode, type MemoryResult } from "@/lib/memory-gateway";
 import { connectionState } from "@/config/connectionState";
 
 // ─── Context Shape ───────────────────────────────────────────────
@@ -69,9 +58,7 @@ const MemoryContext = createContext<MemoryContextValue | null>(null);
 
 // ─── Provider Component ──────────────────────────────────────────
 
-export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<MemoryMode>("local");
   const [ready, setReady] = useState(false);
   const [supabaseReachable, setSupabaseReachable] = useState(false);
@@ -113,7 +100,9 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── L3 Contract Methods ──────────────────────────────────────
@@ -150,11 +139,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const buildClientMemoriesPayload = useCallback(
-    async (
-      query: string,
-      userId: string,
-      emotionalState: Record<string, number>,
-    ) => {
+    async (query: string, userId: string, emotionalState: Record<string, number>) => {
       return memoryGateway.buildClientMemoriesPayload(query, userId, emotionalState);
     },
     [],
@@ -206,12 +191,11 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({
               width: "6px",
               height: "6px",
               borderRadius: "50%",
-              background: mode === "supabase"
-                ? "#4ade80"  // green for cloud
-                : "#f59e0b", // amber for local
-              boxShadow: mode === "supabase"
-                ? "0 0 4px #4ade80"
-                : "0 0 4px #f59e0b",
+              background:
+                mode === "supabase"
+                  ? "#4ade80" // green for cloud
+                  : "#f59e0b", // amber for local
+              boxShadow: mode === "supabase" ? "0 0 4px #4ade80" : "0 0 4px #f59e0b",
             }}
           />
           {mode === "supabase" ? "Cloud Memory" : "Local Memory"}
@@ -252,8 +236,8 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({
                   lineHeight: 1.4,
                 }}
               >
-                Your memories are stored locally right now. They'll be lost if you clear
-                browser data. Add cloud sync in Settings for cross-device persistence.
+                Your memories are stored locally right now. They'll be lost if you clear browser
+                data. Add cloud sync in Settings for cross-device persistence.
               </div>
             </div>
             <button

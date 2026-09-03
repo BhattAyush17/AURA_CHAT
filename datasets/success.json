@@ -1,0 +1,73 @@
+{
+  "id": "success",
+  "name": "Success",
+  "trust": 0.8,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Finally ho gaya.",
+      "behavior": {
+        "act": "share",
+        "tags": ["excitement", "success"],
+        "intensity": 0.8,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.8,
+        "arc": "peak",
+        "engagement": 0.9
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["share-excitement", "tell-story"],
+        "strategy": ["Encourage", "Reflect", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement"]
+      }
+    },
+    {
+      "text": "Years ki mehnat thi.",
+      "behavior": {
+        "act": "share",
+        "tags": ["success"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "energy": 0.7
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["share-excitement", "tell-story"],
+        "strategy": ["Reflect", "Encourage", "Answer"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement", "need-recognition"]
+      }
+    },
+    {
+      "text": "Ab next kya?",
+      "behavior": {
+        "act": "question",
+        "tags": ["success"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Reflect", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement"]
+      }
+    }
+  ]
+}

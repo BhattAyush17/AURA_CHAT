@@ -1,0 +1,699 @@
+{
+  "capturedAt": "2026-08-08T08:16:52.848Z",
+  "keyPrefix": "AQ.A…",
+  "latency": [
+    {
+      "t": 7252.699999999953,
+      "d": {
+        "type": {
+          "geminiConnect": 1170,
+          "geminiSetup": 1170
+        }
+      }
+    },
+    {
+      "t": 7254.899999999907,
+      "d": {
+        "type": "memoryLayer",
+        "value": "live"
+      }
+    },
+    {
+      "t": 7755.899999999907,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.59999999997672
+      }
+    },
+    {
+      "t": 7796.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.40000000002328
+      }
+    },
+    {
+      "t": 7885.599999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.40000000002328
+      }
+    },
+    {
+      "t": 7938.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 53.09999999997672
+      }
+    },
+    {
+      "t": 9916.899999999907,
+      "d": {
+        "type": {
+          "geminiConnect": 1884.5,
+          "geminiSetup": 1884.4000000000233
+        }
+      }
+    },
+    {
+      "t": 9973.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2035.0999999999767
+      }
+    },
+    {
+      "t": 10011.899999999907,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 38
+      }
+    },
+    {
+      "t": 10089.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 77.59999999997672
+      }
+    },
+    {
+      "t": 10130.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 41.10000000009313
+      }
+    },
+    {
+      "t": 10219.899999999907,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.19999999995343
+      }
+    },
+    {
+      "t": 10262.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 43
+      }
+    },
+    {
+      "t": 10349.699999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 86.90000000002328
+      }
+    },
+    {
+      "t": 10390,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.29999999993015
+      }
+    },
+    {
+      "t": 10480.199999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 90.10000000009313
+      }
+    },
+    {
+      "t": 10520.199999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40
+      }
+    },
+    {
+      "t": 10600.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 80.19999999995343
+      }
+    },
+    {
+      "t": 10650,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 49.699999999953434
+      }
+    },
+    {
+      "t": 10729.599999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 79.5
+      }
+    },
+    {
+      "t": 10780,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 50.40000000002328
+      }
+    },
+    {
+      "t": 10862.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 82.09999999997672
+      }
+    },
+    {
+      "t": 10900.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 38.300000000046566
+      }
+    },
+    {
+      "t": 10989.699999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.40000000002328
+      }
+    },
+    {
+      "t": 11029.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.09999999997672
+      }
+    },
+    {
+      "t": 11119.699999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.90000000002328
+      }
+    },
+    {
+      "t": 11161.199999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 41.5
+      }
+    },
+    {
+      "t": 11239.699999999953,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 78.5
+      }
+    },
+    {
+      "t": 11290,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 50.199999999953434
+      }
+    },
+    {
+      "t": 12516.5,
+      "d": {
+        "type": {
+          "geminiConnect": 1120,
+          "geminiSetup": 1120
+        }
+      }
+    },
+    {
+      "t": 12981.399999999907,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1691.3000000000466
+      }
+    },
+    {
+      "t": 13070.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.09999999997672
+      }
+    },
+    {
+      "t": 13111.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.90000000002328
+      }
+    },
+    {
+      "t": 13200.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 88.90000000002328
+      }
+    },
+    {
+      "t": 13240,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 39.89999999990687
+      }
+    },
+    {
+      "t": 13320.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 80.20000000006985
+      }
+    },
+    {
+      "t": 13370.29999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 50
+      }
+    },
+    {
+      "t": 13450.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 80.29999999993015
+      }
+    },
+    {
+      "t": 13490.599999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.10000000009313
+      }
+    },
+    {
+      "t": 13580.099999999977,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.59999999997672
+      }
+    },
+    {
+      "t": 13620.399999999907,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 40.199999999953434
+      }
+    },
+    {
+      "t": 13711.79999999993,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 91.5
+      }
+    }
+  ],
+  "statusText": ["Listening..."],
+  "errBanner": [
+    "Gemini LiveReadyAURA CHATpersonalityAdaptiveChaoticGenZBalancedSupportiveCaringLate NightPhilosophicalProfessionalInterview ModeJoyful PassionvoicePuckWarm & clearUSER TRANSCRIPTListening...LANGUAGEEnglishDETECTED TONEINTENTACTIVE BRAINGemini Live 🎙️Live API Activation RequiredGoogle AI Studio • Paid Tier (Tier 1)The real-time Multimodal Live API (WebSocket) requires your Google AI Studio project to be on the Paid Tier (Tier 1) with billing enabled and a positive prepay credit balance of at least $10.1Go to Google AI Studio.2Click \"Set up billing\" under your active project.3Link a billing account and make a prepay deposit (min. $10).4Set a Project Spend Cap (e.g. $10) so you never spend a cent more.Configure AI Studio BillingDismissbuilt for soothing and mindful conversationsLocal Memory☁️Connect Supabase to make memories permanentYour memories are stored locally right now. They'll be lost if you clear browser data. Add cloud sync in Settings for cross-device persistence.✕\n        @keyframes slideUp {\n          from { transform: translateY(20px); opacity: 0; }\n          to { transform: translateY(0); opacity: 1; }\n        }",
+    "Gemini LiveReadyAURA CHATpersonalityAdaptiveChaoticGenZBalancedSupportiveCaringLate NightPhilosophicalProfessionalInterview ModeJoyful PassionvoicePuckWarm & clearUSER TRANSCRIPTListening...LANGUAGEEnglishDETECTED TONEINTENTACTIVE BRAINGemini Live 🎙️Live API Activation RequiredGoogle AI Studio • Paid Tier (Tier 1)The real-time Multimodal Live API (WebSocket) requires your Google AI Studio project to be on the Paid Tier (Tier 1) with billing enabled and a positive prepay credit balance of at least $10.1Go to Google AI Studio.2Click \"Set up billing\" under your active project.3Link a billing account and make a prepay deposit (min. $10).4Set a Project Spend Cap (e.g. $10) so you never spend a cent more.Configure AI Studio BillingDismissbuilt for soothing and mindful conversations",
+    "Live API Activation RequiredGoogle AI Studio • Paid Tier (Tier 1)The real-time Multimodal Live API (WebSocket) requires your Google AI Studio project to be on the Paid Tier (Tier 1) with billing enabled and a positive prepay credit balance of at least $10.1Go to Google AI Studio.2Click \"Set up billing\" under your active project.3Link a billing account and make a prepay deposit (min. $10).4Set a Project Spend Cap (e.g. $10) so you never spend a cent more.Configure AI Studio BillingDismiss",
+    "The real-time Multimodal Live API (WebSocket) requires your Google AI Studio project to be on the Paid Tier (Tier 1) with billing enabled and a positive prepay credit balance of at least $10.",
+    "1Go to Google AI Studio.2Click \"Set up billing\" under your active project.3Link a billing account and make a prepay deposit (min. $10).4Set a Project Spend Cap (e.g. $10) so you never spend a cent more.",
+    "2Click \"Set up billing\" under your active project.",
+    "Click \"Set up billing\" under your active project.",
+    "3Link a billing account and make a prepay deposit (min. $10).",
+    "Link a billing account and make a prepay deposit (min. $10).",
+    "Configure AI Studio BillingDismiss"
+  ],
+  "errText": [
+    "The real-time Multimodal Live API (WebSocket) requires your Google AI Studio project to be on the Paid Tier (Tier 1) with billing enabled and a positive prepay credit balance of at least $10.",
+    "Click \"Set up billing\" under your active project.",
+    "Link a billing account and make a prepay deposit (min. $10).",
+    "CONFIGURE AI STUDIO BILLING"
+  ],
+  "consoleLogs": [
+    {
+      "t": 1786176956779,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176956779,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176956780,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176956780,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176956781,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176956781,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176956782,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176956782,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176956783,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176956783,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176956783,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176956784,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786176956785,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786176956785,
+      "line": "[AURA] Resolved Identity: user_480186147665"
+    },
+    {
+      "t": 1786176956785,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176956785,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176956785,
+      "line": "[AURA] ✓ Connected to models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176956785,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786176956786,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176956786,
+      "line": "[AURA] ⏱ Response delay: 264ms"
+    },
+    {
+      "t": 1786176956786,
+      "line": "[SHADOW TIMING] ⏱ Turn turn_7793 | Legacy: 264ms | HRTE: 300ms | Delta: 36ms"
+    },
+    {
+      "t": 1786176956786,
+      "line": "[Telemetry] IdleSupervisor: Object"
+    },
+    {
+      "t": 1786176956786,
+      "line": "[AURA Idle Warning] I'm still here if you need me."
+    },
+    {
+      "t": 1786176956786,
+      "line": "[Telemetry] IdleSupervisor: Object"
+    },
+    {
+      "t": 1786176956786,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786176956787,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786176956787,
+      "line": "[AURA_API_FAIL] ⚠️ WebSocket CLOSED. Object"
+    },
+    {
+      "t": 1786176956787,
+      "line": "[vite] hot updated: /src/styles.css"
+    },
+    {
+      "t": 1786176956787,
+      "line": "[vite] hot updated: /src/routes/index.tsx"
+    },
+    {
+      "t": 1786176956874,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176956892,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176957467,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176957497,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176957550,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176957563,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176957564,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176957565,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176957566,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176957572,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176957586,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176957596,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176957597,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176957614,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176957615,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176957745,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176961870,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176961876,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176962599,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176962626,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176962736,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176962746,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176962748,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176962749,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176962750,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176962754,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176962768,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176962780,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176962780,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176962801,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176962801,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176962966,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176967833,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786176967834,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786176967836,
+      "line": "[AURA] Resolved Identity: user_480186147665"
+    },
+    {
+      "t": 1786176967838,
+      "line": "[AURA] Connecting... model [1/3]: models/gemini-2.0-flash-exp"
+    },
+    {
+      "t": 1786176967901,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176969082,
+      "line": "[AURA] ✓ Connected to models/gemini-2.0-flash-exp"
+    },
+    {
+      "t": 1786176969122,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786176969335,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176969770,
+      "line": "[AURA_API_FAIL] ⚠️ WebSocket CLOSED. Object"
+    },
+    {
+      "t": 1786176969771,
+      "line": "[AURA] Model models/gemini-2.0-flash-exp rejected (Code: 1008, Reason: models/gemini-2.0-flash-exp is not found for API version v1beta, or is not supported for bidiGenerateContent. Call ModelSer). Trying next model in cascade..."
+    },
+    {
+      "t": 1786176969821,
+      "line": "[AURA] Connecting... model [2/3]: models/gemini-2.5-flash"
+    },
+    {
+      "t": 1786176969825,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: closed"
+    },
+    {
+      "t": 1786176969846,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786176969850,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176971748,
+      "line": "[AURA] ✓ Connected to models/gemini-2.5-flash"
+    },
+    {
+      "t": 1786176971999,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176973126,
+      "line": "[AURA_API_FAIL] ⚠️ WebSocket CLOSED. Object"
+    },
+    {
+      "t": 1786176973126,
+      "line": "[AURA] Model models/gemini-2.5-flash rejected (Code: 1008, Reason: models/gemini-2.5-flash is not found for API version v1beta, or is not supported for bidiGenerateContent. Call ModelService). Trying next model in cascade..."
+    },
+    {
+      "t": 1786176973178,
+      "line": "[AURA] Connecting... model [3/3]: models/gemini-2.0-flash"
+    },
+    {
+      "t": 1786176973182,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: closed"
+    },
+    {
+      "t": 1786176973200,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786176973214,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176974346,
+      "line": "[AURA] ✓ Connected to models/gemini-2.0-flash"
+    },
+    {
+      "t": 1786176974598,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176975576,
+      "line": "[AURA_API_FAIL] ⚠️ WebSocket CLOSED. Object"
+    },
+    {
+      "t": 1786176975576,
+      "line": "[AURA] Model models/gemini-2.0-flash rejected (Code: 1008, Reason: models/gemini-2.0-flash is not found for API version v1beta, or is not supported for bidiGenerateContent. Call ModelService). Trying next model in cascade..."
+    },
+    {
+      "t": 1786176975626,
+      "line": "[AURA] All models in cascade exhausted."
+    }
+  ]
+}

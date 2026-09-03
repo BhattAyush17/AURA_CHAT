@@ -1,0 +1,46 @@
+{
+  "dataset": "comfort",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 89,
+    "avgHumanity": 9.333333333333334,
+    "realism": 9.3,
+    "productionReady": true,
+    "pipelineMsAvg": 2897
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2195,
+      "llmWords": 7
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2727,
+      "llmWords": 5
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3770,
+      "llmWords": 9
+    }
+  ]
+}

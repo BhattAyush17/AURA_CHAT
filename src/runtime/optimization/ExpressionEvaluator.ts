@@ -2,10 +2,10 @@
 
 export class ExpressionEvaluator {
   private static buffer: string = "";
-  
+
   public static processChunk(chunk: string, onSentenceBoundary: (formatted: string) => void) {
     this.buffer += chunk;
-    
+
     // Check for sentence boundaries: ., !, ?, \n
     if (/[.!?:;\n]/.test(this.buffer)) {
       const formatted = this.evaluateExpressions(this.buffer);
@@ -19,7 +19,7 @@ export class ExpressionEvaluator {
     // Runs ONLY once per semantic boundary instead of every WS chunk
     let output = text;
     // e.g. Regex replacements
-    output = output.replace(/\*(.*?)\*/g, '<emphasis>$1</emphasis>'); 
+    output = output.replace(/\*(.*?)\*/g, "<emphasis>$1</emphasis>");
     return output;
   }
 }

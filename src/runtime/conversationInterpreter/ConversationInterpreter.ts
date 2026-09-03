@@ -12,7 +12,11 @@ import { AdaptiveCommunicationAnalyzer } from "../language/AdaptiveCommunication
 import type { AdaptiveCommunicationProfile } from "../language/AdaptiveCommunicationProfile";
 import type { ExecutionPlan } from "@/executive/ExecutionPlan";
 import { buildModeContractBlock } from "@/lib/gemini-prompt";
-
+import { getSocialCognitionEngine } from "../socialCognition/SocialCognitionEngine";
+import type { SocialDecisionObject } from "../socialCognition/SocialDecision";
+import type { AtmosphereContext } from "@/executive/AtmosphereContext";
+import { buildAtmosphereContextBlock } from "@/executive/AtmosphereContext";
+import type { AtmosphereRelevanceDecision } from "../attention/AdaptiveAttentionLayer";
 
 /**
  * Evidence is only surfaced to the model when it carries meaningful signal.
@@ -44,6 +48,10 @@ export class ConversationInterpreter {
     senseEvidence: SenseEvidenceV1[] = [],
     plan?: ExecutionPlan,
     mode: string = "adaptive",
+    socialDecision?: SocialDecisionObject | null,
+    atmosphere?: AtmosphereContext | null,
+    atmosphereDecision?: AtmosphereRelevanceDecision | null,
+    attentionBlock?: string,
   ): string {
     // 1. Extract backend intelligence (or degrade gracefully)
     const intent = backendBehavior?.act || "Exploring ideas";
@@ -80,7 +88,7 @@ export class ConversationInterpreter {
     const humanState = this.humanStateModel.processEvidence(senseEvidence, {
       currentTurnText: userText,
       sentiment: sentiment,
-      isTurnComplete: true
+      isTurnComplete: true,
     });
     const humanStateBlock = this.formatHumanState(humanState);
 
@@ -98,15 +106,18 @@ export class ConversationInterpreter {
       if (plan.memoryPolicy !== "Ignore" && plan.memoryContent.length > 0) {
         memoryBlock = `\n[RELEVANT MEMORY]\n${plan.memoryContent.join("\n")}\n[/RELEVANT MEMORY]\n`;
       }
-      
+
       const identity = plan.context.userIdentity;
       const identityLines = [];
       if (identity.preferredName) identityLines.push(`- Name: ${identity.preferredName}`);
-      if (identity.stableFacts.length > 0) identityLines.push(`- Facts: ${identity.stableFacts.join(", ")}`);
-      if (identity.preferences.length > 0) identityLines.push(`- Preferences: ${identity.preferences.join(", ")}`);
-      if (identity.interests.length > 0) identityLines.push(`- Interests: ${identity.interests.join(", ")}`);
+      if (identity.stableFacts.length > 0)
+        identityLines.push(`- Facts: ${identity.stableFacts.join(", ")}`);
+      if (identity.preferences.length > 0)
+        identityLines.push(`- Preferences: ${identity.preferences.join(", ")}`);
+      if (identity.interests.length > 0)
+        identityLines.push(`- Interests: ${identity.interests.join(", ")}`);
       if (identity.goals.length > 0) identityLines.push(`- Goals: ${identity.goals.join(", ")}`);
-      
+
       if (identityLines.length > 0) {
         identityBlock = `\n[USER IDENTITY]\n${identityLines.join("\n")}\n[/USER IDENTITY]\n`;
       }
@@ -130,9 +141,42 @@ export class ConversationInterpreter {
       intent,
     );
 
+    // 5.5 Social Cognition block — the "how to be present" layer
+    const socialBlock = socialDecision
+      ? "\n" + getSocialCognitionEngine().formatForPrompt(socialDecision) + "\n"
+      : "";
+
+    // 5.6 Atmosphere block — environmental evidence, relevance-gated.
+    // Only the dimensions the attention layer marked relevant are rendered;
+    // an irrelevant/absent atmosphere yields "" (byte-identical to pre-wiring).
+    const atmosphereBlock = buildAtmosphereContextBlock(
+      atmosphere,
+      atmosphereDecision?.dimensions ?? {
+        temporal: false,
+        geography: false,
+        weather: false,
+        news: false,
+      },
+    );
+
     // Evidence is injected between cognition and expression. With no evidence
     // the block is empty — the result is byte-identical to the pre-wiring path.
-    return cogBlock + identityBlock + memoryBlock + evidenceBlock + humanStateBlock + adaptiveBlock + exprBlock;
+    // Attention block is injected between atmosphere and evidence so the LLM
+    // receives purpose+stance guidance alongside the contextual evidence. With
+    // no attention computed (empty string) the result remains byte-identical to
+    // the pre-wiring path.
+    return (
+      cogBlock +
+      identityBlock +
+      memoryBlock +
+      socialBlock +
+      atmosphereBlock +
+      (attentionBlock ? `\n${attentionBlock}\n` : "") +
+      evidenceBlock +
+      humanStateBlock +
+      adaptiveBlock +
+      exprBlock
+    );
   }
 
   /**
@@ -177,31 +221,45 @@ export class ConversationInterpreter {
         .join(", ");
 
       const profileLines: string[] = [];
-      
+
       // Metacognitive State Summary
       const metaLines: string[] = [];
-      metaLines.push(`Analyzed turns: ${profile.totalTurnsAnalyzed} | Independent Conversations: ${profile.totalConversationsAnalyzed} | Model Confidence: ${(profile.profileMaturity * 100).toFixed(0)}%`);
-      
-      const changedBeliefs = [profile.language, profile.style, profile.tone].filter(b => b.state === "RECENTLY_CHANGED");
+      metaLines.push(
+        `Analyzed turns: ${profile.totalTurnsAnalyzed} | Independent Conversations: ${profile.totalConversationsAnalyzed} | Model Confidence: ${(profile.profileMaturity * 100).toFixed(0)}%`,
+      );
+
+      const changedBeliefs = [profile.language, profile.style, profile.tone].filter(
+        (b) => b.state === "RECENTLY_CHANGED",
+      );
       if (changedBeliefs.length > 0) {
-        metaLines.push(`Warning: Detected recent divergence from historical communication baseline. Adapt appropriately.`);
+        metaLines.push(
+          `Warning: Detected recent divergence from historical communication baseline. Adapt appropriately.`,
+        );
       }
 
       if (profile.explicitPreferences && profile.explicitPreferences.length > 0) {
         metaLines.push(`\nEXPLICIT PREFERENCES (Highest Priority):`);
-        profile.explicitPreferences.forEach(pref => {
+        profile.explicitPreferences.forEach((pref) => {
           metaLines.push(`- ${pref.value.toUpperCase()} (State: ${pref.state})`);
         });
       }
 
       profileLines.push(`\nINFERRED TENDENCIES:`);
-      profileLines.push(`Baseline language preference: ${langPref.toUpperCase()} (State: ${profile.preferences.state})`);
+      profileLines.push(
+        `Baseline language preference: ${langPref.toUpperCase()} (State: ${profile.preferences.state})`,
+      );
 
       if (profile.contextualLanguage) {
         const techPref = profile.contextualLanguage.technical.value.primary;
         const casualPref = profile.contextualLanguage.casual.value.primary;
-        if (techPref !== "unknown") profileLines.push(`  Technical context: ${techPref.toUpperCase()} (State: ${profile.contextualLanguage.technical.state})`);
-        if (casualPref !== "unknown") profileLines.push(`  Casual context: ${casualPref.toUpperCase()} (State: ${profile.contextualLanguage.casual.state})`);
+        if (techPref !== "unknown")
+          profileLines.push(
+            `  Technical context: ${techPref.toUpperCase()} (State: ${profile.contextualLanguage.technical.state})`,
+          );
+        if (casualPref !== "unknown")
+          profileLines.push(
+            `  Casual context: ${casualPref.toUpperCase()} (State: ${profile.contextualLanguage.casual.state})`,
+          );
       }
 
       if (dominantTones) profileLines.push(`Tone tendencies: ${dominantTones}`);
@@ -209,38 +267,42 @@ export class ConversationInterpreter {
       profileLines.push(`Technicality: ${(profile.style.value.technicality * 100).toFixed(0)}%`);
 
       if (profile.language.value.codeSwitching > 0.3) {
-        profileLines.push(`Code-switching: active (ratio: ${profile.language.value.codeSwitching.toFixed(2)})`);
+        profileLines.push(
+          `Code-switching: active (ratio: ${profile.language.value.codeSwitching.toFixed(2)})`,
+        );
       }
 
       parts.push(
         `[METACOGNITIVE & LONGITUDINAL USER MODEL]\n` +
-        `This describes long-term communication and behavioral tendencies of THIS specific user.\n` +
-        `It includes structured epistemic state (Confidence, Change Detection, Explicit Facts).\n` +
-        `It is a personalization layer — NOT a personality instruction.\n` +
-        `Use these tendencies to enrich expression within the selected mode,\n` +
-        `but never to replace, weaken, or override the mode contract above.\n\n` +
-        metaLines.join("\n") + "\n" +
-        profileLines.join("\n") +
-        `\n[/METACOGNITIVE & LONGITUDINAL USER MODEL]`
+          `This describes long-term communication and behavioral tendencies of THIS specific user.\n` +
+          `It includes structured epistemic state (Confidence, Change Detection, Explicit Facts).\n` +
+          `It is a personalization layer — NOT a personality instruction.\n` +
+          `Use these tendencies to enrich expression within the selected mode,\n` +
+          `but never to replace, weaken, or override the mode contract above.\n\n` +
+          metaLines.join("\n") +
+          "\n" +
+          profileLines.join("\n") +
+          `\n[/METACOGNITIVE & LONGITUDINAL USER MODEL]`,
       );
     }
-
 
     // ── Block 3: Current-Turn Communication Signal ────────────────────────────
     // Injected per-turn for immediate expression adaptation.
     if (currentTurnSignal) {
       const signalLines: string[] = [];
       signalLines.push(`Detected language: ${currentTurnSignal.language.primary.toUpperCase()}`);
-      signalLines.push(`Code-switching level: ${currentTurnSignal.language.codeSwitching.toFixed(2)}`);
+      signalLines.push(
+        `Code-switching level: ${currentTurnSignal.language.codeSwitching.toFixed(2)}`,
+      );
       signalLines.push(`Context: ${currentTurnSignal.context.toUpperCase()}`);
 
       parts.push(
         `[CURRENT COMMUNICATION SIGNAL]\n` +
-        `This describes how the user is communicating RIGHT NOW in this turn.\n` +
-        `Use this for immediate language and expression adaptation.\n` +
-        `It adjusts HOW you speak — it does NOT change which personality you are.\n\n` +
-        signalLines.join("\n") +
-        `\n[/CURRENT COMMUNICATION SIGNAL]`
+          `This describes how the user is communicating RIGHT NOW in this turn.\n` +
+          `Use this for immediate language and expression adaptation.\n` +
+          `It adjusts HOW you speak — it does NOT change which personality you are.\n\n` +
+          signalLines.join("\n") +
+          `\n[/CURRENT COMMUNICATION SIGNAL]`,
       );
     }
 
@@ -255,8 +317,8 @@ export class ConversationInterpreter {
     if (state.affective.hypotheses.length === 0) return "";
 
     const lines = state.affective.hypotheses
-      .filter(h => h.confidence > 0.3) // Only surface meaningful hypotheses to cognition
-      .map(h => {
+      .filter((h) => h.confidence > 0.3) // Only surface meaningful hypotheses to cognition
+      .map((h) => {
         let text = `- Hypothesis: ${h.type} (confidence: ${h.confidence.toFixed(2)})`;
         if (h.supportingEvidence.length > 0) {
           text += `\n  Supporting: ${h.supportingEvidence.join(", ")}`;
@@ -280,7 +342,12 @@ export class ConversationInterpreter {
     const meaningful = senseEvidence.filter((e) => {
       if (e.confidence >= MIN_EVIDENCE_CONFIDENCE) return true;
       if (e.temporal?.features.includes("sudden_change")) return true;
-      if (e.temporal?.features.includes("decreasing") && e.temporal.deviation !== undefined && e.temporal.deviation <= -0.2) return true;
+      if (
+        e.temporal?.features.includes("decreasing") &&
+        e.temporal.deviation !== undefined &&
+        e.temporal.deviation <= -0.2
+      )
+        return true;
       return false;
     });
 
@@ -299,14 +366,17 @@ export class ConversationInterpreter {
       } catch {
         // Circular or non-serializable payload — keep the placeholder.
       }
-      
+
       let temporalStr = "";
       if (e.temporal) {
         const feats = e.temporal.features.length > 0 ? ` [${e.temporal.features.join(", ")}]` : "";
-        const dev = e.temporal.deviation !== undefined ? ` (dev: ${e.temporal.deviation > 0 ? '+' : ''}${e.temporal.deviation.toFixed(2)})` : "";
+        const dev =
+          e.temporal.deviation !== undefined
+            ? ` (dev: ${e.temporal.deviation > 0 ? "+" : ""}${e.temporal.deviation.toFixed(2)})`
+            : "";
         temporalStr = `${feats}${dev}`;
       }
-      
+
       return `- [${e.source}] confidence ${e.confidence.toFixed(2)}${temporalStr}: ${payload}`;
     });
 

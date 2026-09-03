@@ -1,0 +1,46 @@
+{
+  "dataset": "adult-humor",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 94,
+    "avgHumanity": 8.666666666666666,
+    "realism": 8.7,
+    "productionReady": true,
+    "pipelineMsAvg": 2731
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 4136,
+      "llmWords": 15
+    },
+    {
+      "turn": 2,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2550,
+      "llmWords": 12
+    },
+    {
+      "turn": 3,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1506,
+      "llmWords": 7
+    }
+  ]
+}

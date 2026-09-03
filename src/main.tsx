@@ -4,8 +4,12 @@ import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
 import "./styles.css";
 import { musicService } from "./music/MusicService";
+import { playbackState } from "./music/PlaybackState";
+import { buildMusicContext } from "./lib/aura-actions";
 
 (window as any).musicService = musicService;
+(window as any).playbackState = playbackState;
+(window as any).buildMusicContext = buildMusicContext;
 
 // Log a warning (not a crash) if VITE_API_BASE is unset.
 // The behavior engine is optional — the app runs fine without it.

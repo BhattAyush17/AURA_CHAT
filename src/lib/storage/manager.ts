@@ -11,6 +11,7 @@ import { BrowserAdapter } from "./browser-adapter";
 import { SupabaseRemoteAdapter } from "./remote-adapter";
 import { StorageAdapter, SessionData, SeedData } from "./types";
 import { getCredential } from "../credentials";
+import { auraTelemetry } from "@/telemetry";
 
 export class StorageManager {
   private browserAdapter: BrowserAdapter;
@@ -61,9 +62,19 @@ export class StorageManager {
   async save(data: SessionData): Promise<boolean> {
     let cloudSuccess = false;
 
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "session_persistence",
+      service: this.remoteAdapter ? "supabase" : "local",
+    });
+    const startedAt = performance.now();
+
     // Try cloud storage first if available
     if (this.remoteAdapter) {
-      cloudSuccess = await this.remoteAdapter.save(data);
+      try {
+        cloudSuccess = await this.remoteAdapter.save(data);
+      } catch {
+        cloudSuccess = false;
+      }
     }
 
     // Always save to browser storage as backup
@@ -72,9 +83,17 @@ export class StorageManager {
       console.log(
         `[Storage] Saved to browser ${cloudSuccess ? "and cloud" : "(cloud unavailable)"}`,
       );
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        latencyMs: performance.now() - startedAt,
+      });
       return true;
     } catch (err) {
       console.error("[Storage] Failed to save to browser storage:", err);
+      auraTelemetry.endMemoryOp(opId, {
+        status: "error",
+        latencyMs: performance.now() - startedAt,
+      });
       return false;
     }
   }
@@ -84,11 +103,22 @@ export class StorageManager {
    * Try browser storage first (faster), fall back to cloud
    */
   async retrieve(sessionId: string): Promise<SessionData | null> {
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "profile_fetch",
+      service: this.remoteAdapter ? "supabase" : "local",
+    });
+    const startedAt = performance.now();
+
     // Try browser storage first
     try {
       const browserData = await this.browserAdapter.retrieve(sessionId);
       if (browserData) {
         console.log(`[Storage] Retrieved from browser`);
+        auraTelemetry.endMemoryOp(opId, {
+          status: "success",
+          resultCount: 1,
+          latencyMs: performance.now() - startedAt,
+        });
         return browserData;
       }
     } catch (err) {
@@ -101,6 +131,11 @@ export class StorageManager {
         const cloudData = await this.remoteAdapter.retrieve(sessionId);
         if (cloudData) {
           console.log(`[Storage] Retrieved from cloud`);
+          auraTelemetry.endMemoryOp(opId, {
+            status: "success",
+            resultCount: 1,
+            latencyMs: performance.now() - startedAt,
+          });
           return cloudData;
         }
       } catch (err) {
@@ -108,6 +143,11 @@ export class StorageManager {
       }
     }
 
+    auraTelemetry.endMemoryOp(opId, {
+      status: "success",
+      resultCount: 0,
+      latencyMs: performance.now() - startedAt,
+    });
     console.log(`[Storage] Session not found: ${sessionId}`);
     return null;
   }
@@ -183,6 +223,12 @@ export class StorageManager {
   async saveSeed(seed: SeedData): Promise<void> {
     const saves: Promise<any>[] = [];
 
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "memory_update",
+      service: this.remoteAdapter ? "supabase" : "local",
+    });
+    const startedAt = performance.now();
+
     // Always save to browser
     saves.push(this.browserAdapter.saveSeed(this.userId, seed));
 
@@ -196,12 +242,23 @@ export class StorageManager {
     }
 
     await Promise.allSettled(saves);
+    auraTelemetry.endMemoryOp(opId, {
+      status: "success",
+      resultCount: 1,
+      latencyMs: performance.now() - startedAt,
+    });
   }
 
   /**
    * Load seed - Compare timestamps and backfill stale layers
    */
   async loadSeed(): Promise<SeedData | null> {
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "profile_fetch",
+      service: this.remoteAdapter ? "supabase" : "local",
+    });
+    const startedAt = performance.now();
+
     const [browserRes, remoteRes] = await Promise.allSettled([
       this.browserAdapter.loadSeed(this.userId),
       this.remoteAdapter ? this.remoteAdapter.loadSeed(this.userId) : Promise.resolve(null),
@@ -210,9 +267,30 @@ export class StorageManager {
     const browser = browserRes.status === "fulfilled" ? browserRes.value : null;
     const remote = remoteRes.status === "fulfilled" ? remoteRes.value : null;
 
-    if (!browser && !remote) return null;
-    if (!browser) return remote;
-    if (!remote) return browser;
+    if (!browser && !remote) {
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        resultCount: 0,
+        latencyMs: performance.now() - startedAt,
+      });
+      return null;
+    }
+    if (!browser) {
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        resultCount: 1,
+        latencyMs: performance.now() - startedAt,
+      });
+      return remote;
+    }
+    if (!remote) {
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        resultCount: 1,
+        latencyMs: performance.now() - startedAt,
+      });
+      return browser;
+    }
 
     const newer = browser.updatedAt > remote.updatedAt ? browser : remote;
 
@@ -223,6 +301,11 @@ export class StorageManager {
       this.browserAdapter.saveSeed(this.userId, remote).catch(() => {});
     }
 
+    auraTelemetry.endMemoryOp(opId, {
+      status: "success",
+      resultCount: 1,
+      latencyMs: performance.now() - startedAt,
+    });
     return newer;
   }
 

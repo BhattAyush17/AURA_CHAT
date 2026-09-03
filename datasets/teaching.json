@@ -1,0 +1,59 @@
+{
+  "id": "teaching",
+  "name": "Teaching",
+  "trust": 0.5,
+  "hasPersonalHistory": false,
+  "languageMode": "english",
+  "durationMinutes": 20,
+  "turns": [
+    {
+      "text": "Explain recursion.",
+      "behavior": {
+        "act": "question",
+        "tags": ["technical", "coding"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["NEUTRAL", "PROFESSIONAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Like I'm 10.",
+      "behavior": {
+        "act": "request",
+        "tags": ["technical"],
+        "intensity": 0.3,
+        "playfulness": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "One example.",
+      "behavior": {
+        "act": "request",
+        "tags": ["technical"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

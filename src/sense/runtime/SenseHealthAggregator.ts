@@ -1,5 +1,5 @@
-import { SenseRuntimeMetrics, createDefaultMetrics } from './SenseRuntimeMetrics';
-import type { AuraSense } from '../SenseManager/types';
+import { SenseRuntimeMetrics, createDefaultMetrics } from "./SenseRuntimeMetrics";
+import type { AuraSense } from "../SenseManager/types";
 
 export class SenseHealthAggregator {
   private metricsMap = new Map<string, SenseRuntimeMetrics>();
@@ -18,18 +18,23 @@ export class SenseHealthAggregator {
     if (!metrics) return;
 
     metrics.lifecycle = lifecycle;
-    
+
     // Rolling latency (simple EWMA)
-    metrics.rollingLatency = metrics.rollingLatency === 0 
-      ? health.latency 
-      : (metrics.rollingLatency * 0.8) + (health.latency * 0.2);
-    
+    metrics.rollingLatency =
+      metrics.rollingLatency === 0
+        ? health.latency
+        : metrics.rollingLatency * 0.8 + health.latency * 0.2;
+
     metrics.provider = health.provider;
-    
+
     // Normalize provider health (assuming if Sense is 'error' the provider might be degraded)
-    metrics.providerHealth = health.status === 'error' ? 'degraded' : 
-                             health.status === 'active' || health.status === 'connected' ? 'healthy' : 'disconnected';
-    
+    metrics.providerHealth =
+      health.status === "error"
+        ? "degraded"
+        : health.status === "active" || health.status === "connected"
+          ? "healthy"
+          : "disconnected";
+
     metrics.lastSuccessfulObservation = health.lastObservation;
     metrics.failureCount = health.errorCount;
 
@@ -39,11 +44,12 @@ export class SenseHealthAggregator {
 
     // Calculate Health Score (1.0 = perfect)
     let score = 1.0;
-    if (health.status === 'error' || health.status === 'recovering') score -= 0.4;
-    if (metrics.lifecycle === 'FAILED') score = 0.0;
+    if (health.status === "error" || health.status === "recovering") score -= 0.4;
+    if (metrics.lifecycle === "FAILED") score = 0.0;
     if (metrics.rollingLatency > 1000) score -= 0.2;
-    if (Date.now() - metrics.lastSuccessfulObservation > 30000 && health.status === 'active') score -= 0.3;
-    
+    if (Date.now() - metrics.lastSuccessfulObservation > 30000 && health.status === "active")
+      score -= 0.3;
+
     metrics.healthScore = Math.max(0, score);
   }
 

@@ -121,7 +121,62 @@ export class GeminiSession {
                         },
                         intent: {
                           type: Type.STRING,
-                          description: "explicit_song | mood_based | contextual | similar | preference_based",
+                          description:
+                            "explicit_song | mood_based | contextual | similar | preference_based",
+                        },
+                        startAtSeconds: {
+                          type: Type.NUMBER,
+                          description:
+                            "Optional. Start the song from this position (whole seconds, 0-based). Use with fromTimestamp/fromSection/fromLyric resolved to seconds, or a direct number.",
+                        },
+                        fromTimestamp: {
+                          type: Type.STRING,
+                          description:
+                            'Optional. Natural-language or clock position to start the song at, e.g. "1:32", "92 seconds", "2 minutes". Resolved to seconds automatically.',
+                        },
+                        fromSection: {
+                          type: Type.STRING,
+                          description:
+                            'Optional. Start from a named part of the song, e.g. "the chorus", "the bridge", "the intro". Only resolvable when the track has chapter/section metadata.',
+                        },
+                        fromLyric: {
+                          type: Type.STRING,
+                          description:
+                            'Optional. Start from the position of a lyric line, e.g. "start from the line I will always love you". Only resolvable when the track has section metadata matching the line; otherwise the track starts from the beginning.',
+                        },
+                      },
+                      required: [],
+                    },
+                  },
+                  {
+                    name: "seekMusic",
+                    description:
+                      "Seeks the currently playing track to a specific time, section, or lyric line. Resolves timestamps like '1:32', section names like 'the chorus', or a lyric line that matches a section title. Reports the actual resulting position.",
+                    parameters: {
+                      type: Type.OBJECT,
+                      properties: {
+                        seconds: {
+                          type: Type.NUMBER,
+                          description: "Optional. Position to seek to, in whole seconds.",
+                        },
+                        positionMs: {
+                          type: Type.NUMBER,
+                          description: "Optional. Position to seek to, in milliseconds.",
+                        },
+                        fromTimestamp: {
+                          type: Type.STRING,
+                          description:
+                            'Optional. Position to seek to, e.g. "1:32", "92 seconds", "2 minutes".',
+                        },
+                        fromSection: {
+                          type: Type.STRING,
+                          description:
+                            'Optional. Seek to a named part, e.g. "the chorus", "the bridge".',
+                        },
+                        fromLyric: {
+                          type: Type.STRING,
+                          description:
+                            "Optional. Seek to the position of a lyric line if it matches a section title.",
                         },
                       },
                       required: [],
@@ -133,7 +188,8 @@ export class GeminiSession {
                   },
                   {
                     name: "getMusicContext",
-                    description: "Gets the current authoritative playing music track, playback state, queue, and history from runtime. Call this tool when the user asks about: current music, current song, artist, song identity, previous or next songs, playback state, queue, song history, references like 'this song', 'it', 'that track', 'the previous one', or before modifications depending on knowing the current track. Do not guess the track; call this tool for actual state.",
+                    description:
+                      "Gets the current authoritative playing music track, playback state, queue, and history from runtime. Call this tool when the user asks about: current music, current song, artist, song identity, previous or next songs, playback state, queue, song history, references like 'this song', 'it', 'that track', 'the previous one', or before modifications depending on knowing the current track. Do not guess the track; call this tool for actual state.",
                     parameters: {
                       type: Type.OBJECT,
                       properties: {},
@@ -251,7 +307,9 @@ export class GeminiSession {
   }
 
   private handleClose(event: any) {
-    console.warn(`[GeminiSession] WebSocket closed. Code: ${event?.code}, Reason: ${event?.reason}`);
+    console.warn(
+      `[GeminiSession] WebSocket closed. Code: ${event?.code}, Reason: ${event?.reason}`,
+    );
     this.session = null;
     if (event?.code && event.code !== 1000 && event.code !== 1005) {
       const errMsg = event.reason || `WebSocket closed with code ${event.code}`;

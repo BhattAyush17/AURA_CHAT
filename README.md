@@ -1,12 +1,14 @@
 # AURA
+
 ### A conversational system that learns HOW to communicate with you.
 
 Traditional voice AI is a simple pipeline:
 `User → Speech Recognition → LLM → Speech Synthesis`
 
-AURA is fundamentally different. It is not merely an LLM with a microphone. It is an interaction architecture wrapped around an LLM, designed to maintain continuity over time. 
+AURA is fundamentally different. It is not merely an LLM with a microphone. It is an interaction architecture wrapped around an LLM, designed to maintain continuity over time.
 
 **The AURA Pipeline:**
+
 ```text
 Human
  ↓
@@ -43,22 +45,22 @@ Learning
 
 For the first-time visitor, here is what AURA actually does:
 
-*   **AURA listens:** It uses real-time, local Voice Activity Detection (VAD).
-*   **AURA perceives both acoustic and linguistic signals:** It understands *how* you speak (pacing, volume) alongside *what* you say.
-*   **AURA distinguishes transient behavior from stable patterns:** A bad day doesn't overwrite your core behavioral profile.
-*   **AURA remembers relevant information:** Working memory, session context, and longitudinal memory are distinctly partitioned.
-*   **AURA maintains a longitudinal communication model:** It learns how best to communicate with you using mathematically grounded moving averages.
-*   **AURA adapts expression without surrendering personality:** It will change its tone and vocabulary, but never its core identity.
-*   **AURA operates across multiple AI providers:** Gemini Live, OpenRouter, and Sarvam are all supported at parity.
-*   **AURA controls music conversationally:** Music is a first-class subsystem, integrated directly into the cognitive architecture.
-*   **AURA listens while music plays:** Full-duplex audio allows AURA to hear you over its own music without hard-pausing.
-*   **AURA degrades gracefully:** If infrastructure fails, it falls back to simpler modes rather than crashing.
+- **AURA listens:** It uses real-time, local Voice Activity Detection (VAD).
+- **AURA perceives both acoustic and linguistic signals:** It understands _how_ you speak (pacing, volume) alongside _what_ you say.
+- **AURA distinguishes transient behavior from stable patterns:** A bad day doesn't overwrite your core behavioral profile.
+- **AURA remembers relevant information:** Working memory, session context, and longitudinal memory are distinctly partitioned.
+- **AURA maintains a longitudinal communication model:** It learns how best to communicate with you using mathematically grounded moving averages.
+- **AURA adapts expression without surrendering personality:** It will change its tone and vocabulary, but never its core identity.
+- **AURA operates across multiple AI providers:** Gemini Live, OpenRouter, and Sarvam are all supported at parity.
+- **AURA controls music conversationally:** Music is a first-class subsystem, integrated directly into the cognitive architecture.
+- **AURA listens while music plays:** Full-duplex audio allows AURA to hear you over its own music without hard-pausing.
+- **AURA degrades gracefully:** If infrastructure fails, it falls back to simpler modes rather than crashing.
 
 ---
 
 ## The Difference: Chatbot vs AURA
 
-A traditional chatbot treats every interaction as a blank slate. Even "memory-enabled" chatbots simply inject raw facts into the context window. They do not change their communication *style* based on long-term relationships.
+A traditional chatbot treats every interaction as a blank slate. Even "memory-enabled" chatbots simply inject raw facts into the context window. They do not change their communication _style_ based on long-term relationships.
 
 AURA separates **Memory** (what happened) from **Belief** (how you communicate). By the time the LLM sees a prompt, AURA has already analyzed your acoustic envelope, retrieved its longitudinal belief about your preferred communication style, calculated its confidence in that belief, and injected strict behavioral routing constraints into the prompt—all before the LLM generates a single word.
 
@@ -107,28 +109,28 @@ graph TD
     MIC --> VAD
     MIC --> TELEMETRY
     VAD --> STT
-    
+
     TELEMETRY --> EMO
     STT --> LANG
     STT --> CONTEXT
     LANG --> BEHAVIOR
-    
+
     BEHAVIOR --> S_MEM
     S_MEM --> C_BELIEF
     C_BELIEF -.-> L_BELIEF
     PREF --> L_BELIEF
-    
+
     L_BELIEF --> ROUTING[Behavioral Routing]
     ROUTING --> CONTRACT[Personality Contract]
-    
+
     CONTRACT --> GEMINI
     CONTRACT --> OPENROUTER
     CONTRACT --> SARVAM
-    
+
     GEMINI --> AUDIO_OUT
     OPENROUTER --> AUDIO_OUT
     SARVAM --> AUDIO_OUT
-    
+
     L_BELIEF -.-> BACKGROUND
     TELEMETRY -.-> BACKGROUND
 ```
@@ -144,31 +146,37 @@ If you whisper, speak slowly, and pause often, a traditional AI only sees the tr
 ## The Six Cognitive Layers
 
 ### L0 — Interface
-*   **What enters:** Raw audio streams, physical UI taps.
-*   **What leaves:** Decoded audio buffers to the OS speaker.
-*   **What it owns:** Hardware permissions, buffer management, browser AudioContext.
-*   **What it must NOT decide:** It makes zero cognitive or behavioral decisions.
+
+- **What enters:** Raw audio streams, physical UI taps.
+- **What leaves:** Decoded audio buffers to the OS speaker.
+- **What it owns:** Hardware permissions, buffer management, browser AudioContext.
+- **What it must NOT decide:** It makes zero cognitive or behavioral decisions.
 
 ### L1 — Behavioral / Emotional Routing
-*   **What it infers:** The emotional subtext and necessary response posture for the current interaction.
-*   **How it influences style:** Injects specific instructions into the LLM system prompt regarding tone, verbosity, and vocabulary.
-*   **What it never overrides:** The core Personality Contract. AURA will adapt *how* it speaks, but never *who* it is.
+
+- **What it infers:** The emotional subtext and necessary response posture for the current interaction.
+- **How it influences style:** Injects specific instructions into the LLM system prompt regarding tone, verbosity, and vocabulary.
+- **What it never overrides:** The core Personality Contract. AURA will adapt _how_ it speaks, but never _who_ it is.
 
 ### L2 — Acoustic Perception
-*   **What it measures:** RMS volume, silence durations, pacing, VAD thresholds, and the acoustic envelope.
-*   **Microphone constraints:** Dynamically applies or removes hardware/software AEC (Acoustic Echo Cancellation) depending on whether you are using speakers or headphones.
-*   **Why transcript-only fails:** Text loses sarcasm, exhaustion, urgency, and hesitation. L2 captures the signal beneath the semantics.
+
+- **What it measures:** RMS volume, silence durations, pacing, VAD thresholds, and the acoustic envelope.
+- **Microphone constraints:** Dynamically applies or removes hardware/software AEC (Acoustic Echo Cancellation) depending on whether you are using speakers or headphones.
+- **Why transcript-only fails:** Text loses sarcasm, exhaustion, urgency, and hesitation. L2 captures the signal beneath the semantics.
 
 ### L3 — Longitudinal Memory
-*   **Mechanism:** Uses `sessionAccumulator` to aggregate the current conversation, then applies mathematically rigorous Exponential Moving Averages (EMA) to update long-term beliefs.
-*   **Metrics:** Calculates variance, confidence, and resulting epistemic states.
+
+- **Mechanism:** Uses `sessionAccumulator` to aggregate the current conversation, then applies mathematically rigorous Exponential Moving Averages (EMA) to update long-term beliefs.
+- **Metrics:** Calculates variance, confidence, and resulting epistemic states.
 
 ### L4 — Voice / Provider Interface
-*   **Abstraction:** Ensures provider parity. Whether utilizing Gemini Live's bidirectional WebSockets, OpenRouter's REST APIs, or Sarvam's localized Indian language models, the cognitive architecture above remains entirely consistent.
+
+- **Abstraction:** Ensures provider parity. Whether utilizing Gemini Live's bidirectional WebSockets, OpenRouter's REST APIs, or Sarvam's localized Indian language models, the cognitive architecture above remains entirely consistent.
 
 ### L5 — Async Infrastructure
-*   **Mechanism:** Redis/Valkey stream buses running completely asynchronously.
-*   **Purpose:** Keeps the synchronous voice loop fast by offloading heavy database writes, telemetry aggregation, and vector embeddings to a side-channel.
+
+- **Mechanism:** Redis/Valkey stream buses running completely asynchronously.
+- **Purpose:** Keeps the synchronous voice loop fast by offloading heavy database writes, telemetry aggregation, and vector embeddings to a side-channel.
 
 ---
 
@@ -213,7 +221,7 @@ A long, 3-hour conversation does NOT receive proportional long-term influence si
 Consider this scenario:
 
 1.  **100 English conversations** → AURA establishes a stable English communication baseline.
-2.  **1 unusual Hinglish conversation** → The `Current-Turn` signal changes immediately. The `Session` context reflects it. The `Longitudinal Model` barely moves. AURA speaks Hinglish *today*, but doesn't assume you will forever.
+2.  **1 unusual Hinglish conversation** → The `Current-Turn` signal changes immediately. The `Session` context reflects it. The `Longitudinal Model` barely moves. AURA speaks Hinglish _today_, but doesn't assume you will forever.
 3.  **Repeated Hinglish conversations** → Evidence accumulates across boundaries. Variance stabilizes. Confidence rises. The `Longitudinal Belief` officially shifts.
 
 The current true EMA half-life is:
@@ -227,18 +235,18 @@ This means **20 independent conversations ≈ 50% remaining influence from the p
 
 Confidence in AURA is not simply "number of observations." It is a function of both evidence mass and variance.
 
-| State | Meaning | Example | Behavioral Consequence |
-| :--- | :--- | :--- | :--- |
-| **KNOWN** | High evidence, low variance. | You always prefer concise technical answers. | AURA locks into this communication style without second-guessing. |
-| **UNCERTAIN** | Insufficient evidence. | A new user or a completely new topic domain. | AURA uses a neutral, exploratory baseline and asks clarification questions. |
-| **CONFLICTING** | High evidence, high variance. | You are technical on Mondays, but casual on Fridays. | AURA relies heavily on the `Current-Turn Signal` rather than the longitudinal baseline. |
-| **RECENTLY_CHANGED** | Sustained anomaly detected. | You recently switched to speaking entirely in Spanish. | AURA tentatively adopts the new behavior but monitors closely for regression. |
+| State                | Meaning                       | Example                                                | Behavioral Consequence                                                                  |
+| :------------------- | :---------------------------- | :----------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **KNOWN**            | High evidence, low variance.  | You always prefer concise technical answers.           | AURA locks into this communication style without second-guessing.                       |
+| **UNCERTAIN**        | Insufficient evidence.        | A new user or a completely new topic domain.           | AURA uses a neutral, exploratory baseline and asks clarification questions.             |
+| **CONFLICTING**      | High evidence, high variance. | You are technical on Mondays, but casual on Fridays.   | AURA relies heavily on the `Current-Turn Signal` rather than the longitudinal baseline. |
+| **RECENTLY_CHANGED** | Sustained anomaly detected.   | You recently switched to speaking entirely in Spanish. | AURA tentatively adopts the new behavior but monitors closely for regression.           |
 
 ---
 
 ## Personality vs Adaptation
 
-AURA adapts *how* it communicates, not *who* it fundamentally is.
+AURA adapts _how_ it communicates, not _who_ it fundamentally is.
 
 ```mermaid
 graph TD
@@ -247,7 +255,7 @@ graph TD
     LP --> CT[Current-turn Signal]
 ```
 
-Even if you are highly sarcastic and chaotic, if AURA's Personality Contract is set to "Professional and Helpful", it will adapt by becoming more concise and direct to match your energy, but it will *not* become chaotic itself.
+Even if you are highly sarcastic and chaotic, if AURA's Personality Contract is set to "Professional and Helpful", it will adapt by becoming more concise and direct to match your energy, but it will _not_ become chaotic itself.
 
 ---
 
@@ -255,13 +263,13 @@ Even if you are highly sarcastic and chaotic, if AURA's Personality Contract is 
 
 AURA explicitly partitions memory into distinct layers, ensuring hallucinations in short-term context do not corrupt long-term data.
 
-*   **Working / Short-term Context:** Stored in memory during the active turn. Cleared frequently.
-*   **Session Context:** The running transcript and aggregated states for the current conversation.
-*   **Longitudinal Beliefs:** EMA statistics and behavioral profiles, synchronized to persistent storage.
-*   **Explicit Preferences:** Hard facts ("I am allergic to peanuts") managed by a separate deterministic pathway.
-*   **Persistent Storage:** Serialized to `localStorage` on the client, with asynchronous synchronization to the backend database.
+- **Working / Short-term Context:** Stored in memory during the active turn. Cleared frequently.
+- **Session Context:** The running transcript and aggregated states for the current conversation.
+- **Longitudinal Beliefs:** EMA statistics and behavioral profiles, synchronized to persistent storage.
+- **Explicit Preferences:** Hard facts ("I am allergic to peanuts") managed by a separate deterministic pathway.
+- **Persistent Storage:** Serialized to `localStorage` on the client, with asynchronous synchronization to the backend database.
 
-*(Note: Unlimited cloud memory is a function of the backend infrastructure; AURA gracefully degrades to local browser storage if offline).*
+_(Note: Unlimited cloud memory is a function of the backend infrastructure; AURA gracefully degrades to local browser storage if offline)._
 
 ---
 
@@ -274,26 +282,26 @@ graph TD
     CONSTRAINTS --> AUDIO[Audio Processing]
     AUDIO --> VAD[Voice Activity Detection]
     VAD --> STT[Speech to Text]
-    
+
     STT --> LANG[Language Analysis]
     AUDIO --> ACOUSTIC[Acoustic Analysis]
-    
+
     LANG --> SIGNAL[Current-turn Signal]
     ACOUSTIC --> SIGNAL
-    
+
     SIGNAL --> SESSION[Session Context]
     SESSION --> RETRIEVE[Longitudinal Profile Retrieval]
-    
+
     RETRIEVE --> ROUTE[Behavioral Routing]
     ROUTE --> CONTRACT[Personality Contract]
-    
+
     CONTRACT --> INTERPRETER[ConversationInterpreter]
     INTERPRETER --> PROVIDER[LLM Provider]
-    
+
     PROVIDER --> RESPONSE[Generated Response]
     RESPONSE --> TTS[Text to Speech]
     TTS --> OUT([Audio Output])
-    
+
     OUT -.-> OBSERVE[Reflection / Observation]
     OBSERVE -.-> UPDATE[Future Model Update]
 ```
@@ -317,9 +325,9 @@ AURA abstracts the AI provider entirely, ensuring the cognitive architecture beh
                    Unified behavior
 ```
 
-*   **Gemini Live:** Used for ultra-low-latency, bidirectional WebSocket interactions.
-*   **OpenRouter:** Used for REST-based access to diverse open-source and proprietary models.
-*   **Sarvam:** Used for highly localized Indian language and Hinglish interactions.
+- **Gemini Live:** Used for ultra-low-latency, bidirectional WebSocket interactions.
+- **OpenRouter:** Used for REST-based access to diverse open-source and proprietary models.
+- **Sarvam:** Used for highly localized Indian language and Hinglish interactions.
 
 ---
 
@@ -337,9 +345,9 @@ graph TD
     ELEMENT --> OS([OS Audio Output])
 ```
 
-*   **One Playback Authority:** `MusicService` manages all queues and state. Obsolete duplicate components (`PlaybackEngine`, `PlayerStateMachine`) have been eliminated.
-*   **Search Fallback:** If an exact track isn't provided, AURA dynamically searches and queues the best match.
-*   **Race-Condition Protection:** Strict mutexes prevent overlapping audio fetch requests.
+- **One Playback Authority:** `MusicService` manages all queues and state. Obsolete duplicate components (`PlaybackEngine`, `PlayerStateMachine`) have been eliminated.
+- **Search Fallback:** If an exact track isn't provided, AURA dynamically searches and queues the best match.
+- **Race-Condition Protection:** Strict mutexes prevent overlapping audio fetch requests.
 
 ---
 
@@ -352,11 +360,11 @@ graph TD
     subgraph Listening
         MIC --> VAD --> STT --> AURA
     end
-    
+
     subgraph Playing
         MUSIC --> HTMLAudioElement --> DEVICE_OUTPUT
     end
-    
+
     VAD -.-> DUCKING[Software Ducking]
     DUCKING -.-> HTMLAudioElement
 ```
@@ -369,8 +377,8 @@ graph TD
 
 Mobile web browsers (especially iOS Safari) impose draconian restrictions on audio playback and microphone access.
 
-*   **Speaker / Unknown Device:** AURA enables Acoustic Echo Cancellation (AEC), Noise Suppression (NS), and Auto Gain Control (AGC) to prevent the microphone from feeding AURA's own voice back into the STT engine.
-*   **Headphones / Bluetooth:** AURA disables software AEC/NS where possible to prevent the OS from dropping into low-fidelity "Communications Mode", preserving music quality.
+- **Speaker / Unknown Device:** AURA enables Acoustic Echo Cancellation (AEC), Noise Suppression (NS), and Auto Gain Control (AGC) to prevent the microphone from feeding AURA's own voice back into the STT engine.
+- **Headphones / Bluetooth:** AURA disables software AEC/NS where possible to prevent the OS from dropping into low-fidelity "Communications Mode", preserving music quality.
 
 **The Gesture Unlock Path:**
 If AURA attempts to play music via voice command, and the browser rejects the programmatic `.play()` call:
@@ -385,7 +393,7 @@ graph TD
     UNLOCK --> RESUME[pending track resumes]
 ```
 
-*(Note: iOS WebKit may still override JavaScript-level audio constraints at the hardware session level).*
+_(Note: iOS WebKit may still override JavaScript-level audio constraints at the hardware session level)._
 
 ---
 
@@ -402,9 +410,9 @@ graph TD
 └─────────────────────────────┘      └───────────────────────────────┘
 ```
 
-*   **BYOK:** API credentials remain on the client.
-*   **SSRF Protection:** The backend proxy strictly validates hostnames.
-*   **No Edge Binaries:** `yt-dlp` and `ffmpeg` are entirely isolated to the backend proxy; the Vercel frontend is perfectly clean and serverless.
+- **BYOK:** API credentials remain on the client.
+- **SSRF Protection:** The backend proxy strictly validates hostnames.
+- **No Edge Binaries:** `yt-dlp` and `ffmpeg` are entirely isolated to the backend proxy; the Vercel frontend is perfectly clean and serverless.
 
 ---
 
@@ -452,7 +460,8 @@ Observe (Turn results)
 Learn (Update longitudinal baseline)
  ↺
 ```
-*(Side channels run concurrently: Music, Telemetry, Async Infrastructure).*
+
+_(Side channels run concurrently: Music, Telemetry, Async Infrastructure)._
 
 ---
 
@@ -460,13 +469,13 @@ Learn (Update longitudinal baseline)
 
 Based on the actual implemented architecture:
 
-*   `backend/api/main.py`: Core backend API, SSRF-protected media proxy, webhooks.
-*   `src/audioRuntime/`: Microphone coordination, AudioEnvironment constraints, VAD mathematics.
-*   `src/core/`: Application orchestration, `useVoiceOrchestrator`, telemetry.
-*   `src/executive/`: The cognitive brain. Contains `ConversationExecutive`, `SocialWorldModel`, `ConfidenceManager`, `StrategyPlanner`, etc.
-*   `src/music/`: Unified `MusicService` and `HTMLAudioPlaybackProvider`.
-*   `src/providers/`: Gemini WebSocket implementations, OpenRouter REST, Sarvam connectors.
-*   `src/sense/`: Perception layers, diagnostic panels, sensory fusion.
+- `backend/api/main.py`: Core backend API, SSRF-protected media proxy, webhooks.
+- `src/audioRuntime/`: Microphone coordination, AudioEnvironment constraints, VAD mathematics.
+- `src/core/`: Application orchestration, `useVoiceOrchestrator`, telemetry.
+- `src/executive/`: The cognitive brain. Contains `ConversationExecutive`, `SocialWorldModel`, `ConfidenceManager`, `StrategyPlanner`, etc.
+- `src/music/`: Unified `MusicService` and `HTMLAudioPlaybackProvider`.
+- `src/providers/`: Gemini WebSocket implementations, OpenRouter REST, Sarvam connectors.
+- `src/sense/`: Perception layers, diagnostic panels, sensory fusion.
 
 ---
 
@@ -474,33 +483,33 @@ Based on the actual implemented architecture:
 
 1.  **Install dependencies:** `npm install`
 2.  **Start frontend development server:** `npm run dev`
-3.  **Setup Backend (Python):** 
-    *   `cd backend`
-    *   `python3 -m venv venv && source venv/bin/activate`
-    *   `pip install -r requirements.txt`
-    *   `fastapi dev api/main.py`
+3.  **Setup Backend (Python):**
+    - `cd backend`
+    - `python3 -m venv venv && source venv/bin/activate`
+    - `pip install -r requirements.txt`
+    - `fastapi dev api/main.py`
 
 ---
 
 ## Current Capabilities
 
-| Capability | Status | Architecture |
-| :--- | :--- | :--- |
-| Voice conversation | ✅ Implemented | Gemini Live WS / OpenRouter REST |
-| Acoustic perception | ✅ Implemented | Local Silero VAD / `MicrophoneCoordinator` |
-| Longitudinal beliefs | ✅ Implemented | `SocialWorldModel` / EMA mathematics |
-| Contextual modeling | ✅ Implemented | `sessionAccumulator` / Epistemic states |
-| Personality modes | ✅ Implemented | Strict Prompt Hierarchy |
-| Gemini Live | ✅ Implemented | Bidirectional WebSockets |
-| OpenRouter | ✅ Implemented | REST fallback |
-| Sarvam | ✅ Implemented | Indian localized endpoints |
-| Music playback | ✅ Implemented | `HTMLAudioPlaybackProvider` |
-| Voice music control | ✅ Implemented | `MusicService` intent arbitration |
-| Full-duplex audio | ✅ Implemented | Software ducking / VAD triggers |
-| Mobile autoplay recovery| ✅ Implemented | Physical gesture unlock pipeline |
-| Adaptive mic constraints| ✅ Implemented | `AudioEnvironment` dynamic AEC toggling |
-| SSRF protection | ✅ Implemented | Strict hostname validation on backend |
-| Graceful degradation | ✅ Implemented | Provider fallback chaining |
+| Capability               | Status         | Architecture                               |
+| :----------------------- | :------------- | :----------------------------------------- |
+| Voice conversation       | ✅ Implemented | Gemini Live WS / OpenRouter REST           |
+| Acoustic perception      | ✅ Implemented | Local Silero VAD / `MicrophoneCoordinator` |
+| Longitudinal beliefs     | ✅ Implemented | `SocialWorldModel` / EMA mathematics       |
+| Contextual modeling      | ✅ Implemented | `sessionAccumulator` / Epistemic states    |
+| Personality modes        | ✅ Implemented | Strict Prompt Hierarchy                    |
+| Gemini Live              | ✅ Implemented | Bidirectional WebSockets                   |
+| OpenRouter               | ✅ Implemented | REST fallback                              |
+| Sarvam                   | ✅ Implemented | Indian localized endpoints                 |
+| Music playback           | ✅ Implemented | `HTMLAudioPlaybackProvider`                |
+| Voice music control      | ✅ Implemented | `MusicService` intent arbitration          |
+| Full-duplex audio        | ✅ Implemented | Software ducking / VAD triggers            |
+| Mobile autoplay recovery | ✅ Implemented | Physical gesture unlock pipeline           |
+| Adaptive mic constraints | ✅ Implemented | `AudioEnvironment` dynamic AEC toggling    |
+| SSRF protection          | ✅ Implemented | Strict hostname validation on backend      |
+| Graceful degradation     | ✅ Implemented | Provider fallback chaining                 |
 
 ---
 
@@ -510,7 +519,7 @@ These are actual, architectural limitations of the current implementation:
 
 1.  **iOS/WebKit Audio-Session Restrictions:** While AURA attempts to disable `{ echoCancellation: false }` for headphones to preserve audio fidelity, iOS Safari enforces hardware-level "Communications Mode" (HFP) when the microphone is accessed, which degrades playback audio quality. This is an OS restriction, not a JavaScript bug.
 2.  **Physical-Device Validation Requirements:** True audio pipeline validation requires physical devices. Emulators cannot accurately simulate Bluetooth HFP switching or true acoustic echo.
-3.  **Temporal Music Memory is NOT implemented:** AURA knows *what* track is playing and can control it, but it lacks a semantic timeline. "Replay from 1:30" works via timestamp seeking, but "Replay the chorus" requires semantic lyric alignment and segmentation, which does not exist yet.
+3.  **Temporal Music Memory is NOT implemented:** AURA knows _what_ track is playing and can control it, but it lacks a semantic timeline. "Replay from 1:30" works via timestamp seeking, but "Replay the chorus" requires semantic lyric alignment and segmentation, which does not exist yet.
 4.  **Semantic Contradiction Depth is Limited:** AURA's variance detection easily catches obvious shifts (e.g., formal to casual), but highly subtle, multi-layered contradictions spread across weeks may bypass the EMA variance threshold.
 
 ---
@@ -518,28 +527,32 @@ These are actual, architectural limitations of the current implementation:
 ## Roadmap
 
 **Implemented:**
-*   Single-authority `MusicService`.
-*   Full-Duplex adaptive audio constraints and software ducking.
-*   Longitudinal EMA belief model (`alpha = 0.034`).
+
+- Single-authority `MusicService`.
+- Full-Duplex adaptive audio constraints and software ducking.
+- Longitudinal EMA belief model (`alpha = 0.034`).
 
 **Hardening Completed:**
-*   SSRF media proxy security.
-*   Vercel edge compatibility (no local binaries).
-*   Mobile browser autoplay recovery pipelines.
+
+- SSRF media proxy security.
+- Vercel edge compatibility (no local binaries).
+- Mobile browser autoplay recovery pipelines.
 
 **Next Architectural Milestone:**
-*   Temporal Music Memory (Semantic track timeline integration).
-*   Deeply integrated cross-provider memory synchronization.
+
+- Temporal Music Memory (Semantic track timeline integration).
+- Deeply integrated cross-provider memory synchronization.
 
 **Longer-term Research:**
-*   Acoustic prosody extraction directly into the latent space (bypassing STT entirely).
+
+- Acoustic prosody extraction directly into the latent space (bypassing STT entirely).
 
 ---
 
 ## Closing Philosophy
 
-AURA is not trying to make an LLM "pretend" to be a person. 
+AURA is not trying to make an LLM "pretend" to be a person.
 
-The goal is not deceptive humanization. The goal is to build the surrounding perception, memory, behavioral, audio, and interaction systems required for an AI to maintain **continuity** with a person over time. 
+The goal is not deceptive humanization. The goal is to build the surrounding perception, memory, behavioral, audio, and interaction systems required for an AI to maintain **continuity** with a person over time.
 
-By modeling *how* to communicate rather than simply remembering *what* was said, AURA moves beyond the transactional nature of modern chatbots and toward a sustainable, longitudinal interaction model.
+By modeling _how_ to communicate rather than simply remembering _what_ was said, AURA moves beyond the transactional nature of modern chatbots and toward a sustainable, longitudinal interaction model.

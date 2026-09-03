@@ -10,6 +10,7 @@ if (!API_BASE && import.meta.env.PROD) {
 const BASE_URL = API_BASE || "http://localhost:8000";
 
 export const ENDPOINTS = {
+  base: BASE_URL,
   sessionStart: `${BASE_URL}/session/start`,
   sessionEnd: `${BASE_URL}/session/end`,
   sessionEndSync: `${BASE_URL}/session/end/sync`,
@@ -21,6 +22,7 @@ export const ENDPOINTS = {
   turnProfileSave: `${BASE_URL}/api/turn-profile/save`,
   turnProfileLoad: `${BASE_URL}/api/turn-profile/load`,
   turnDetect: `${BASE_URL}/api/turn-detect`,
+  telemetry: `${BASE_URL}/api/telemetry`,
 } as const;
 
 // API_SECRET deliberately removed — VITE_ variables are public.

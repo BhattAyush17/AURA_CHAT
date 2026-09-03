@@ -1,0 +1,61 @@
+{
+  "id": "awkward-silence",
+  "name": "Awkward Silence",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 10,
+  "turns": [
+    {
+      "text": "...",
+      "behavior": null,
+      "emo": {
+        "tension": 0.4,
+        "energy": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["think-aloud", "small-talk"],
+        "strategy": ["Observe", "Ask", "Reflect"],
+        "initiative": ["Wait", "Observe"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "...",
+      "behavior": null,
+      "emo": {
+        "tension": 0.4,
+        "energy": 0.3
+      },
+      "silenceMs": 5000,
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["think-aloud", "small-talk"],
+        "strategy": ["Observe", "Ask"],
+        "initiative": ["Wait", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Bol na.",
+      "behavior": {
+        "act": "request",
+        "tags": ["casual"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "seek-information"],
+        "strategy": ["Answer", "Ask", "Observe"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

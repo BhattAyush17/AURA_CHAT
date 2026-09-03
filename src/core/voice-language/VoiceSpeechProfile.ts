@@ -1,4 +1,9 @@
-import { VoiceSpeechProfile, VoiceSpeechProfileAdapter, VoiceLanguageObservation, ResolvedVoiceLanguage } from "./VoiceLanguageTypes";
+import {
+  VoiceSpeechProfile,
+  VoiceSpeechProfileAdapter,
+  VoiceLanguageObservation,
+  ResolvedVoiceLanguage,
+} from "./VoiceLanguageTypes";
 
 export class VoiceSpeechProfileManager {
   private currentProfile: VoiceSpeechProfile = {
@@ -7,7 +12,7 @@ export class VoiceSpeechProfileManager {
     confidence: null,
     source: "unknown",
   };
-  
+
   private userPreference: "Automatic" | "en-US" | "en-IN" | "en-GB" | "en-AU" = "Automatic";
 
   public setPreference(pref: "Automatic" | "en-US" | "en-IN" | "en-GB" | "en-AU") {
@@ -22,7 +27,7 @@ export class VoiceSpeechProfileManager {
         language: state.detectedLanguage || "unknown",
         variant: "unknown",
         confidence: "UNKNOWN",
-        source: "resolver"
+        source: "resolver",
       };
     }
 
@@ -31,14 +36,14 @@ export class VoiceSpeechProfileManager {
         language: "English",
         variant: this.userPreference,
         confidence: "HIGH",
-        source: "user"
+        source: "user",
       };
     }
 
     // Default automatic detection (conservative)
     return {
       ...this.currentProfile,
-      confidence: "UNKNOWN"
+      confidence: "UNKNOWN",
     };
   }
 }

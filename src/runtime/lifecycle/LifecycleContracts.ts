@@ -3,7 +3,7 @@ export enum IdleState {
   WAITING = "WAITING",
   IDLE_WARNING = "IDLE_WARNING",
   TERMINATING = "TERMINATING",
-  TERMINATED = "TERMINATED"
+  TERMINATED = "TERMINATED",
 }
 
 export interface RuntimeActivityState {

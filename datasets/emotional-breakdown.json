@@ -1,0 +1,75 @@
+{
+  "id": "emotional-breakdown",
+  "name": "Emotional Breakdown",
+  "trust": 0.85,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 18,
+  "turns": [
+    {
+      "text": "Main aur pretend nahi kar sakta.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["breakdown", "vulnerability"],
+        "intensity": 0.8
+      },
+      "emo": {
+        "vulnerability": 0.8,
+        "energy": 0.2,
+        "tension": 0.5
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort"],
+        "initiative": ["Continue", "Observe"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-security", "need-connection"]
+      }
+    },
+    {
+      "text": "Everything feels heavy.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["breakdown", "vulnerability"],
+        "intensity": 0.8
+      },
+      "emo": {
+        "vulnerability": 0.8,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["PURE_ENGLISH", "HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection", "need-rest"]
+      }
+    },
+    {
+      "text": "Bas sun lo.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["breakdown", "vulnerability"],
+        "intensity": 0.7
+      },
+      "emo": {
+        "vulnerability": 0.7,
+        "energy": 0.2
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort", "Listen", "Observe"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection"]
+      }
+    }
+  ]
+}

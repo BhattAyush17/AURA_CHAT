@@ -26,6 +26,7 @@ session rotation, OEM devices, long soak) — no code blockers were found.
 ## B. G1 — Canonical AURA Action Seams — **PASS**
 
 Evidence:
+
 - `src/lib/aura-actions.ts`: `executeAuraAction()` is the single action seam. `saveMemory` →
   `MemoryGateway.storeMemory` (L3, canonical key `aura_memories_${userId}`); `playYouTubeMusic`/
   `stopYouTubeMusic` → `MusicService.processIntent` (same path as OpenRouter/Sarvam text-tags).
@@ -43,6 +44,7 @@ Evidence:
 ## C. G2 — Canonical Cognitive Context — **PASS**
 
 Evidence:
+
 - `src/lib/aura-context.ts`: `startClientMemoryContext()` (MemoryGateway L3 retrieval →
   `[MEMORY CONTEXT]`, 200-char/line cap, 1500-char total, supabase-mode returns `""` by design);
   `assembleCognitiveContext(clientBlock, backendEnrichment)` = server ChromaDB
@@ -60,13 +62,13 @@ Evidence:
 
 Native-event mapping (documented, no fabricated events; Gemini server VAD decides turn boundaries):
 
-| AURA semantic | Gemini-native event | Where |
-|---|---|---|
-| speech begins | `serverContent.inputTranscription` (server activity detection) | `useWebSocket.ts` onmessage |
-| transcription available | `onInputTranscription(text)` → `conversationState.reportUserSpeaking()` → `handleUserTurn` | `useLive.ts` |
-| user turn complete | `handleUserTurn` → `ConversationRuntime.registerUserTurn(text)` (exactly once) + `reportUserFinished()` | `useLive.ts` |
-| turn completion | `serverContent.turnComplete` → `reportSpeakingFinished()` | `useLive.ts` |
-| interruption | `serverContent.interrupted` → `handleUserInterruption()` + client VAD barge-in reflex → `handleNativeInterruption()` | `useLive.ts` / `useBargeIn` |
+| AURA semantic           | Gemini-native event                                                                                                  | Where                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| speech begins           | `serverContent.inputTranscription` (server activity detection)                                                       | `useWebSocket.ts` onmessage |
+| transcription available | `onInputTranscription(text)` → `conversationState.reportUserSpeaking()` → `handleUserTurn`                           | `useLive.ts`                |
+| user turn complete      | `handleUserTurn` → `ConversationRuntime.registerUserTurn(text)` (exactly once) + `reportUserFinished()`              | `useLive.ts`                |
+| turn completion         | `serverContent.turnComplete` → `reportSpeakingFinished()`                                                            | `useLive.ts`                |
+| interruption            | `serverContent.interrupted` → `handleUserInterruption()` + client VAD barge-in reflex → `handleNativeInterruption()` | `useLive.ts` / `useBargeIn` |
 
 - No `FinalTranscript` is fabricated anywhere (grep: zero occurrences in `src/providers/gemini/*`;
   the frozen 6-event `SpeechEvent` vocabulary has zero emitters for **all** providers — global,
@@ -90,8 +92,8 @@ Native-event mapping (documented, no fabricated events; Gemini server VAD decide
 ## E. G4 — Trace / Resilience — **PASS (3 fixes applied)**
 
 - **Trace Runtime** (`src/lib/trace-runtime.ts`): per-utterance `{traceId, utteranceId, epoch,
-  providerId, timestamp}` envelope; honest stages only (`speech-start, final, llm-start,
-  first-pcm`; never fabricates `mic-start/first-partial/tts-request`); synchronous, bounded
+providerId, timestamp}` envelope; honest stages only (`speech-start, final, llm-start,
+first-pcm`; never fabricates `mic-start/first-partial/tts-request`); synchronous, bounded
   (RECENT_TRACE_LIMIT 20), no awaits, no network. Every point → `aura:trace` window event.
   Live probe in app verified envelope, chain, summary, abort, no double-end.
 - **Session expiry** (`useWebSocket.ts`): `goAway` sets `goAwayReconnectRef`; `onclose` intercepts
@@ -105,7 +107,7 @@ Native-event mapping (documented, no fabricated events; Gemini server VAD decide
   triggers into one attempt; `useReconnectPolicy` = 500ms base, 30s max, ±20% jitter, 8 attempts;
   `disconnect()` clears the reconnect timer; non-retryable codes (1008) → terminal error path.
 - **Fix G4-1** (`src/speech/registry/providers.ts`): descriptor `transportMode: WebRtc →
-  WebSocket` (actual SDK transport is a WebSocket; `WebSocket` value exists in the frozen enum;
+WebSocket` (actual SDK transport is a WebSocket; `WebSocket` value exists in the frozen enum;
   the field is registry metadata, not part of the frozen 11-field capability vocabulary).
 - **Fix G4-2/3** (`useWebSocket.ts`, `types.ts`): removed dead `MAX_RECONNECT_ATTEMPTS` (×2),
   dead `RECONNECT_DELAY_MS`, write-only `audioBufferRef`, write-only `lastBehavioralLayerRef`.
@@ -126,12 +128,12 @@ default label (no branching) — pre-existing, watch.
 
 ## G. Tool Integration — **PASS (with note)**
 
-| Tool | Gemini | OpenRouter | Sarvam | Canonical seam | Failure behavior |
-|---|---|---|---|---|---|
-| saveMemory | tool, routed | text-intent, auto-store | text-intent, auto-store | Gemini: `executeAuraAction`; OR/Sarvam: direct gateway (fire-and-forget, no model feedback) | Gemini: truthful; OR/Sarvam: no result channel (pre-existing) |
-| playYouTubeMusic | tool, routed | `PLAY_YOUTUBE:` tag | `PLAY_YOUTUBE:` tag | Gemini: `executeAuraAction` → `processIntent`; OR/Sarvam: direct `processIntent` | Gemini: truthful playbackState or `{ok:false}`; OR/Sarvam: no feedback (pre-existing) |
-| stopYouTubeMusic | tool, routed | `STOP_YOUTUBE` tag | `STOP_YOUTUBE` tag | same | Gemini: truthful `ok: !isPlaying` |
-| updateAnalysis | tool, inline (UI state only) | absent | absent | Not an AURA canonical action (excluded from `AuraActionName` union by design) | `"Analysis noted."` — its real action (`setAuraState`) always executes synchronously; not a fabricated result for a real action |
+| Tool             | Gemini                       | OpenRouter              | Sarvam                  | Canonical seam                                                                              | Failure behavior                                                                                                                |
+| ---------------- | ---------------------------- | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| saveMemory       | tool, routed                 | text-intent, auto-store | text-intent, auto-store | Gemini: `executeAuraAction`; OR/Sarvam: direct gateway (fire-and-forget, no model feedback) | Gemini: truthful; OR/Sarvam: no result channel (pre-existing)                                                                   |
+| playYouTubeMusic | tool, routed                 | `PLAY_YOUTUBE:` tag     | `PLAY_YOUTUBE:` tag     | Gemini: `executeAuraAction` → `processIntent`; OR/Sarvam: direct `processIntent`            | Gemini: truthful playbackState or `{ok:false}`; OR/Sarvam: no feedback (pre-existing)                                           |
+| stopYouTubeMusic | tool, routed                 | `STOP_YOUTUBE` tag      | `STOP_YOUTUBE` tag      | same                                                                                        | Gemini: truthful `ok: !isPlaying`                                                                                               |
+| updateAnalysis   | tool, inline (UI state only) | absent                  | absent                  | Not an AURA canonical action (excluded from `AuraActionName` union by design)               | `"Analysis noted."` — its real action (`setAuraState`) always executes synchronously; not a fabricated result for a real action |
 
 No provider has a private duplicate implementation. All Gemini tools are declared server-side
 (`useWebSocket.ts` functionDeclarations) and executed through the canonical seam.
@@ -169,7 +171,7 @@ invoked by Gemini); THINKING stick eliminated by Fix G3-1; USER_SPEAKING stick i
 ## K. Interruption — **PASS**
 
 - Media-level reflex (Law 6): `useBargeIn(audio.inputAnalyserRef, audio.isSpeakingRef,
-  handleNativeInterruption)` — client VAD drives only volume/barge-in metering, never endpointing
+handleNativeInterruption)` — client VAD drives only volume/barge-in metering, never endpointing
   (no competing endpoint VAD). Flushes playback, sets `wasInterruptedRef`.
 - Server-level: `serverContent.interrupted` → `handleUserInterruption()` (CSM) + playback stop;
   no client abort signal (auto-VAD cancels generation natively).
@@ -197,11 +199,11 @@ payloads (audited).
 
 Round-trip = full model-turn duration for the 42s synthetic fake-mic clip (per turn):
 
-| Run | n | min | p50 | p95 | max | avg |
-|---|---|---|---|---|---|---|
-| BEFORE G3/G4 (test2) | 16 | 8624 | 9012 | 9395 | 9395 | 9084 |
-| BEFORE G3/G4 (g1) | 17 | 8898 | 10224 | 10588 | 10588 | 10008 |
-| AFTER G3/G4 (closure smoke) | 18 | 9391 | 10433 | 10552 | 10552 | 10266 |
+| Run                         | n   | min  | p50   | p95   | max   | avg   |
+| --------------------------- | --- | ---- | ----- | ----- | ----- | ----- |
+| BEFORE G3/G4 (test2)        | 16  | 8624 | 9012  | 9395  | 9395  | 9084  |
+| BEFORE G3/G4 (g1)           | 17  | 8898 | 10224 | 10588 | 10588 | 10008 |
+| AFTER G3/G4 (closure smoke) | 18  | 9391 | 10433 | 10552 | 10552 | 10266 |
 
 Delta p50 ≈ +0.2–1.4s vs pre-G4 runs — within clip-bound noise (synthetic speech segment length
 per turn dominates; both runs process the same clip). The G3/G4 critical path adds only
@@ -227,6 +229,7 @@ OEM claims are NOT made without device testing.
 ## Q. Remaining Issues
 
 **BLOCKER (validation gates, not code defects)**
+
 1. Live end-to-end turn test (real mic): speech → `handleUserTurn` → tool call → playback. Model
    tool-calling and memory/music seams are proven separately; the in-browser chain needs a real
    microphone (proven twice: fake-mic audio reaches the model, but server `inputTranscription`
@@ -239,18 +242,21 @@ OEM claims are NOT made without device testing.
 **HIGH** — none.
 
 **MEDIUM**
+
 - `updateAnalysis` has no backend consumer (metacognition dead, see below) — the tool only
   updates local UI state. Consider removing the declaration when metacognition lands.
 - Dual music-prompt sources: `[MUSIC TOOLING]` (Gemini tool protocol) vs `MUSIC PLAYBACK RULES`
   (OR/Sarvam text-tag protocol) — different transports, drift risk only.
 
 **LOW**
+
 - Direct memory read at session start (`useLive.ts`) is a cosmetic UI mirror duplicating the
   gateway retrieval path.
 - `beforeunload` seed/count writes bypass canonical helpers (same keys, no corruption).
 - Provider-local daily-usage tracker duplicates `lib/usage-tracker.ts`.
 
 **GLOBAL / NOT GEMINI-SPECIFIC (pre-existing)**
+
 - `sensing_state` is always null — backend `/api/analyze` never populates it. Global subsystem
   issue, affects all providers (baseline P1).
 - Metacognition is globally dead (no backend consumer for `updateAnalysis`); Gemini, OpenRouter,
@@ -272,11 +278,13 @@ Gemini integration. All WATCH items are pre-existing global gaps or provider mec
 ## S. Files Changed (Gemini closure scope)
 
 New:
+
 - `src/lib/trace-runtime.ts` (G4 Trace Runtime)
 - `src/lib/aura-actions.ts`, `src/lib/aura-context.ts` (G1/G2, from earlier phases)
 - `scripts/g1-tool-probe.mjs` (evidence probe)
 
 Modified this phase (G3/G4 + closure fixes):
+
 - `src/providers/gemini/useLive.ts` (CSM wiring, registerUserTurn, traces, re-arm fix)
 - `src/providers/gemini/useWebSocket.ts` (goAway reconnect, supervisor, tool response await,
   dead-code removal)

@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Square, Settings, X, Check, Eye, EyeOff, ChevronDown, RotateCcw, Zap } from "lucide-react";
+import {
+  Mic,
+  Square,
+  Settings,
+  X,
+  Check,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  RotateCcw,
+  Zap,
+} from "lucide-react";
 import { Waveform } from "@/components/Waveform";
 import { useVoiceOrchestrator } from "@/core/useVoiceOrchestrator";
 import { PersonalityMode, PersonalitySelector } from "@/components/PersonalitySelector";
@@ -60,7 +71,6 @@ function AuraExperience() {
     musicService.initialize().catch(console.error);
   }, []);
 
-
   // Settings modal indicator state
   const [dbConnected, setDbConnected] = useState(false);
   const [showKeyHint, setShowKeyHint] = useState(false);
@@ -79,7 +89,8 @@ function AuraExperience() {
 
   const hasActiveBrainCredentials = useCallback(() => {
     if (activeBrain === "gemini") return hasRequiredCredentials();
-    if (activeBrain === "sarvam") return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
+    if (activeBrain === "sarvam")
+      return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
     return hasUserKey("openrouter_api_key");
   }, [activeBrain]);
 
@@ -175,7 +186,8 @@ function AuraExperience() {
         ? "Mapping..."
         : pipeline.liveStats?.intent || "Steady";
   const detectedLanguage = pipeline.languageState
-    ? pipeline.languageState.classification === "MIXED_LANGUAGE" && pipeline.languageState.secondaryLanguage
+    ? pipeline.languageState.classification === "MIXED_LANGUAGE" &&
+      pipeline.languageState.secondaryLanguage
       ? `${pipeline.languageState.detectedLanguage} + ${pipeline.languageState.secondaryLanguage}`
       : pipeline.languageState.detectedLanguage || pipeline.languageState.preferredLanguage
     : "English";
@@ -196,7 +208,8 @@ function AuraExperience() {
     if (status === "reconnecting") return { label: "Reconnecting…", icon: "↻" };
     if (status === "error") return { label: "Voice unavailable", icon: "⚠" };
     if (status === "idle") return { label: "Ready", icon: "✓" };
-    if (status === "listening" && !isSpeaking && !isThinking) return { label: "Listening", icon: "◌" };
+    if (status === "listening" && !isSpeaking && !isThinking)
+      return { label: "Listening", icon: "◌" };
     if (isThinking) return { label: "Processing", icon: "◌" };
     return { label: "Voice active", icon: "●" };
   };
@@ -365,10 +378,7 @@ function AuraExperience() {
             </button>
 
             {/* Sense Panel */}
-            <SensePanel
-              isOpen={showSensePanel}
-              onClose={() => setShowSensePanel(false)}
-            />
+            <SensePanel isOpen={showSensePanel} onClose={() => setShowSensePanel(false)} />
 
             {/* Runtime Diagnostics Drawer / Bottom Sheet */}
             <RuntimeDiagnosticsDrawer
@@ -467,11 +477,13 @@ function AuraExperience() {
             {status === "reconnecting" && "reconnecting…"}
             {(status === "listening" || status === "speaking" || status === "thinking") &&
               (isSpeaking ? "aura is speaking" : isThinking ? "aura is thinking…" : "listening")}
-            {status === "error" && readinessSnapshot?.overall === "failed" && "initialization failed"}
-            {status === "error" && (!readinessSnapshot || readinessSnapshot.overall !== "failed") && (lastError || "error")}
+            {status === "error" &&
+              readinessSnapshot?.overall === "failed" &&
+              "initialization failed"}
+            {status === "error" &&
+              (!readinessSnapshot || readinessSnapshot.overall !== "failed") &&
+              (lastError || "error")}
           </div>
-
-
 
           {(status === "listening" || status === "speaking" || status === "thinking") && (
             <div className="mt-8 w-full max-w-md">
@@ -587,45 +599,62 @@ function AuraExperience() {
                   </span>
                 </div>
 
-                {pipeline.languageState?.interpretedTranscript && 
-                 pipeline.languageState.interpretedTranscript !== words && (
-                  <div className="flex flex-col gap-1 mb-4">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-cyan-500/60 font-semibold">
-                      INTERPRETED
-                    </span>
-                    <span className="text-sm italic text-cyan-400/90 leading-relaxed min-h-[1.25rem]">
-                      {`"${pipeline.languageState.interpretedTranscript}"`}
-                    </span>
-                  </div>
-                )}
+                {pipeline.languageState?.interpretedTranscript &&
+                  pipeline.languageState.interpretedTranscript !== words && (
+                    <div className="flex flex-col gap-1 mb-4">
+                      <span className="text-[8px] uppercase tracking-[0.3em] text-cyan-500/60 font-semibold">
+                        INTERPRETED
+                      </span>
+                      <span className="text-sm italic text-cyan-400/90 leading-relaxed min-h-[1.25rem]">
+                        {`"${pipeline.languageState.interpretedTranscript}"`}
+                      </span>
+                    </div>
+                  )}
 
                 <div className="h-[1px] w-full bg-border/20 mb-4" />
 
                 {/* Metadata Row */}
                 <div className="grid grid-cols-4 gap-4 mb-5">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">LANGUAGE</span>
-                    <span className="text-xs text-foreground/80 font-medium">{detectedLanguage || "English"}</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      LANGUAGE
+                    </span>
+                    <span className="text-xs text-foreground/80 font-medium">
+                      {detectedLanguage || "English"}
+                    </span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">TONE</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      TONE
+                    </span>
                     <span className="text-xs text-foreground/80 font-medium">{tone || "—"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">INTENT</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      INTENT
+                    </span>
                     <span className="text-xs text-foreground/70 line-clamp-1">{intent || "—"}</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">STATE</span>
-                    <span className="text-xs text-foreground/70 font-medium transition-opacity">{getDerivedState()}</span>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      STATE
+                    </span>
+                    <span className="text-xs text-foreground/70 font-medium transition-opacity">
+                      {getDerivedState()}
+                    </span>
                   </div>
                 </div>
 
                 {/* Footer Row */}
                 <div className="flex justify-between items-end">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">ACTIVE BRAIN</span>
-                    <span className="text-xs text-foreground/70 font-semibold truncate" title={brainModel}>
+                    <span className="text-[8px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                      ACTIVE BRAIN
+                    </span>
+                    <span
+                      className="text-xs text-foreground/70 font-semibold truncate"
+                      title={brainModel}
+                    >
                       {activeBrain === "gemini"
                         ? "Gemini Live 🎙️"
                         : activeBrain === "sarvam"
@@ -636,7 +665,11 @@ function AuraExperience() {
                     </span>
                   </div>
                   <div className="text-[10px] text-muted-foreground/80 flex items-center gap-1.5 uppercase tracking-widest">
-                    <span className={status === "reconnecting" || status === "error" ? "animate-pulse" : ""}>
+                    <span
+                      className={
+                        status === "reconnecting" || status === "error" ? "animate-pulse" : ""
+                      }
+                    >
                       {getVoiceStatus().icon}
                     </span>
                     {getVoiceStatus().label}
@@ -649,7 +682,7 @@ function AuraExperience() {
 
         {/* Music Mini Player (Legacy, if applicable) */}
         <MiniPlayer />
-        
+
         {/* New Native Music Player */}
         <MusicPlayer />
 

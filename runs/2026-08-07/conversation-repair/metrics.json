@@ -1,0 +1,46 @@
+{
+  "dataset": "conversation-repair",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 3,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 83,
+    "avgHumanity": 7.5,
+    "realism": 7.5,
+    "productionReady": true,
+    "pipelineMsAvg": 1698
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Listen",
+      "fidelity": 83,
+      "human": 7.5,
+      "feelsHuman": true,
+      "pipelineMs": 2148,
+      "llmWords": 11
+    },
+    {
+      "turn": 2,
+      "strategy": "Clarify",
+      "fidelity": 83,
+      "human": 5,
+      "feelsHuman": false,
+      "pipelineMs": 1433,
+      "llmWords": 9
+    },
+    {
+      "turn": 3,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1514,
+      "llmWords": 6
+    }
+  ]
+}

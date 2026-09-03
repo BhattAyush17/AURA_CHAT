@@ -3,7 +3,7 @@ export class LyricsService {
     // Stub: would fetch lyrics from an API
     return null;
   }
-  
+
   async analyzeThemes(lyrics: string): Promise<string[]> {
     return [];
   }

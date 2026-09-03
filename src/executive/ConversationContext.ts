@@ -8,6 +8,7 @@
 import type { BehaviorAnalysis } from "@/lib/behavior-client";
 import type { LanguageState } from "./LanguageState";
 import type { RegisterState } from "./RegisterState";
+import type { AtmosphereContext } from "./AtmosphereContext";
 
 // ─── Subsystem Snapshots ────────────────────────────────────────────
 
@@ -97,6 +98,8 @@ export interface ConversationContext {
   readonly recentHistory: ReadonlyArray<TranscriptEntry>;
   readonly behaviorAnalysis: BehaviorAnalysis | null;
   readonly userIdentity: UserIdentitySnapshot;
+  /** Real-world environment grounding (time/geo/weather/news) — optional, provenance-bearing. */
+  readonly atmosphere: AtmosphereContext | null;
 }
 
 // ─── Builder ────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ export function buildConversationContext(partial: {
   recentHistory?: TranscriptEntry[];
   behaviorAnalysis?: BehaviorAnalysis | null;
   userIdentity?: Partial<UserIdentitySnapshot>;
+  atmosphere?: AtmosphereContext | null;
 }): ConversationContext {
   const language: LanguageState = {
     dominant: "UNKNOWN",
@@ -192,5 +196,6 @@ export function buildConversationContext(partial: {
     },
     recentHistory: Object.freeze(partial.recentHistory ?? []),
     behaviorAnalysis: partial.behaviorAnalysis ?? null,
+    atmosphere: partial.atmosphere ?? null,
   });
 }

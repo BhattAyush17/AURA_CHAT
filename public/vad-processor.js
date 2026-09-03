@@ -53,7 +53,7 @@ class VadProcessor extends AudioWorkletProcessor {
 
     this.port.onmessage = (event) => {
       const msg = event.data;
-      if (msg.type === 'SET_STATE') {
+      if (msg.type === "SET_STATE") {
         this.isListening = msg.isListening;
         this.isSpeaking = msg.isSpeaking;
         this.isGracePeriod = msg.isGracePeriod;
@@ -86,7 +86,8 @@ class VadProcessor extends AudioWorkletProcessor {
 
     // ── Phase 7.2: noise-floor estimation ──
     if (this.calibrationFrames < this.CALIBRATION_LIMIT) {
-      this.noiseFloor = (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
+      this.noiseFloor =
+        (this.noiseFloor * this.calibrationFrames + rms) / (this.calibrationFrames + 1);
       this.calibrationFrames++;
     } else {
       this.noiseFloor = this.noiseFloor * (1 - this.NOISE_EMA_ALPHA) + rms * this.NOISE_EMA_ALPHA;
@@ -112,7 +113,7 @@ class VadProcessor extends AudioWorkletProcessor {
       if (this.bufferIndex >= this.bufferSize) {
         // Send PCM chunk + perception snapshot to main thread
         this.port.postMessage({
-          type: 'PCM_DATA',
+          type: "PCM_DATA",
           pcm: this.buffer.slice(), // copy
           probability: this.frameProb,
           noiseFloor: this.noiseFloor,
@@ -138,7 +139,7 @@ class VadProcessor extends AudioWorkletProcessor {
       this.loudFrameCount++;
       if (this.loudFrameCount >= this.sustainedFramesRequired) {
         // Fire interrupt!
-        this.port.postMessage({ type: 'BARGE_IN_DETECTED', rms, probability: this.frameProb });
+        this.port.postMessage({ type: "BARGE_IN_DETECTED", rms, probability: this.frameProb });
         this.loudFrameCount = 0; // reset to avoid spam
       }
     } else {
@@ -149,4 +150,4 @@ class VadProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('vad-processor', VadProcessor);
+registerProcessor("vad-processor", VadProcessor);

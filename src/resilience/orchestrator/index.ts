@@ -103,10 +103,7 @@ export class ResilienceOrchestrator {
     const sink = (e: ResilienceEvent) => this.handleEvent(e);
 
     // Phase 1
-    this.sttWatchdog.start(
-      (level) => this.handleSTTRecovery(level),
-      sink
-    );
+    this.sttWatchdog.start((level) => this.handleSTTRecovery(level), sink);
     this.audioWatchdog.start(
       {
         onResumeContext: async () => {
@@ -121,7 +118,7 @@ export class ResilienceOrchestrator {
           console.warn("[Orchestrator] Next chunk requested");
         },
       },
-      sink
+      sink,
     );
     this.networkMonitor.start(sink);
 
@@ -381,11 +378,11 @@ export class ResilienceOrchestrator {
     // Loop detection: too many of the same recovery in a short window
     const windowStart = now - RECOVERY_LOOP_WINDOW_MS;
     const recentSameType = this.recentRecoveries.filter(
-      (r) => this.actionKey(r.action) === key && r.ts > windowStart
+      (r) => this.actionKey(r.action) === key && r.ts > windowStart,
     );
     if (recentSameType.length >= RECOVERY_LOOP_THRESHOLD) {
       console.error(
-        `[Orchestrator] Recovery loop detected for "${key}" (${recentSameType.length} attempts in ${RECOVERY_LOOP_WINDOW_MS / 1000}s)`
+        `[Orchestrator] Recovery loop detected for "${key}" (${recentSameType.length} attempts in ${RECOVERY_LOOP_WINDOW_MS / 1000}s)`,
       );
       return false;
     }
@@ -412,9 +409,7 @@ export class ResilienceOrchestrator {
     // Route conversation events
     if (event.kind === "mode_changed") {
       // Update conversation preservation with mode context
-      this.conversationPreservation.updateEmotion(
-        `mode_${event.to.toLowerCase()}`
-      );
+      this.conversationPreservation.updateEmotion(`mode_${event.to.toLowerCase()}`);
     }
 
     // Broadcast to external listeners

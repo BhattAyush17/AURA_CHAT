@@ -107,15 +107,20 @@ export class MusicService {
   // --- Coordination: Aura Intelligence Entry Points ---
   async processIntent(
     intent:
-      | ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload>)
-      | { type: "pause" | "resume" | "stop" | "next" | "previous" },
+      | ({ type: string; text?: string; level?: number } & Partial<MusicIntentPayload> & {
+            startAtSeconds?: number;
+          })
+      | { type: "pause" | "resume" | "stop" | "next" | "previous" }
+      | { type: "seek"; positionMs?: number; seconds?: number },
   ) {
     console.log(`[MusicService] Processing intent:`, intent);
     const intentId = ++this.currentIntentId;
 
     switch (intent.type) {
       case "play":
-        const playIntent = intent as { type: "play" } & Partial<MusicIntentPayload>;
+        const playIntent = intent as { type: "play" } & Partial<MusicIntentPayload> & {
+            startAtSeconds?: number;
+          };
         let finalQuery = playIntent.query || "";
 
         // Formulate a semantic search query if none was provided
@@ -141,12 +146,23 @@ export class MusicService {
             if (playIntent.energy) bestTrack.energy = playIntent.energy;
             if (playIntent.genre) bestTrack.genre = playIntent.genre;
             if (playIntent.activity) bestTrack.activity = playIntent.activity;
-            await this.playTrack(bestTrack);
+            await this.playTrack(bestTrack, playIntent.startAtSeconds);
           } else {
             throw new Error(`No music found for search: ${finalQuery}`);
           }
         }
         break;
+      case "seek": {
+        const seekIntent = intent as { type: "seek"; positionMs?: number; seconds?: number };
+        if (seekIntent.positionMs !== undefined) {
+          await this.seek(seekIntent.positionMs);
+        } else if (seekIntent.seconds !== undefined) {
+          await this.seek(seekIntent.seconds * 1000);
+        } else {
+          throw new Error("Seek requested without a position.");
+        }
+        break;
+      }
       case "pause":
         await this.pause();
         break;
@@ -226,9 +242,10 @@ export class MusicService {
   }
 
   // --- Playback Pipeline ---
-  async playTrack(track: Track) {
+  async playTrack(track: Track, startAtSeconds?: number) {
     console.log(
-      `[MusicService] playTrack initiated for trackId=${track.id} title="${track.title}"`,
+      `[MusicService] playTrack initiated for trackId=${track.id} title="${track.title}"` +
+        (startAtSeconds !== undefined ? ` startAt=${startAtSeconds}s` : ""),
     );
     queueManager.addTrack(track, true);
     queueManager.getNext(); // advance
@@ -238,7 +255,7 @@ export class MusicService {
     this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
     try {
       await this.playbackProvider.setVolume(this.currentVolume);
-      await this.playbackProvider.play(track.id);
+      await this.playbackProvider.play(track.id, startAtSeconds);
     } catch (err: any) {
       console.error(`[MusicService] playTrack failed for trackId=${track.id}:`, err);
       playbackState.update({

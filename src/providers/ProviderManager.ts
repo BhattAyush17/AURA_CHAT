@@ -28,7 +28,7 @@ export class ProviderManager {
     reflective: { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
     chaotic: { provider: "openrouter", model: "deepseek/deepseek-chat" },
   };
-  
+
   private supervisor = new ProviderSupervisor();
 
   private constructor() {}
@@ -60,7 +60,7 @@ export class ProviderManager {
   public updateRouting(personality: string, provider: ProviderId, model: string) {
     this.optimalRouting[personality] = { provider, model };
   }
-  
+
   public getSupervisor() {
     return this.supervisor;
   }

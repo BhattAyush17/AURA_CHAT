@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-08-08T08:06:50.530Z",
+  "keyPrefix": "AQ.A…",
+  "latency": [],
+  "statusText": [],
+  "errText": [],
+  "consoleLogs": [
+    {
+      "t": 1786176335508,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786176335508,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786176335511,
+      "line": "[AURA] Resolved Identity: user_480186147665"
+    },
+    {
+      "t": 1786176335513,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    }
+  ]
+}

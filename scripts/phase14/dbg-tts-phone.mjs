@@ -17,13 +17,30 @@ const r = await page.evaluate(async () => {
   const events = [];
   const done = new Promise((res) => {
     const t = setTimeout(() => res("timeout"), 15000);
-    u.onstart = () => { events.push("start@" + Math.round(performance.now() - t0)); };
-    u.onend = () => { events.push("end@" + Math.round(performance.now() - t0)); clearTimeout(t); res("complete"); };
-    u.onerror = (e) => { events.push("error=" + e.error + "@" + Math.round(performance.now() - t0)); clearTimeout(t); res("error"); };
+    u.onstart = () => {
+      events.push("start@" + Math.round(performance.now() - t0));
+    };
+    u.onend = () => {
+      events.push("end@" + Math.round(performance.now() - t0));
+      clearTimeout(t);
+      res("complete");
+    };
+    u.onerror = (e) => {
+      events.push("error=" + e.error + "@" + Math.round(performance.now() - t0));
+      clearTimeout(t);
+      res("error");
+    };
   });
   speechSynthesis.speak(u);
   const outcome = await done;
-  return { voices: nv, outcome, events, paused: speechSynthesis.paused, pending: speechSynthesis.pending, speaking: speechSynthesis.speaking };
+  return {
+    voices: nv,
+    outcome,
+    events,
+    paused: speechSynthesis.paused,
+    pending: speechSynthesis.pending,
+    speaking: speechSynthesis.speaking,
+  };
 });
 console.log(JSON.stringify(r, null, 1));
 await page.close();

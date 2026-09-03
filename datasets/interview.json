@@ -1,0 +1,58 @@
+{
+  "id": "interview",
+  "name": "Interview",
+  "trust": 0.3,
+  "hasPersonalHistory": false,
+  "languageMode": "english",
+  "durationMinutes": 25,
+  "turns": [
+    {
+      "text": "Tell me about yourself.",
+      "behavior": {
+        "act": "question",
+        "tags": ["interview", "formal"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["PROFESSIONAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Why should we hire you?",
+      "behavior": {
+        "act": "question",
+        "tags": ["interview", "formal"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["PROFESSIONAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Describe one failure.",
+      "behavior": {
+        "act": "question",
+        "tags": ["interview", "formal"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Reflect", "Ask"],
+        "register": ["PROFESSIONAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

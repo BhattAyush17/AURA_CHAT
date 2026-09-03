@@ -52,10 +52,7 @@ export class SilenceProtection {
 
   // ── Lifecycle ───────────────────────────────────────────────────
 
-  start(
-    callbacks: SilenceProtectionCallbacks,
-    eventSink?: (e: ResilienceEvent) => void
-  ): void {
+  start(callbacks: SilenceProtectionCallbacks, eventSink?: (e: ResilienceEvent) => void): void {
     this.callbacks = callbacks;
     this.eventSink = eventSink ?? null;
     this.tickHandle = setInterval(() => this.tick(), CHECK_INTERVAL_MS);
@@ -102,7 +99,7 @@ export class SilenceProtection {
 
     const lastActivity = Math.max(
       this.callbacks.getLastActivityTs(),
-      this.callbacks.getLastTokenTs()
+      this.callbacks.getLastTokenTs(),
     );
 
     // If there's been no last activity recorded, use a fallback
@@ -117,9 +114,7 @@ export class SilenceProtection {
 
     // Too many consecutive fills → something is fundamentally wrong
     if (this.consecutiveFills >= MAX_CONSECUTIVE_FILLS) {
-      console.error(
-        "[SilenceProtection] Max consecutive fills reached. Triggering deep recovery."
-      );
+      console.error("[SilenceProtection] Max consecutive fills reached. Triggering deep recovery.");
 
       // Diagnose and recover
       if (!this.callbacks.isAudioContextAlive()) {

@@ -212,13 +212,20 @@ export class SessionReadinessManager {
 
   private getTimeoutCode(id: MilestoneId): ReadinessErrorCode {
     switch (id) {
-      case "credentials": return "MISSING_CREDENTIAL";
-      case "microphone": return "PCM_CAPTURE_TIMEOUT";
-      case "audio_output": return "OUTPUT_INITIALIZATION_FAILED";
-      case "gemini_session": return "GEMINI_CONNECTION_TIMEOUT";
-      case "input_path": return "PCM_CAPTURE_FAILED";
-      case "output_path": return "OUTPUT_INITIALIZATION_FAILED";
-      default: return "UNKNOWN";
+      case "credentials":
+        return "MISSING_CREDENTIAL";
+      case "microphone":
+        return "PCM_CAPTURE_TIMEOUT";
+      case "audio_output":
+        return "OUTPUT_INITIALIZATION_FAILED";
+      case "gemini_session":
+        return "GEMINI_CONNECTION_TIMEOUT";
+      case "input_path":
+        return "PCM_CAPTURE_FAILED";
+      case "output_path":
+        return "OUTPUT_INITIALIZATION_FAILED";
+      default:
+        return "UNKNOWN";
     }
   }
 

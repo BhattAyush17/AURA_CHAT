@@ -43,19 +43,19 @@ trace, and two harnesses that hold it to account.
 
 `understand(ctx)` (ConversationUnderstanding.ts:447) builds and deep-freezes:
 
-| Field | What it carries |
-|---|---|
-| `literal` | 15-class surface meaning: greeting, question, answer, story, opinion, correction, repair, goodbye, silence, thinking, trailing, retraction, request, backchannel, statement |
-| `move` | 12-class evidence-weighted move (Ask/Answer/Comfort/Challenge/Clarify/Repair/Reflect/Explore/Observe/Continue/Close/Wait) |
+| Field         | What it carries                                                                                                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `literal`     | 15-class surface meaning: greeting, question, answer, story, opinion, correction, repair, goodbye, silence, thinking, trailing, retraction, request, backchannel, statement                         |
+| `move`        | 12-class evidence-weighted move (Ask/Answer/Comfort/Challenge/Clarify/Repair/Reflect/Explore/Observe/Continue/Close/Wait)                                                                           |
 | `speakerGoal` | seek-information, seek-comfort, express-uncertainty, repair, drop-thread, think-aloud, small-talk, close, teach, debate, share-excitement, complain, tell-story, test-aura, seek-validation, inform |
-| `expected` | what AURA should do back: information, empathy, agreement, challenge, clarification, advice, listening, silence, follow-up |
-| `implicit` | label + confidence + reasoning + alternatives (`not-fine`, `needs-empathy`, `seeking-reassurance`, `dissatisfied`, `withdrawing`, `fine`, `hidden-request`) |
-| `social` | SocialSignal[] — sarcasm, irony, hesitation, withdrawal, excitement, playfulness, frustration, embarrassment, user-confidence, politeness, disengagement — each with confidence + evidence |
-| `state` | opening, building, deepening, conflict, repair, reflection, topic-shift, ending |
-| `shared` | openQuestion, repairPending, topicUnfinished, emotionUnresolved, branchActive + human-readable notes |
-| `confidence` | value (0.35–0.95), full reasoning trace, ranked alternatives with probabilities |
-| `context` | sttConfidence, wordCount, silenceMs, turnCount, memoryConflict, ambiguityTagged, engagement, vulnerability, tension, frustration |
-| `raw` | original text, cleaned text, isQuestion |
+| `expected`    | what AURA should do back: information, empathy, agreement, challenge, clarification, advice, listening, silence, follow-up                                                                          |
+| `implicit`    | label + confidence + reasoning + alternatives (`not-fine`, `needs-empathy`, `seeking-reassurance`, `dissatisfied`, `withdrawing`, `fine`, `hidden-request`)                                         |
+| `social`      | SocialSignal[] — sarcasm, irony, hesitation, withdrawal, excitement, playfulness, frustration, embarrassment, user-confidence, politeness, disengagement — each with confidence + evidence          |
+| `state`       | opening, building, deepening, conflict, repair, reflection, topic-shift, ending                                                                                                                     |
+| `shared`      | openQuestion, repairPending, topicUnfinished, emotionUnresolved, branchActive + human-readable notes                                                                                                |
+| `confidence`  | value (0.35–0.95), full reasoning trace, ranked alternatives with probabilities                                                                                                                     |
+| `context`     | sttConfidence, wordCount, silenceMs, turnCount, memoryConflict, ambiguityTagged, engagement, vulnerability, tension, frustration                                                                    |
+| `raw`         | original text, cleaned text, isQuestion                                                                                                                                                             |
 
 Every node is `Object.freeze`d; the same object is embedded in the
 `ExecutionPlan` (`plan.understanding`) so downstream telemetry and policies
@@ -180,28 +180,28 @@ scenarios**, each annotated with a human conversationalist's ground truth
 (move, goal, expected, state, implicit, accepted strategy, social signal
 presence/absence).
 
-| Metric | Result |
-|---|---|
-| Move accuracy | 100% (154/154) |
-| Speaker goal accuracy | 100% (154/154) |
-| Expected response accuracy | 100% (114/114) |
-| State accuracy | 100% (37/37) |
-| Implicit meaning accuracy | 100% (152/152) |
-| Strategy accuracy | 100% (15/15) |
-| Social: sarcasm F1 | 100% (tp=7, fp=0, fn=0) |
-| Social: hesitation F1 | 100% (tp=6, fp=0, fn=0) |
-| Social: withdrawal F1 | 100% (tp=1, fp=0, fn=0) |
-| Human agreement (strict, full surface) | 100% (154/154) |
-| **Conversation Understanding Index** | **100 / 100** |
+| Metric                                 | Result                  |
+| -------------------------------------- | ----------------------- |
+| Move accuracy                          | 100% (154/154)          |
+| Speaker goal accuracy                  | 100% (154/154)          |
+| Expected response accuracy             | 100% (114/114)          |
+| State accuracy                         | 100% (37/37)            |
+| Implicit meaning accuracy              | 100% (152/152)          |
+| Strategy accuracy                      | 100% (15/15)            |
+| Social: sarcasm F1                     | 100% (tp=7, fp=0, fn=0) |
+| Social: hesitation F1                  | 100% (tp=6, fp=0, fn=0) |
+| Social: withdrawal F1                  | 100% (tp=1, fp=0, fn=0) |
+| Human agreement (strict, full surface) | 100% (154/154)          |
+| **Conversation Understanding Index**   | **100 / 100**           |
 
 Confidence calibration (decision correctness vs. confidence bin):
 
-| Bin | Accuracy |
-|---|---|
+| Bin       | Accuracy                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 0.40–0.55 | no samples — the evidence-weighted formula floors near 0.5 by design; CUE refuses confident-sounding guesses but its floor is honest |
-| 0.55–0.70 | 100% (2/2) |
-| 0.70–0.85 | 100% (31/31) |
-| 0.85–1.00 | 100% (121/121) |
+| 0.55–0.70 | 100% (2/2)                                                                                                                           |
+| 0.70–0.85 | 100% (31/31)                                                                                                                         |
+| 0.85–1.00 | 100% (121/121)                                                                                                                       |
 
 The empty lowest bin is a documented design property: understanding
 confidence is a softmax over evidence weights, so genuinely ambiguous turns
@@ -246,16 +246,16 @@ module); eslint clean on all touched files.
 
 ## 10. What the Executive consumes (before → after)
 
-| Policy | Before | After |
-|---|---|---|
-| StrategyPlanner | own detectors (isRejection, isIrony…) | `u.literal`, `u.speakerGoal`, `u.state`, `u.social`, `u.raw.isQuestion` only |
-| ClarificationPolicy | own heuristics | `u.move`, `u.speakerGoal`, `u.context` flags |
-| InitiativePolicy | own regexes | `u.literal` (goodbye/thinking), `u.move` |
-| MemoryPolicy / InformationBudget | raw input reads | `u` context + move |
-| ConfidenceManager | raw inputs | `u.context.sttConfidence`, `u.confidence.value`, `u.speakerGoal` (fused) |
-| SpeechBehaviorPlanner | emotion only | `u.social` (hesitation → thinking pauses) |
-| ObservableThinking | own question regex | `u.raw.isQuestion`, `u.move` |
-| ReflectionEngine | own turn reading | `plan.understanding` (move + expected) |
+| Policy                           | Before                                | After                                                                        |
+| -------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| StrategyPlanner                  | own detectors (isRejection, isIrony…) | `u.literal`, `u.speakerGoal`, `u.state`, `u.social`, `u.raw.isQuestion` only |
+| ClarificationPolicy              | own heuristics                        | `u.move`, `u.speakerGoal`, `u.context` flags                                 |
+| InitiativePolicy                 | own regexes                           | `u.literal` (goodbye/thinking), `u.move`                                     |
+| MemoryPolicy / InformationBudget | raw input reads                       | `u` context + move                                                           |
+| ConfidenceManager                | raw inputs                            | `u.context.sttConfidence`, `u.confidence.value`, `u.speakerGoal` (fused)     |
+| SpeechBehaviorPlanner            | emotion only                          | `u.social` (hesitation → thinking pauses)                                    |
+| ObservableThinking               | own question regex                    | `u.raw.isQuestion`, `u.move`                                                 |
+| ReflectionEngine                 | own turn reading                      | `plan.understanding` (move + expected)                                       |
 
 Nothing below the Executive interprets the conversation. The LLM receives
 only the chosen strategy. AURA finally knows — deterministically, measured —

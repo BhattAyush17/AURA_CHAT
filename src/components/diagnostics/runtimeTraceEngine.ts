@@ -152,7 +152,11 @@ class RuntimeTraceEngine {
 
     // Notify listeners
     for (const listener of this.listeners) {
-      try { listener(event); } catch { /* diagnostics must never crash */ }
+      try {
+        listener(event);
+      } catch {
+        /* diagnostics must never crash */
+      }
     }
 
     return event;
@@ -165,7 +169,8 @@ class RuntimeTraceEngine {
 
     // MIC
     if (stage === "MIC_STREAM_ACQUIRED" && status === "ok") this.healthState.mic = "RUNNING";
-    else if (stage === "MIC_PERMISSION_CHECK" && status === "error") this.healthState.mic = "FAILED";
+    else if (stage === "MIC_PERMISSION_CHECK" && status === "error")
+      this.healthState.mic = "FAILED";
 
     // STT
     if (stage === "STT_STARTED") this.healthState.stt = "RUNNING";
@@ -173,7 +178,8 @@ class RuntimeTraceEngine {
     else if (stage === "STT_ERROR") this.healthState.stt = "FAILED";
 
     // VAD
-    if (stage === "VAD_STARTED" || stage === "VAD_SPEECH_DETECTED") this.healthState.vad = "RUNNING";
+    if (stage === "VAD_STARTED" || stage === "VAD_SPEECH_DETECTED")
+      this.healthState.vad = "RUNNING";
     else if (stage === "VAD_STOPPED" || stage === "VAD_TIMEOUT") this.healthState.vad = "IDLE";
 
     // WS
@@ -228,8 +234,13 @@ class RuntimeTraceEngine {
   clear(): void {
     this.events = [];
     this.healthState = {
-      mic: "IDLE", stt: "IDLE", vad: "IDLE",
-      ws: "IDLE", llm: "IDLE", tts: "IDLE", playback: "IDLE",
+      mic: "IDLE",
+      stt: "IDLE",
+      vad: "IDLE",
+      ws: "IDLE",
+      llm: "IDLE",
+      tts: "IDLE",
+      playback: "IDLE",
     };
   }
 
@@ -237,7 +248,9 @@ class RuntimeTraceEngine {
 
   subscribe(listener: TraceListener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   // ─── Latency Breakdown ───────────────────────────────────────────
@@ -305,7 +318,11 @@ class RuntimeTraceEngine {
     const detailsLower = (details || "").toLowerCase();
 
     // Permission denied
-    if (stage === "MIC_PERMISSION_CHECK" || (errLower.includes("notallowed") || errLower.includes("permission"))) {
+    if (
+      stage === "MIC_PERMISSION_CHECK" ||
+      errLower.includes("notallowed") ||
+      errLower.includes("permission")
+    ) {
       return {
         rootCause: "Microphone Permission Denied",
         confidence: 100,
@@ -505,14 +522,20 @@ class RuntimeTraceEngine {
             this.emit("AUDIOCONTEXT_CLOSED", "warning", "AudioContext closed");
           }
         }
-      } catch { /* safe */ }
+      } catch {
+        /* safe */
+      }
     }, 2000);
     this.passiveCleanups.push(() => clearInterval(audioPoller));
   }
 
   stopPassiveMonitors(): void {
     for (const cleanup of this.passiveCleanups) {
-      try { cleanup(); } catch { /* safe */ }
+      try {
+        cleanup();
+      } catch {
+        /* safe */
+      }
     }
     this.passiveCleanups = [];
   }

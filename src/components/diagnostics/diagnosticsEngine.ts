@@ -140,19 +140,35 @@ export function probeDevice(): DeviceInfo {
     };
   } catch {
     return {
-      browser: "Unknown", browserVersion: "0", platform: "unknown",
-      userAgent: "", mobile: false, screenWidth: 0, screenHeight: 0,
-      devicePixelRatio: 1, online: false, hardwareConcurrency: 0,
-      deviceMemory: null, language: "en", touchSupport: false,
+      browser: "Unknown",
+      browserVersion: "0",
+      platform: "unknown",
+      userAgent: "",
+      mobile: false,
+      screenWidth: 0,
+      screenHeight: 0,
+      devicePixelRatio: 1,
+      online: false,
+      hardwareConcurrency: 0,
+      deviceMemory: null,
+      language: "en",
+      touchSupport: false,
     };
   }
 }
 
 export async function probeMicrophone(): Promise<MicrophoneInfo> {
   const base: MicrophoneInfo = {
-    supported: false, permission: "unknown", stream: false,
-    failureReason: null, sampleRate: null, channelCount: null, label: null,
-    echoCancellation: null, noiseSuppression: null, autoGainControl: null
+    supported: false,
+    permission: "unknown",
+    stream: false,
+    failureReason: null,
+    sampleRate: null,
+    channelCount: null,
+    label: null,
+    echoCancellation: null,
+    noiseSuppression: null,
+    autoGainControl: null,
   };
 
   try {
@@ -164,7 +180,9 @@ export async function probeMicrophone(): Promise<MicrophoneInfo> {
 
     // Check permission state (non-destructive — doesn't trigger prompt)
     try {
-      const permStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
+      const permStatus = await navigator.permissions.query({
+        name: "microphone" as PermissionName,
+      });
       base.permission = permStatus.state;
     } catch {
       base.permission = "unknown";
@@ -211,7 +229,13 @@ export function probeAudioContext(): AudioContextInfo {
   try {
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!AC) {
-      return { available: false, engine: "none", state: "unavailable", sampleRate: null, maxChannelCount: null };
+      return {
+        available: false,
+        engine: "none",
+        state: "unavailable",
+        sampleRate: null,
+        maxChannelCount: null,
+      };
     }
 
     const engine = (window as any).AudioContext ? "AudioContext" : "webkitAudioContext";
@@ -226,7 +250,13 @@ export function probeAudioContext(): AudioContextInfo {
     ctx.close().catch(() => {});
     return info;
   } catch {
-    return { available: false, engine: "none", state: "unavailable", sampleRate: null, maxChannelCount: null };
+    return {
+      available: false,
+      engine: "none",
+      state: "unavailable",
+      sampleRate: null,
+      maxChannelCount: null,
+    };
   }
 }
 
@@ -270,10 +300,18 @@ export async function probeWebSocket(): Promise<WebSocketInfo> {
         ws.close();
         // WebSocket connectivity test failed — but that's expected in many
         // environments. We still mark it as tested.
-        resolve({ connected: false, latencyMs: null, failureReason: "WebSocket connection failed (echo server may be unavailable)" });
+        resolve({
+          connected: false,
+          latencyMs: null,
+          failureReason: "WebSocket connection failed (echo server may be unavailable)",
+        });
       };
     } catch (err: any) {
-      resolve({ connected: false, latencyMs: null, failureReason: err?.message || "WebSocket not supported" });
+      resolve({
+        connected: false,
+        latencyMs: null,
+        failureReason: err?.message || "WebSocket not supported",
+      });
     }
   });
 }
@@ -342,7 +380,14 @@ export function computeCompatibility(
 
   // Weighted scoring: mic + speech + audio + playback are critical (20% each),
   // WebSocket and Wake Lock are nice-to-have (10% each)
-  const weights = { microphone: 20, speechRecognition: 20, audioEngine: 20, playback: 20, webSocket: 10, wakeLock: 10 };
+  const weights = {
+    microphone: 20,
+    speechRecognition: 20,
+    audioEngine: 20,
+    playback: 20,
+    webSocket: 10,
+    wakeLock: 10,
+  };
   let score = 0;
   for (const [key, passed] of Object.entries(checks)) {
     if (passed) score += weights[key as keyof typeof weights];
@@ -364,7 +409,14 @@ export async function runFullDiagnostics(): Promise<DiagnosticSnapshot> {
   const audio = probeAudioContext();
   const speech = probeSpeechRecognition();
   const wakeLock = probeWakeLock();
-  const compatibility = computeCompatibility(microphone, speech, audio, playback, websocket, wakeLock);
+  const compatibility = computeCompatibility(
+    microphone,
+    speech,
+    audio,
+    playback,
+    websocket,
+    wakeLock,
+  );
 
   const snapshot: DiagnosticSnapshot = {
     timestamp: Date.now(),

@@ -28,19 +28,21 @@ export class SenseRegistry {
   /**
    * Register a coming-soon placeholder (no implementation required).
    */
-  registerPlaceholder(manifestPartial: Partial<SenseManifest> & { id: string, displayName: string, icon: string }): void {
+  registerPlaceholder(
+    manifestPartial: Partial<SenseManifest> & { id: string; displayName: string; icon: string },
+  ): void {
     this.entries.set(manifestPartial.id, {
       sense: null,
       manifest: {
         id: manifestPartial.id,
         displayName: manifestPartial.displayName,
         icon: manifestPartial.icon,
-        description: manifestPartial.description || '',
-        version: manifestPartial.version || '0.0.0',
+        description: manifestPartial.description || "",
+        version: manifestPartial.version || "0.0.0",
         dependencies: manifestPartial.dependencies || [],
         capabilities: manifestPartial.capabilities || [],
         providerRequirements: manifestPartial.providerRequirements || [],
-        requiredPermissions: manifestPartial.requiredPermissions || []
+        requiredPermissions: manifestPartial.requiredPermissions || [],
       },
       available: false,
     });

@@ -1,0 +1,46 @@
+{
+  "dataset": "sarcasm",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 78,
+    "avgHumanity": 8,
+    "realism": 8,
+    "productionReady": false,
+    "pipelineMsAvg": 1647
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 67,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1141,
+      "llmWords": 3
+    },
+    {
+      "turn": 2,
+      "strategy": "Ask",
+      "fidelity": 100,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 2633,
+      "llmWords": 5
+    },
+    {
+      "turn": 3,
+      "strategy": "Ask",
+      "fidelity": 67,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1166,
+      "llmWords": 7
+    }
+  ]
+}

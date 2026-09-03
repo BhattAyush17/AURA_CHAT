@@ -1,0 +1,1598 @@
+{
+  "capturedAt": "2026-08-08T13:18:38.396Z",
+  "durationMs": 180000,
+  "latency": [
+    {
+      "t": 7008.4000000003725,
+      "d": {
+        "type": {
+          "geminiConnect": 889.8999999994412,
+          "geminiSetup": 889.6999999992549
+        }
+      }
+    },
+    {
+      "t": 7012.799999999814,
+      "d": {
+        "type": "memoryLayer",
+        "value": "live"
+      }
+    },
+    {
+      "t": 8433.799999999814,
+      "d": {
+        "type": "firstToken",
+        "value": 8433.700000000186
+      }
+    },
+    {
+      "t": 8836.099999999627,
+      "d": {
+        "type": {
+          "roundTrip": 8836,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 8982.900000000373,
+      "d": {
+        "type": {
+          "roundTrip": 8982.799999999814,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9369.900000000373,
+      "d": {
+        "type": {
+          "roundTrip": 9369.799999999814,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9370.400000000373,
+      "d": {
+        "type": {
+          "roundTrip": 9370.400000000373,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9370.599999999627,
+      "d": {
+        "type": {
+          "roundTrip": 9370.599999999627,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9370.900000000373,
+      "d": {
+        "type": {
+          "roundTrip": 9370.900000000373,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9474.900000000373,
+      "d": {
+        "type": {
+          "roundTrip": 9474.799999999814,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9488.5,
+      "d": {
+        "type": {
+          "roundTrip": 9488.5,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9507.299999999814,
+      "d": {
+        "type": {
+          "roundTrip": 9507.200000000186,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9522.299999999814,
+      "d": {
+        "type": {
+          "roundTrip": 9522.200000000186,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9539.799999999814,
+      "d": {
+        "type": {
+          "roundTrip": 9539.700000000186,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9546.700000000186,
+      "d": {
+        "type": {
+          "roundTrip": 9546.400000000373,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 9563.799999999814,
+      "d": {
+        "type": {
+          "roundTrip": 9563.799999999814,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 10943.099999999627,
+      "d": {
+        "type": {
+          "turnTokens": 6364,
+          "tokenThroughput": 0
+        }
+      }
+    },
+    {
+      "t": 18027.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 3441.199999999255
+      }
+    },
+    {
+      "t": 18094.599999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 66.80000000074506
+      }
+    },
+    {
+      "t": 18311.599999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 217.09999999962747
+      }
+    },
+    {
+      "t": 18378.400000000373,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 66.70000000018626
+      }
+    },
+    {
+      "t": 20588.700000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2210.5
+      }
+    },
+    {
+      "t": 20982.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 393.5
+      }
+    },
+    {
+      "t": 21760.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 778.5999999996275
+      }
+    },
+    {
+      "t": 23815.700000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2054.9000000003725
+      }
+    },
+    {
+      "t": 25667.099999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1851.2999999998137
+      }
+    },
+    {
+      "t": 25782.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 115.20000000018626
+      }
+    },
+    {
+      "t": 25846.599999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 64.29999999981374
+      }
+    },
+    {
+      "t": 28385,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2538.4000000003725
+      }
+    },
+    {
+      "t": 30870.400000000373,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2485.5
+      }
+    },
+    {
+      "t": 30947.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 77.19999999925494
+      }
+    },
+    {
+      "t": 31083.900000000373,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 136.20000000018626
+      }
+    },
+    {
+      "t": 31247.099999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 163.29999999981374
+      }
+    },
+    {
+      "t": 31581.200000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 334
+      }
+    },
+    {
+      "t": 31899.400000000373,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 318.20000000018626
+      }
+    },
+    {
+      "t": 31980.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 81
+      }
+    },
+    {
+      "t": 32048.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 68.40000000037253
+      }
+    },
+    {
+      "t": 32216.200000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 167.3999999994412
+      }
+    },
+    {
+      "t": 32289.099999999627,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 72.90000000037253
+      }
+    },
+    {
+      "t": 32702.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 413.20000000018626
+      }
+    },
+    {
+      "t": 33334.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 632.2000000001863
+      }
+    },
+    {
+      "t": 38118,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 4783.5999999996275
+      }
+    },
+    {
+      "t": 38209.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 91.29999999981374
+      }
+    },
+    {
+      "t": 39105.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 896.1000000005588
+      }
+    },
+    {
+      "t": 39806.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 700.8999999994412
+      }
+    },
+    {
+      "t": 39952.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 145.90000000037253
+      }
+    },
+    {
+      "t": 40401.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 449.20000000018626
+      }
+    },
+    {
+      "t": 41317,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 915.5
+      }
+    },
+    {
+      "t": 41392.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 75.29999999981374
+      }
+    },
+    {
+      "t": 41691.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 299.70000000018626
+      }
+    },
+    {
+      "t": 45714.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 4021.899999999441
+      }
+    },
+    {
+      "t": 45765.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 51.700000000186265
+      }
+    },
+    {
+      "t": 45827.700000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 62
+      }
+    },
+    {
+      "t": 45914.200000000186,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 86.70000000018626
+      }
+    },
+    {
+      "t": 49089.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 3174.7000000001863
+      }
+    },
+    {
+      "t": 49912.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 823.3999999994412
+      }
+    },
+    {
+      "t": 50140.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 228
+      }
+    },
+    {
+      "t": 50295.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 155.40000000037253
+      }
+    },
+    {
+      "t": 50753.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 457.29999999981374
+      }
+    },
+    {
+      "t": 51387.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 633.9000000003725
+      }
+    },
+    {
+      "t": 57574.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 6187.5999999996275
+      }
+    },
+    {
+      "t": 57638.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 63.40000000037253
+      }
+    },
+    {
+      "t": 57712.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 74.8999999994412
+      }
+    },
+    {
+      "t": 57852.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 139.90000000037253
+      }
+    },
+    {
+      "t": 57923.799999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 70.8999999994412
+      }
+    },
+    {
+      "t": 58181,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 257.20000000018626
+      }
+    },
+    {
+      "t": 58318.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 137.40000000037253
+      }
+    },
+    {
+      "t": 58381.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 62.89999999944121
+      }
+    },
+    {
+      "t": 58446.299999999814,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 65
+      }
+    },
+    {
+      "t": 58535.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 89.1000000005588
+      }
+    },
+    {
+      "t": 59454.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 918.2000000001863
+      }
+    },
+    {
+      "t": 60104.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 650.8999999994412
+      }
+    },
+    {
+      "t": 65450.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 5346.200000000186
+      }
+    },
+    {
+      "t": 65590.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 140.29999999981374
+      }
+    },
+    {
+      "t": 65734.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 143.20000000018626
+      }
+    },
+    {
+      "t": 65853.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 119.20000000018626
+      }
+    },
+    {
+      "t": 66072.70000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 219.3999999994412
+      }
+    },
+    {
+      "t": 66130.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 57.5
+      }
+    },
+    {
+      "t": 67005.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 875.4000000003725
+      }
+    },
+    {
+      "t": 72240.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 5234.4000000003725
+      }
+    },
+    {
+      "t": 74271.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2031.2999999998137
+      }
+    },
+    {
+      "t": 74325.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 54.09999999962747
+      }
+    },
+    {
+      "t": 74396.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 70.70000000018626
+      }
+    },
+    {
+      "t": 74481.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 85.20000000018626
+      }
+    },
+    {
+      "t": 74759.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 278
+      }
+    },
+    {
+      "t": 74834.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 74.79999999981374
+      }
+    },
+    {
+      "t": 74886.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 52.799999999813735
+      }
+    },
+    {
+      "t": 74962.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 75.40000000037253
+      }
+    },
+    {
+      "t": 75026.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 63.89999999944121
+      }
+    },
+    {
+      "t": 75125.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 99.1000000005588
+      }
+    },
+    {
+      "t": 75242.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 117.09999999962747
+      }
+    },
+    {
+      "t": 75386.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 143.79999999981374
+      }
+    },
+    {
+      "t": 77689,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2302.800000000745
+      }
+    },
+    {
+      "t": 77757.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 68.5
+      }
+    },
+    {
+      "t": 78738.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 980.6999999992549
+      }
+    },
+    {
+      "t": 80083.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1345.4000000003725
+      }
+    },
+    {
+      "t": 80494.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 410.70000000018626
+      }
+    },
+    {
+      "t": 80552,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 57.700000000186265
+      }
+    },
+    {
+      "t": 81000.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 448.09999999962747
+      }
+    },
+    {
+      "t": 82016.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1016.7999999998137
+      }
+    },
+    {
+      "t": 82115.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 98.20000000018626
+      }
+    },
+    {
+      "t": 85692.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 3577.4000000003725
+      }
+    },
+    {
+      "t": 88097.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2405.2999999998137
+      }
+    },
+    {
+      "t": 88470.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 372.79999999981374
+      }
+    },
+    {
+      "t": 88994.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 523.5999999996275
+      }
+    },
+    {
+      "t": 89090.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 96.30000000074506
+      }
+    },
+    {
+      "t": 89807.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 717
+      }
+    },
+    {
+      "t": 91400.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1592.7999999998137
+      }
+    },
+    {
+      "t": 92074.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 674.5
+      }
+    },
+    {
+      "t": 92240.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 165.59999999962747
+      }
+    },
+    {
+      "t": 92420.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 179.70000000018626
+      }
+    },
+    {
+      "t": 93726.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1306.7999999998137
+      }
+    },
+    {
+      "t": 96180,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2453.100000000559
+      }
+    },
+    {
+      "t": 96668.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 488.19999999925494
+      }
+    },
+    {
+      "t": 96738.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 69.90000000037253
+      }
+    },
+    {
+      "t": 96839.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 101
+      }
+    },
+    {
+      "t": 96946.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 106.90000000037253
+      }
+    },
+    {
+      "t": 98725.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1779.699999999255
+      }
+    },
+    {
+      "t": 100090.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1364.6000000005588
+      }
+    },
+    {
+      "t": 103873.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 3783
+      }
+    },
+    {
+      "t": 103957.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 84.20000000018626
+      }
+    },
+    {
+      "t": 104068.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 110.59999999962747
+      }
+    },
+    {
+      "t": 104129,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 60.799999999813735
+      }
+    },
+    {
+      "t": 108927.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 4798.700000000186
+      }
+    },
+    {
+      "t": 109128.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 201.09999999962747
+      }
+    },
+    {
+      "t": 109352.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 224.1000000005588
+      }
+    },
+    {
+      "t": 109413.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 60.200000000186265
+      }
+    },
+    {
+      "t": 109540,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 127
+      }
+    },
+    {
+      "t": 109626.40000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 86.5
+      }
+    },
+    {
+      "t": 109690.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 64.29999999981374
+      }
+    },
+    {
+      "t": 109749.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 58.39999999944121
+      }
+    },
+    {
+      "t": 109814.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 65
+      }
+    },
+    {
+      "t": 109899.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 85.1000000005588
+      }
+    },
+    {
+      "t": 110776,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 876.7000000001863
+      }
+    },
+    {
+      "t": 111099.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 323.3999999994412
+      }
+    },
+    {
+      "t": 111299.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 199.90000000037253
+      }
+    },
+    {
+      "t": 111974.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 675.0999999996275
+      }
+    },
+    {
+      "t": 112726.70000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 752.2000000001863
+      }
+    },
+    {
+      "t": 113063.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 336.90000000037253
+      }
+    },
+    {
+      "t": 113233.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 170.29999999981374
+      }
+    },
+    {
+      "t": 113389.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 155.70000000018626
+      }
+    },
+    {
+      "t": 113706.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 317
+      }
+    },
+    {
+      "t": 114463.09999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 756.5
+      }
+    },
+    {
+      "t": 115426.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 963.1999999992549
+      }
+    },
+    {
+      "t": 115766.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 340.70000000018626
+      }
+    },
+    {
+      "t": 115831.70000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 64.6000000005588
+      }
+    },
+    {
+      "t": 119037.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 3205.5999999996275
+      }
+    },
+    {
+      "t": 120303.79999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1266.7999999998137
+      }
+    },
+    {
+      "t": 120486,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 182.20000000018626
+      }
+    },
+    {
+      "t": 122933,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 2446.7000000001863
+      }
+    },
+    {
+      "t": 122991.29999999981,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 58.5
+      }
+    },
+    {
+      "t": 124167.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1176.2000000001863
+      }
+    },
+    {
+      "t": 125033.59999999963,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 866.0999999996275
+      }
+    },
+    {
+      "t": 125099.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 65.70000000018626
+      }
+    },
+    {
+      "t": 126001.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 901.8999999994412
+      }
+    },
+    {
+      "t": 127084.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1083.7000000001863
+      }
+    },
+    {
+      "t": 127149,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 64.1000000005588
+      }
+    },
+    {
+      "t": 128206.90000000037,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1057.8999999994412
+      }
+    },
+    {
+      "t": 129206.20000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 999.2999999998137
+      }
+    },
+    {
+      "t": 129267.70000000019,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 61.60000000055879
+      }
+    },
+    {
+      "t": 130512.5,
+      "d": {
+        "type": "audioChunkInterval",
+        "value": 1244.2000000001863
+      }
+    },
+    {
+      "t": 182405.59999999963,
+      "d": {
+        "type": {
+          "geminiConnect": 1954.2000000001863,
+          "geminiSetup": 1954.2000000001863
+        }
+      }
+    },
+    {
+      "t": 182406.59999999963,
+      "d": {
+        "type": "memoryLayer",
+        "value": "live"
+      }
+    },
+    {
+      "t": 184249.2999999998,
+      "d": {
+        "type": "firstToken",
+        "value": 184249.2000000002
+      }
+    },
+    {
+      "t": 184256.2999999998,
+      "d": {
+        "type": {
+          "roundTrip": 184256.2000000002,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184695.7999999998,
+      "d": {
+        "type": {
+          "roundTrip": 184695.59999999963,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184696.59999999963,
+      "d": {
+        "type": {
+          "roundTrip": 184696.5,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184697,
+      "d": {
+        "type": {
+          "roundTrip": 184697,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184801.2000000002,
+      "d": {
+        "type": {
+          "roundTrip": 184801.2000000002,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184835.59999999963,
+      "d": {
+        "type": {
+          "roundTrip": 184835.59999999963,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184859,
+      "d": {
+        "type": {
+          "roundTrip": 184858.90000000037,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184892,
+      "d": {
+        "type": {
+          "roundTrip": 184892,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184950.90000000037,
+      "d": {
+        "type": {
+          "roundTrip": 184950.90000000037,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184968.09999999963,
+      "d": {
+        "type": {
+          "roundTrip": 184967.90000000037,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184983.5,
+      "d": {
+        "type": {
+          "roundTrip": 184983.5,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184984.2000000002,
+      "d": {
+        "type": {
+          "roundTrip": 184984.09999999963,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184998.2000000002,
+      "d": {
+        "type": {
+          "roundTrip": 184998.09999999963,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 184998.7999999998,
+      "d": {
+        "type": {
+          "roundTrip": 184998.7999999998,
+          "geminiGenStart": 0
+        }
+      }
+    },
+    {
+      "t": 185019.2000000002,
+      "d": {
+        "type": {
+          "roundTrip": 185019.2000000002,
+          "geminiGenStart": 0
+        }
+      }
+    }
+  ],
+  "trace": [],
+  "consoleLogs": [
+    {
+      "t": 1786194927437,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786194927457,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786194928251,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786194928281,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786194928338,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194928352,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194928354,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786194928355,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786194928357,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786194928364,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786194928380,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194928389,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786194928389,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786194928414,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786194928414,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786194928609,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786194932379,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786194932406,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786194932921,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786194932939,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786194933018,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194933028,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194933029,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786194933030,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786194933030,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786194933038,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786194933051,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786194933058,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786194933059,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786194933076,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786194933078,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786194933248,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786194938339,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786194938339,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786194938343,
+      "line": "[AURA] Resolved Identity: user_0fd5220fc2e4"
+    },
+    {
+      "t": 1786194938343,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786194938437,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786194939345,
+      "line": "[AURA] ✓ Connected to models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786194939349,
+      "line": "[2026-08-08T13:15:39.347Z] LISTENING"
+    },
+    {
+      "t": 1786194939507,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786194939618,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786194941173,
+      "line": "[2026-08-08T13:15:41.171Z] AURA_SPEAKING"
+    },
+    {
+      "t": 1786194941174,
+      "line": "[AURA] ⏱ Response delay: 227ms"
+    },
+    {
+      "t": 1786194941174,
+      "line": "[SHADOW TIMING] ⏱ Turn turn_8838 | Legacy: 227ms | HRTE: 300ms | Delta: 73ms"
+    },
+    {
+      "t": 1786194943280,
+      "line": "[2026-08-08T13:15:43.278Z] POST_SPEECH_GRACE"
+    },
+    {
+      "t": 1786194943531,
+      "line": "[2026-08-08T13:15:43.529Z] IDLE"
+    },
+    {
+      "t": 1786194943583,
+      "line": "[2026-08-08T13:15:43.581Z] LISTENING"
+    },
+    {
+      "t": 1786194954494,
+      "line": "[AURA] 👁️ Tab hidden. AudioContext remains running to preserve mic input."
+    },
+    {
+      "t": 1786194955789,
+      "line": "[AURA] 👁️ Tab visible."
+    },
+    {
+      "t": 1786195068036,
+      "line": "[Gemini Live] Hook is inactive, triggering teardown..."
+    },
+    {
+      "t": 1786195068049,
+      "line": "[2026-08-08T13:17:48.044Z] IDLE"
+    },
+    {
+      "t": 1786195068075,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786195068363,
+      "line": "[AURA_API_FAIL] ⚠️ WebSocket CLOSED. Object"
+    },
+    {
+      "t": 1786195070194,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786195073473,
+      "line": "[SpeechCoordinator] 🛑 Flushing stale streams..."
+    },
+    {
+      "t": 1786195112645,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786195112645,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786195112648,
+      "line": "[AURA] Resolved Identity: user_0fd5220fc2e4"
+    },
+    {
+      "t": 1786195112668,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786195112771,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786195114741,
+      "line": "[AURA] ✓ Connected to models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786195114742,
+      "line": "[2026-08-08T13:18:34.741Z] LISTENING"
+    },
+    {
+      "t": 1786195114871,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786195114872,
+      "line": "[Telemetry] IdleSupervisor: Object"
+    },
+    {
+      "t": 1786195115013,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786195116593,
+      "line": "[2026-08-08T13:18:36.591Z] AURA_SPEAKING"
+    },
+    {
+      "t": 1786195116594,
+      "line": "[AURA] ⏱ Response delay: 209ms"
+    },
+    {
+      "t": 1786195116595,
+      "line": "[SHADOW TIMING] ⏱ Turn turn_184257 | Legacy: 209ms | HRTE: 300ms | Delta: 91ms"
+    }
+  ],
+  "statusText": ["LISTENING"],
+  "errBanner": []
+}

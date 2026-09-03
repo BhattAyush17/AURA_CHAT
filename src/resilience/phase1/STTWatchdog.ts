@@ -107,15 +107,10 @@ export class STTWatchdog {
     this.emit({ kind: "stt_error", error: errorName, ts: now });
 
     // Prune old error timestamps
-    this.errorTimestamps = this.errorTimestamps.filter(
-      (t) => now - t < ERROR_WINDOW_MS
-    );
+    this.errorTimestamps = this.errorTimestamps.filter((t) => now - t < ERROR_WINDOW_MS);
 
     // InvalidStateError loop detection
-    if (
-      this.errorTimestamps.length >= MAX_ERRORS_IN_WINDOW &&
-      errorName === "InvalidStateError"
-    ) {
+    if (this.errorTimestamps.length >= MAX_ERRORS_IN_WINDOW && errorName === "InvalidStateError") {
       this.escalateRecovery();
     }
   }
@@ -209,7 +204,7 @@ export class STTWatchdog {
 
     console.warn(
       `[STTWatchdog] Escalating recovery to level ${nextLevel}` +
-        ` (health: ${this.state.health}, errors: ${this.state.errorCount})`
+        ` (health: ${this.state.health}, errors: ${this.state.errorCount})`,
     );
 
     this.emit({

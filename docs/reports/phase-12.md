@@ -22,7 +22,7 @@ the plan's `socialUnderstanding`, and `tsc`/eslint/regression cleanliness.
 
 ## 1. Why this phase existed
 
-Phase 11 gave AURA one canonical reading of *what the user meant*. But
+Phase 11 gave AURA one canonical reading of _what the user meant_. But
 meaning sits on top of context: "I don't think I deserve this promotion" is
 not just an uncertain statement — it is probably imposter syndrome, fear of
 expectations, and an identity transition happening at once. AURA read the
@@ -41,20 +41,20 @@ to be unable to override a conversational gate.
 place social meaning is inferred. It consumes the canonical understanding
 `u` (never re-detecting conversation phenomena) and deep-freezes:
 
-| Field | What it carries |
-|---|---|
-| `humanNeeds` | belonging, competence, autonomy, recognition, purpose, security, connection, achievement, rest, growth, identity |
-| `socialPressures` | family expectations, social comparison, career, financial, reputation, peer, marriage, cultural norms |
-| `relationshipDynamics` | generational conflict, trust building/breaking, conflict escalation, reconciliation, attachment loss, boundary setting, distance, romance |
-| `lifeContext` | career/education transitions, parenthood, aging, marriage, identity transition, relocation, retirement, grief |
-| `communicationNorms` | indirect requests, saving face, white lies, conflict avoidance, humor-as-relief, storytelling, silence, repair rituals, greetings |
-| `motivation` | procrastination, avoidance, self-defense, apology, status, sacrifice, career change, guilt |
-| `constraints` | time, responsibility, health, geography, technology |
-| `risks` | imposter syndrome, burnout, loneliness, identity crisis, fear of rejection, perfectionism, financial stress, relationship breakdown, lingering grief |
-| `growthOpportunities` | reflection, apology openings, trust rebuilding, boundary work, courage moments, recovery |
-| `confidence` | value (0.35–0.9) + reasoning trace |
-| `reasoning` | flat trace of every influence with its confidence |
-| `raw` | original text + cleaned text |
+| Field                  | What it carries                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `humanNeeds`           | belonging, competence, autonomy, recognition, purpose, security, connection, achievement, rest, growth, identity                                     |
+| `socialPressures`      | family expectations, social comparison, career, financial, reputation, peer, marriage, cultural norms                                                |
+| `relationshipDynamics` | generational conflict, trust building/breaking, conflict escalation, reconciliation, attachment loss, boundary setting, distance, romance            |
+| `lifeContext`          | career/education transitions, parenthood, aging, marriage, identity transition, relocation, retirement, grief                                        |
+| `communicationNorms`   | indirect requests, saving face, white lies, conflict avoidance, humor-as-relief, storytelling, silence, repair rituals, greetings                    |
+| `motivation`           | procrastination, avoidance, self-defense, apology, status, sacrifice, career change, guilt                                                           |
+| `constraints`          | time, responsibility, health, geography, technology                                                                                                  |
+| `risks`                | imposter syndrome, burnout, loneliness, identity crisis, fear of rejection, perfectionism, financial stress, relationship breakdown, lingering grief |
+| `growthOpportunities`  | reflection, apology openings, trust rebuilding, boundary work, courage moments, recovery                                                             |
+| `confidence`           | value (0.35–0.9) + reasoning trace                                                                                                                   |
+| `reasoning`            | flat trace of every influence with its confidence                                                                                                    |
+| `raw`                  | original text + cleaned text                                                                                                                         |
 
 Every `SocialInfluence` carries `name`, `domain`, `confidence`, `reasoning`
 (≥1 line), and `alternatives` (competing hypotheses within the domain).
@@ -185,19 +185,19 @@ module); eslint clean on all touched files.
 - Dead CUE hook: a `grief-life-stage` hook referenced a non-existent
   `u.emotionSense` field and never matched. Rebuilt on
   empathy-seeking + story/statement + Comfort/Reflect.
-- Detector gaps: "I feel *so* lonely", "I'm *so* exhausted",
-  "I don't (think I) deserve", "I got *the* promotion" — common
+- Detector gaps: "I feel _so_ lonely", "I'm _so_ exhausted",
+  "I don't (think I) deserve", "I got _the_ promotion" — common
   speech variants now matched.
 
 ## 8. What the Executive consumes (before → after)
 
-| Layer | Before | After |
-|---|---|---|
-| StrategyPlanner | conversation gates only (Phase 11) | + Gate 10: top-3 social influences → explicit evidence weights |
-| ExecutionPlan | `understanding` embedded | + `socialUnderstanding` embedded (same frozen object the Executive derived) |
-| Rationale | strategy/confidence/memory/budget/initiative/speech/register | + `social: <top-influence> (conf x.xx)` |
-| LLM prompt | strategy only | still strategy only — SWM never leaks |
-| Telemetry | CONVERSATION_UNDERSTANDING trace | plan carries the social read |
+| Layer           | Before                                                       | After                                                                       |
+| --------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| StrategyPlanner | conversation gates only (Phase 11)                           | + Gate 10: top-3 social influences → explicit evidence weights              |
+| ExecutionPlan   | `understanding` embedded                                     | + `socialUnderstanding` embedded (same frozen object the Executive derived) |
+| Rationale       | strategy/confidence/memory/budget/initiative/speech/register | + `social: <top-influence> (conf x.xx)`                                     |
+| LLM prompt      | strategy only                                                | still strategy only — SWM never leaks                                       |
+| Telemetry       | CONVERSATION_UNDERSTANDING trace                             | plan carries the social read                                                |
 
 The SWM never decides. It explains. The Executive decides. The LLM
 expresses. The user experiences AURA as understanding people — not just

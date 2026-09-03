@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-08-07T14:13:42.856Z",
+  "sections": {
+    "boot": [
+      {
+        "timing": {
+          "ttfb": 5,
+          "dcl": 142,
+          "load": 142,
+          "transfer": "1KB",
+          "first-paint": 100,
+          "first-contentful-paint": 252
+        },
+        "heapMB": 22,
+        "fps": 61,
+        "scriptMs": 0,
+        "taskMs": 1,
+        "nodes": 529,
+        "errConsole": 1,
+        "errPage": 0
+      },
+      {
+        "timing": {
+          "ttfb": 3,
+          "dcl": 150,
+          "load": 150,
+          "transfer": "1KB",
+          "first-paint": 68,
+          "first-contentful-paint": 312
+        },
+        "heapMB": 25,
+        "fps": 61,
+        "scriptMs": 1,
+        "taskMs": 1,
+        "nodes": 510,
+        "errConsole": 1,
+        "errPage": 0
+      },
+      {
+        "timing": {
+          "ttfb": 2,
+          "dcl": 114,
+          "load": 114,
+          "transfer": "1KB",
+          "first-paint": 52,
+          "first-contentful-paint": 212
+        },
+        "heapMB": 23,
+        "fps": 61,
+        "scriptMs": 0,
+        "taskMs": 1,
+        "nodes": 516,
+        "errConsole": 1,
+        "errPage": 0
+      }
+    ],
+    "reload": {
+      "heaps": [21, 21, 21, 21, 21, 21, 21, 21, 21, 21],
+      "errConsole": 10,
+      "errPage": 0,
+      "errHttp": 0
+    },
+    "lifecycle": {
+      "freeze": "ok",
+      "alive": "ok",
+      "heapMB": 23,
+      "errPage": 0
+    },
+    "micDenied": {
+      "pageErrors": 0,
+      "hintOrErrorShown": true,
+      "body": "OPENROUTER\nConnected\nAURA CHAT\nTAP MIC TO BEGIN\n\nPERSONALITY\n\nADAPTIVE\nCHAOTIC\nGENZ\nBALANCED\nSUPPORTIVE\nCARING\nLATE NIGHT\nPHILOSOPHICAL\nPROFESSIONAL\nINTERVIEW MODE\nJOYFUL PASSION\nBUILT FOR SOOTHING AN"
+    },
+    "micRevoked": {
+      "aliveAfterRevoke": "complete",
+      "pageErrors": 0
+    },
+    "invalidKey": {
+      "pageErrors": 0,
+      "consoleErrors": [
+        "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "Failed to load resource: the server responded with a status of 401 ()"
+      ],
+      "body": "OPENROUTER\nConnected\nAURA CHAT\nTAP MIC TO BEGIN\n\nPERSONALITY\n\nADAPTIVE\nCHAOTIC\nGENZ\nBALANCED\nSUPPORTIVE\nCARING\nLATE NIGHT\nPHILOSOPHICAL\nPROFESSIONAL\nI"
+    },
+    "sileroFail": {
+      "fallbackSeen": true,
+      "relevantLogs": [
+        "[Sarvam] 🔊 Voice updated → speaker: priya",
+        "[ListeningIntelligence] Silero VAD unavailable — using statistical VAD. Error: no available backend found. ERR: [wasm] TypeError: Failed to "
+      ]
+    },
+    "offline": {
+      "errorsWhileOffline": 3,
+      "errorsAfterReconnect": 0,
+      "alive": "complete"
+    },
+    "mobile": {
+      "portrait": {
+        "w": 390,
+        "h": 844,
+        "hScroll": false,
+        "docW": 390
+      },
+      "landscape": {
+        "w": 844,
+        "h": 390,
+        "hScroll": false
+      },
+      "scrollable": true,
+      "micTapOk": true,
+      "pageErrors": 0
+    },
+    "a11y": {
+      "tabSequence": ["BUTTON"],
+      "focusableCount": 16
+    },
+    "firefox": {
+      "ready": "complete",
+      "title": "AURA - voice that listens",
+      "pageErrors": 0,
+      "consoleErrors": [
+        "[JavaScript Error: \"Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:8000/health. (Reason: CORS request did not succeed). Status code: (nu",
+        "[JavaScript Error: \"Cookie “__Secure-YEC” has been rejected because it is in a cross-site context and its “SameSite” is “Lax” or “Strict”.\" {file: \"https://www.youtube.com/iframe_api\" line: 0}]",
+        "[JavaScript Error: \"Failed to execute ‘postMessage’ on ‘DOMWindow’: The target origin provided (‘https://www.youtube.com’) does not match the recipient window’s origin (‘http://localhost:5173’).\" {fil"
+      ]
+    }
+  }
+}

@@ -17,13 +17,13 @@ The Executive exists only in the Sarvam provider. Two shadow voice pipelines (Op
 
 Three critical-path defects were verified by direct execution/reading:
 
-| # | Defect | Verified evidence |
-|---|--------|-------------------|
-| 1 | `executive_plan` is **silently dropped** | `ChatRequest` (backend/api/main.py:675-682) has no such field; FastAPI discards unknown fields. Client sends it (src/providers/sarvam/useSarvam.ts:1384) into the void. |
-| 2 | The real LLM prompt is **just** `behavior_instructions + "Respond in 1-3 sentences. Speak naturally, not formally."` (main.py:717) | No emotional state, no seed, no memory, no plan. `seed` is fetched (main.py:699) and never used. The L1–L5 "architecture" is not in the request path. |
-| 3 | `/chat` is broken; stream path raises at request time when QStash is unset | `/chat` imports `run_turn_pipeline` → ImportError → 500. Stream: `from backend.core.pipeline import run_turn_pipeline` sits *inside* the SSE generator's else-branch (main.py:756); with no `QSTASH_TOKEN` the ImportError fires after tokens stream, truncating SSE (no `done` event). With QStash set, it publishes to a registered-but-orphaned webhook. |
+| #   | Defect                                                                                                                             | Verified evidence                                                                                                                                                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `executive_plan` is **silently dropped**                                                                                           | `ChatRequest` (backend/api/main.py:675-682) has no such field; FastAPI discards unknown fields. Client sends it (src/providers/sarvam/useSarvam.ts:1384) into the void.                                                                                                                                                                                     |
+| 2   | The real LLM prompt is **just** `behavior_instructions + "Respond in 1-3 sentences. Speak naturally, not formally."` (main.py:717) | No emotional state, no seed, no memory, no plan. `seed` is fetched (main.py:699) and never used. The L1–L5 "architecture" is not in the request path.                                                                                                                                                                                                       |
+| 3   | `/chat` is broken; stream path raises at request time when QStash is unset                                                         | `/chat` imports `run_turn_pipeline` → ImportError → 500. Stream: `from backend.core.pipeline import run_turn_pipeline` sits _inside_ the SSE generator's else-branch (main.py:756); with no `QSTASH_TOKEN` the ImportError fires after tokens stream, truncating SSE (no `done` event). With QStash set, it publishes to a registered-but-orphaned webhook. |
 
-Net: the product feels polished because the behaviors that *are* wired (emotion → pace/backchannel/hesitation, executive language control, runtime policy) are genuinely alive. The cognitive depth is aspirational scaffolding.
+Net: the product feels polished because the behaviors that _are_ wired (emotion → pace/backchannel/hesitation, executive language control, runtime policy) are genuinely alive. The cognitive depth is aspirational scaffolding.
 
 ---
 
@@ -59,13 +59,13 @@ Mic
 
 Provider matrix (all three mount simultaneously via `useVoiceOrchestrator.ts:172`, user picks one):
 
-| Capability | Sarvam | OpenRouter | Gemini |
-|---|---|---|---|
-| Executive (reflect/plan) | YES | NO | NO |
-| Language engine (LanguageState) | YES | NO | NO |
-| Emotion → targetPace TTS | YES | ~ | NO |
-| Barge-in | YES (analyser) | analyser thresholds | — |
-| /api/analyze/stream | :1363 | :913 | :816 (proactive) |
+| Capability                      | Sarvam         | OpenRouter          | Gemini           |
+| ------------------------------- | -------------- | ------------------- | ---------------- |
+| Executive (reflect/plan)        | YES            | NO                  | NO               |
+| Language engine (LanguageState) | YES            | NO                  | NO               |
+| Emotion → targetPace TTS        | YES            | ~                   | NO               |
+| Barge-in                        | YES (analyser) | analyser thresholds | —                |
+| /api/analyze/stream             | :1363          | :913                | :816 (proactive) |
 
 ---
 
@@ -103,14 +103,14 @@ Scale 0–10, eight dimensions per subsystem.
   - Behavioral Influence **4** — language + hesitation + budget real; speechBehavior/memoryPolicy/initiative/tone/clarification inert.
   - Architectural Quality **7** — clean separation, context assembly, momentum engine; but plan→backend channel is a dead wire.
   - Stability **6** — module-scoped singleton, no persistence, no race guard across turns; language state localized per Phase 8.
-  - Executive Integration **10** — it *is* the executive (this is the flagship subsystem).
+  - Executive Integration **10** — it _is_ the executive (this is the flagship subsystem).
   - Human Impact **3** — users only experience language/hesitation/budget effects; the rest is invisible.
   - ROI **5** — high value but 40% of output surface is dead; cheap to fix or cut.
 
 ### 4.2 Memory
 
 - **Purpose:** retrieve + inject memories that change conversation/planning/tone, not just prompt growth.
-- **Owner:** `MemoryProvider` (src/__root.tsx:37) → `memoryGateway` → localStorage + supabase; backend prefetch (`retrieve_prefetched_memory`).
+- **Owner:** `MemoryProvider` (src/\_\_root.tsx:37) → `memoryGateway` → localStorage + supabase; backend prefetch (`retrieve_prefetched_memory`).
 - **Runtime trace:** server prefetch path works (main.py:713-715 → behavior_instructions append). Client path sends `client_memories` + `hasPersonalHistory` (useSarvam.ts:1287-1289, 1382) → **dropped** (no field in `ChatRequest`). `relevanceScores: []` hardcoded (stub). `memoryPolicy` computed by Executive, ignored by consumers.
 - **Verdicts:** Implementation **6** (gateway + storage + relevance scaffolding), Runtime **4** (prefetch only), Behavioral **2** (raw string appended, no planning influence), Architecture **6**, Stability **6**, Executive Integration **3** (policy ignored), Human Impact **3** (traces may reach LLM but unproven), ROI **4**.
 
@@ -222,77 +222,81 @@ Scale 0–10, eight dimensions per subsystem.
 
 Gate-passing count (Implemented + Connected + Executed + Observable + Behavior-changing), verified:
 
-| Subsystem | Gates passed |
-|---|---|
-| Emotion | 5/5 ✅ |
-| Behavior-Client | 5/5 ✅ |
-| Language (Sarvam) | 5/5 ✅ |
-| Speech/Voice | 5/5 ✅ |
-| Listening | 5/5 ✅ |
-| Runtime/Orchestration | 5/5 ✅ |
-| Diagnostics | 5/5 ✅ |
-| Executive | 3/5 ⚠️ |
-| Reflection | 3/5 ⚠️ |
-| Memory | 2/5 ❌ |
-| Proactivity | 2/5 ❌ |
-| Mindset | 1/5 ❌ |
-| Personality | 2/5 ❌ |
-| Clarification | 1/5 ❌ |
-| Thought-Field/ATF | 0/5 ❌ |
-| Prediction | 0/5 ❌ |
-| Social | 0/5 ❌ |
-| Vision | 0/5 ❌ (unimplemented) |
-| Legacy-L2 storage | 0/5 ❌ |
+| Subsystem             | Gates passed           |
+| --------------------- | ---------------------- |
+| Emotion               | 5/5 ✅                 |
+| Behavior-Client       | 5/5 ✅                 |
+| Language (Sarvam)     | 5/5 ✅                 |
+| Speech/Voice          | 5/5 ✅                 |
+| Listening             | 5/5 ✅                 |
+| Runtime/Orchestration | 5/5 ✅                 |
+| Diagnostics           | 5/5 ✅                 |
+| Executive             | 3/5 ⚠️                 |
+| Reflection            | 3/5 ⚠️                 |
+| Memory                | 2/5 ❌                 |
+| Proactivity           | 2/5 ❌                 |
+| Mindset               | 1/5 ❌                 |
+| Personality           | 2/5 ❌                 |
+| Clarification         | 1/5 ❌                 |
+| Thought-Field/ATF     | 0/5 ❌                 |
+| Prediction            | 0/5 ❌                 |
+| Social                | 0/5 ❌                 |
+| Vision                | 0/5 ❌ (unimplemented) |
+| Legacy-L2 storage     | 0/5 ❌                 |
 
-**Cognitive Activation Index ≈ 7 fully-activated of 19 = 37%.** If we count partial activation (≥3 gates): 9/19 = 47%. The product's *felt* quality tracks the ~37%: everything the user hears works; everything that would make AURA feel like an entity (memory, initiative, prediction, social, self-model) is dormant.
+**Cognitive Activation Index ≈ 7 fully-activated of 19 = 37%.** If we count partial activation (≥3 gates): 9/19 = 47%. The product's _felt_ quality tracks the ~37%: everything the user hears works; everything that would make AURA feel like an entity (memory, initiative, prediction, social, self-model) is dormant.
 
 ---
 
 ## 6. Principal Engineer Answers
 
 **What to delete (or quarantine):**
-- The entire unimportable backend cognitive tree is the biggest single decision. Recommended: `git rm -r backend/core/thought_field/` OR a 30-minute repair (`mv ecology Ecology` + fix imports) *only if* you have a concrete integration plan within 2 weeks. Do not leave it in limbo — it is costing you a false sense of architecture.
+
+- The entire unimportable backend cognitive tree is the biggest single decision. Recommended: `git rm -r backend/core/thought_field/` OR a 30-minute repair (`mv ecology Ecology` + fix imports) _only if_ you have a concrete integration plan within 2 weeks. Do not leave it in limbo — it is costing you a false sense of architecture.
 - `backend/core/refactor_atf.py` (untracked), the four broken Validators, the `/chat` + `/api/analyze` duplicates.
 
 **What to merge / unify:**
+
 - One LLM path, one executive: pick a single provider backend. Today 3 providers = 3 shadow pipelines, only one with Executive + Language. Either implement the Executive in the other two or retire them from the active UI.
 - Fold emotion + behavior client + seed into the actual stream prompt. The pieces exist; the prompt (main.py:717) is a stub.
 
 **What to rewire (cheapest wins, highest activation-per-hour):**
+
 1. `ChatRequest`: add `executive_plan: Optional[str]` + `seed: Optional[str]`; inject both into the stream system_prompt (main.py:717). **10 minutes** — flips Executive and Mindset from inert to live.
 2. Honor `client_memories` in the stream path exactly like `/chat` does (main.py:813-819) — reuse that block. **10 minutes** — flips Memory.
 3. Fix `nextTurnLengthDelta` passing (compute → `executive.reflect(prevPlan, …, nextTurnLengthDelta)`).
 4. Decouple the stream generator from the broken pipeline import: wrap the else-branch in try/except or gate on feature flag (local dev should not 500 SSE).
 
 **What NOT to build next:**
+
 - Vision, social modeling, prediction — zero activation potential under the current architecture; every hour there is better spent on the rewires above.
 
-**The honest architecture answer:** AURA today is a *behavioral voice app with an executive overlay*. Its differentiation (language momentum, emotion-paced speech, hesitation/backchannel, runtime policy) is real and working. Its ambition (cognitive pipeline, memory-driven relationship, self-model) is scaffolded but structurally disconnected — one missing field and one broken import are the entire distance between the two.
+**The honest architecture answer:** AURA today is a _behavioral voice app with an executive overlay_. Its differentiation (language momentum, emotion-paced speech, hesitation/backchannel, runtime policy) is real and working. Its ambition (cognitive pipeline, memory-driven relationship, self-model) is scaffolded but structurally disconnected — one missing field and one broken import are the entire distance between the two.
 
 ---
 
 ## 7. Final Verdict
 
-| System | Overall |
-|---|---|
+| System                   | Overall  |
+| ------------------------ | -------- |
 | Conversational Executive | 7.2 / 10 |
-| Memory | 4.4 |
-| Emotion | 7.4 |
-| Behavior-Client | 7.0 |
-| Mindset | 2.8 |
-| Reflection | 6.1 |
-| Clarification | 1.5 |
-| Thought-Field/ATF | 0.9 |
-| Prediction | 0.5 |
-| Social | 0.6 |
-| Language | 7.4 |
-| Personality | 3.4 |
-| Speech | 6.9 |
-| Listening | 6.6 |
-| Voice | 7.6 |
-| Vision | 0 |
-| Runtime/Orchestration | 6.8 |
-| Diagnostics | 5.2 |
-| Proactivity | 3.8 |
+| Memory                   | 4.4      |
+| Emotion                  | 7.4      |
+| Behavior-Client          | 7.0      |
+| Mindset                  | 2.8      |
+| Reflection               | 6.1      |
+| Clarification            | 1.5      |
+| Thought-Field/ATF        | 0.9      |
+| Prediction               | 0.5      |
+| Social                   | 0.6      |
+| Language                 | 7.4      |
+| Personality              | 3.4      |
+| Speech                   | 6.9      |
+| Listening                | 6.6      |
+| Voice                    | 7.6      |
+| Vision                   | 0        |
+| Runtime/Orchestration    | 6.8      |
+| Diagnostics              | 5.2      |
+| Proactivity              | 3.8      |
 
 Overall architecture coherence: **55–60%** — a genuinely alive behavioral core with a disconnected cognitive shell. The delta to "working entity" is small and precisely known (Section 6.3). Confidence: high on every critical-path finding (all verified by direct execution); PENDING on: live-device language matrix verification, Sarvam vs OpenRouter TTS parity, proactivity behavior on the Sarvam path, and the runtime behavior of the two shadow pipelines under real load.

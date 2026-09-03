@@ -1,4 +1,10 @@
-import type { AuraSense, RawSenseObservation, SenseHealth, SenseManifest, SenseStatusCode } from "./types";
+import type {
+  AuraSense,
+  RawSenseObservation,
+  SenseHealth,
+  SenseManifest,
+  SenseStatusCode,
+} from "./types";
 
 export abstract class BaseSense implements AuraSense {
   abstract readonly manifest: SenseManifest;
@@ -9,9 +15,9 @@ export abstract class BaseSense implements AuraSense {
     provider: null,
     lastHeartbeat: 0,
     lastObservation: 0,
-    errorCount: 0
+    errorCount: 0,
   };
-  
+
   protected _initialized: boolean = false;
 
   // Subclasses must implement these
@@ -30,18 +36,18 @@ export abstract class BaseSense implements AuraSense {
   protected setStatus(
     status: SenseStatusCode,
     provider?: string | null,
-    degradedReason?: string
+    degradedReason?: string,
   ): void {
-    this._health = { 
-      ...this._health, 
-      status, 
+    this._health = {
+      ...this._health,
+      status,
       provider: provider !== undefined ? provider : this._health.provider,
-      degradedReason 
+      degradedReason,
     };
   }
 
   protected recordError(reason: string) {
     this._health.errorCount++;
-    this.setStatus('error', undefined, reason);
+    this.setStatus("error", undefined, reason);
   }
 }

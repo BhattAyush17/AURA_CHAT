@@ -16,7 +16,7 @@ const DEFAULT_CONFIG: WatchdogConfig = {
 
 /**
  * VoiceHealthWatchdog
- * 
+ *
  * Production connection monitor for Gemini Live sessions.
  * Detects stalls and triggers a recovery callback if the pipeline freezes.
  */
@@ -24,15 +24,15 @@ export class VoiceHealthWatchdog {
   private engine: GeminiVoiceEngine;
   private onRecover: (reason: WatchdogReason) => void;
   private config: WatchdogConfig;
-  
+
   private timer: number | null = null;
   private lastPlaybackTime: number = Date.now();
   private isRunning: boolean = false;
 
   constructor(
-    engine: GeminiVoiceEngine, 
-    onRecover: (reason: WatchdogReason) => void, 
-    config?: Partial<WatchdogConfig>
+    engine: GeminiVoiceEngine,
+    onRecover: (reason: WatchdogReason) => void,
+    config?: Partial<WatchdogConfig>,
   ) {
     this.engine = engine;
     this.onRecover = onRecover;
@@ -43,7 +43,7 @@ export class VoiceHealthWatchdog {
     this.stop();
     this.isRunning = true;
     this.lastPlaybackTime = Date.now();
-    
+
     // Poll every second
     this.timer = window.setInterval(() => this.checkHealth(), 1000);
   }
@@ -62,9 +62,9 @@ export class VoiceHealthWatchdog {
 
   private checkHealth() {
     if (!this.isRunning) return;
-    
+
     const now = Date.now();
-    
+
     // If we're playing audio, we're definitely not stalled on the connection
     if (this.engine.telemetry.isPlaying) {
       this.lastPlaybackTime = now;

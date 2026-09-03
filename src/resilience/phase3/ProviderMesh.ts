@@ -8,12 +8,7 @@
  * @module resilience/phase3/ProviderMesh
  */
 
-import type {
-  ProviderEntry,
-  ProviderMeshState,
-  ProviderRole,
-  ResilienceEvent,
-} from "../types";
+import type { ProviderEntry, ProviderMeshState, ProviderRole, ResilienceEvent } from "../types";
 
 // ─── Constants ──────────────────────────────────────────────────────
 const MAX_FAILS_BEFORE_SWITCH = 3;
@@ -84,9 +79,8 @@ export class ProviderMesh {
     provider.isAvailable = true;
     if (latencyMs !== undefined) {
       // Exponential moving average
-      provider.avgLatencyMs = provider.avgLatencyMs === 0
-        ? latencyMs
-        : provider.avgLatencyMs * 0.7 + latencyMs * 0.3;
+      provider.avgLatencyMs =
+        provider.avgLatencyMs === 0 ? latencyMs : provider.avgLatencyMs * 0.7 + latencyMs * 0.3;
     }
   }
 
@@ -129,17 +123,13 @@ export class ProviderMesh {
 
   private failover(role: ProviderRole, fromId: string): void {
     const providers = this.mesh[role];
-    const next = providers.find(
-      (p) => p.id !== fromId && p.isAvailable
-    );
+    const next = providers.find((p) => p.id !== fromId && p.isAvailable);
 
     if (next) {
       const prevId = this.mesh.activeProviders[role];
       this.mesh.activeProviders[role] = next.id;
 
-      console.warn(
-        `[ProviderMesh] Failover: ${role} ${prevId} → ${next.id}`
-      );
+      console.warn(`[ProviderMesh] Failover: ${role} ${prevId} → ${next.id}`);
 
       this.emit({
         kind: "provider_switched",
@@ -149,9 +139,7 @@ export class ProviderMesh {
         ts: performance.now(),
       });
     } else {
-      console.error(
-        `[ProviderMesh] No available fallback for ${role}! All providers exhausted.`
-      );
+      console.error(`[ProviderMesh] No available fallback for ${role}! All providers exhausted.`);
     }
   }
 

@@ -1,0 +1,555 @@
+{
+  "dataset": {
+    "id": "romantic",
+    "name": "Romantic",
+    "trust": 0.85,
+    "hasPersonalHistory": true,
+    "languageMode": "hinglish",
+    "durationMinutes": 16,
+    "turns": [
+      {
+        "text": "Kal tumhari yaad bahut aa rahi thi.",
+        "behavior": {
+          "act": "share",
+          "tags": ["affection", "vulnerability"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "vulnerability": 0.4,
+          "warmth": 0.8
+        },
+        "expected": {
+          "move": ["Comfort", "Reflect"],
+          "goal": ["seek-comfort", "express-uncertainty"],
+          "strategy": ["Comfort", "Reflect", "Answer"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["need-connection"]
+        }
+      },
+      {
+        "text": "Par bolne ki himmat nahi hui.",
+        "behavior": {
+          "act": "share",
+          "tags": ["vulnerability"],
+          "intensity": 0.5
+        },
+        "emo": {
+          "vulnerability": 0.55,
+          "warmth": 0.8
+        },
+        "expected": {
+          "move": ["Comfort"],
+          "goal": ["seek-comfort", "express-uncertainty"],
+          "strategy": ["Comfort", "Reflect"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["need-connection"]
+        }
+      },
+      {
+        "text": "Ab bol diya.",
+        "behavior": {
+          "act": "share",
+          "tags": ["vulnerability"],
+          "intensity": 0.4
+        },
+        "emo": {
+          "vulnerability": 0.5,
+          "warmth": 0.8
+        },
+        "expected": {
+          "move": ["Comfort", "Reflect"],
+          "goal": ["express-uncertainty", "seek-comfort"],
+          "strategy": ["Comfort", "Reflect", "Answer"],
+          "register": ["CASUAL", "SUPPORTIVE"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["need-connection"]
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:20:15.984Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "Kal tumhari yaad bahut aa rahi thi.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["affection", "vulnerability"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -2 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Comfort",
+        "initiative": "Continue",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Comfort\nlanguage: HINGLISH / secondary HINDI (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 1) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.71 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 0.9, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 285,
+      "llm": "Achha? Tumhari yaad bhi mujhe poore din rahi.",
+      "speech": {
+        "speed": 0.9,
+        "energy": 0.5,
+        "warmth": 0.85,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -2 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 3376,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Comfort",
+        "plan": "Tiny/Continue/conf:High",
+        "prompt": "285t",
+        "llm": "8w",
+        "speech": "speed:0.90",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Par bolne ki himmat nahi hui.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["vulnerability"]
+      },
+      "understanding": {
+        "move": "Comfort",
+        "literal": "statement",
+        "goal": "seek-comfort",
+        "implicit": null,
+        "expected": "empathy",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": ["need-connection", "grief-life-stage"],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -3 words",
+          "thread continued naturally",
+          "move: Comfort (0.91)",
+          "expected: empathy"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Comfort",
+        "initiative": "Continue",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Comfort\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 2) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.71 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 0.9, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 285,
+      "llm": "Darr mat. Abhi mauka hai na?",
+      "speech": {
+        "speed": 0.9,
+        "energy": 0.5,
+        "warmth": 0.85,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: -3 words",
+          "thread continued naturally",
+          "move: Comfort (0.91)",
+          "expected: empathy"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": true,
+        "initiative": false,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1784,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Comfort/seek-comfort",
+        "swm": "need-connection,grief-life-stage",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Comfort",
+        "plan": "Tiny/Continue/conf:High",
+        "prompt": "285t",
+        "llm": "6w",
+        "speech": "speed:0.90",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Ab bol diya.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["vulnerability"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.64,
+        "stability": 0.667
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Comfort",
+        "initiative": "Continue",
+        "budget": "Tiny",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Comfort\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.64, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 3) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Tiny (target ~6 words, hard ceiling 12 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\ntone: warmth 0.71 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 0.9, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 289,
+      "llm": "Accha laga sunkar.",
+      "speech": {
+        "speed": 0.9,
+        "energy": 0.5,
+        "warmth": 0.85,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "user followed up briefly; Tiny turn was proportionate",
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.91)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2234,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Comfort",
+        "plan": "Tiny/Continue/conf:High",
+        "prompt": "289t",
+        "llm": "3w",
+        "speech": "speed:0.90",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 83,
+    "avgHumanity": 9.333333333333334,
+    "realism": 9.3,
+    "productionReady": true,
+    "pipelineMsAvg": 2465
+  }
+}

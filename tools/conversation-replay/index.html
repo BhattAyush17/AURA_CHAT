@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AURA — Conversation Replay</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel2: #1c2129;
+        --line: #30363d;
+        --text: #e6edf3;
+        --dim: #8b949e;
+        --ok: #3fb950;
+        --bad: #f85149;
+        --warn: #d29922;
+        --acc: #58a6ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 10px 18px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        font-size: 16px;
+        margin: 0;
+        font-weight: 600;
+      }
+      header .spacer {
+        flex: 1;
+      }
+      .pill {
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 12px;
+        color: var(--dim);
+      }
+      .pill b {
+        color: var(--text);
+      }
+      #layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        min-height: calc(100vh - 48px);
+      }
+      #sidebar {
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        padding: 10px;
+        overflow: auto;
+        max-height: calc(100vh - 48px);
+      }
+      .group {
+        margin-bottom: 14px;
+      }
+      .group h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--dim);
+        margin: 0 0 6px;
+      }
+      .conv {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 9px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .conv:hover {
+        background: var(--panel2);
+      }
+      .conv.active {
+        background: var(--panel2);
+        border-color: var(--acc);
+      }
+      .conv .name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .conv .verdict {
+        font-size: 11px;
+      }
+      main {
+        padding: 16px 22px;
+        overflow: auto;
+      }
+      .meta {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        color: var(--dim);
+        font-size: 13px;
+      }
+      .meta b {
+        color: var(--text);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .nav button {
+        background: var(--panel2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 14px;
+        cursor: pointer;
+        font: inherit;
+      }
+      .nav button:hover:not(:disabled) {
+        border-color: var(--acc);
+      }
+      .nav button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .turn {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: 14px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+      .turn-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 14px;
+        background: var(--panel2);
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .turn-head .tnum {
+        font-weight: 700;
+      }
+      .block {
+        padding: 9px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .block:last-child {
+        border-bottom: none;
+      }
+      .block .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--acc);
+        margin-bottom: 4px;
+      }
+      .block.user .label {
+        color: var(--warn);
+      }
+      .block .val {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .block .val .dim {
+        color: var(--dim);
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .bad {
+        color: var(--bad);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .score {
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      .score.good {
+        background: #1f2e1f;
+        color: var(--ok);
+      }
+      .score.bad {
+        background: #3a1f1f;
+        color: var(--bad);
+      }
+      .score.mid {
+        background: #3a2f1f;
+        color: var(--warn);
+      }
+      .checks {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .checks span {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--dim);
+      }
+      .checks span.ok {
+        color: var(--ok);
+        border-color: #2d5a34;
+      }
+      .checks span.bad {
+        color: var(--bad);
+        border-color: #6b2d2d;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        margin: 0 4px 4px 0;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      .card .k {
+        font-size: 11px;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .card .v {
+        font-size: 18px;
+        font-weight: 700;
+        margin-top: 3px;
+      }
+      .verdict-yes {
+        color: var(--ok);
+      }
+      .verdict-no {
+        color: var(--bad);
+      }
+      @media (max-width: 900px) {
+        #layout {
+          grid-template-columns: 1fr;
+        }
+        #sidebar {
+          max-height: 200px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🧠 AURA · Conversation Replay</h1>
+      <span class="pill" id="runLabel">—</span>
+      <span class="spacer"></span>
+      <span class="pill">Step-through · Full cognitive stack</span>
+    </header>
+    <div id="layout">
+      <div id="sidebar"></div>
+      <main>
+        <div id="summary" class="summary"></div>
+        <div class="nav">
+          <button id="prev">← Previous</button>
+          <span id="pos" class="pill">—</span>
+          <button id="next">Next →</button>
+          <span class="spacer" style="flex: 1"></span>
+          <button id="auto">▶ Auto</button>
+        </div>
+        <div id="content"></div>
+      </main>
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let RUNS = [];
+      let CURRENT = null; // {date, id, json}
+      let TURN = 0;
+      let autoTimer = null;
+
+      async function fetchJson(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(url);
+        return r.json();
+      }
+
+      async function init() {
+        RUNS = await fetchJson("/api/runs");
+        renderSidebar();
+      }
+
+      function renderSidebar() {
+        const sb = $("sidebar");
+        if (!RUNS.length) {
+          sb.innerHTML =
+            '<div class="group"><h3>No runs yet</h3><div class="conv">Run phase 13 to produce artifacts.</div></div>';
+          return;
+        }
+        sb.innerHTML = RUNS.map(
+          ({ date, conversations }) => `
+    <div class="group">
+      <h3>${date} (${conversations.length})</h3>
+      ${conversations.map((c) => `<div class="conv" data-date="${date}" data-id="${c}"><span class="name">${c}</span></div>`).join("")}
+    </div>`,
+        ).join("");
+        sb.querySelectorAll(".conv").forEach((el) =>
+          el.addEventListener("click", () => openConversation(el.dataset.date, el.dataset.id)),
+        );
+      }
+
+      async function openConversation(date, id) {
+        const json = await fetchJson(`/api/run/${date}/${id}/conversation.json`);
+        CURRENT = { date, id, json };
+        TURN = 0;
+        $("runLabel").textContent =
+          `${json.dataset.name} · ${json.model} · ${json.turns.length} turns`;
+        document
+          .querySelectorAll(".conv")
+          .forEach((el) =>
+            el.classList.toggle("active", el.dataset.date === date && el.dataset.id === id),
+          );
+        render();
+      }
+
+      function render() {
+        if (!CURRENT) return;
+        const { json } = CURRENT;
+        const s = json.stats;
+        const ready = s.productionReady;
+        $("summary").innerHTML = `
+    <div class="card"><div class="k">Verdict</div><div class="v ${ready ? "verdict-yes" : "verdict-no"}">${ready ? "READY" : "NOT READY"}</div></div>
+    <div class="card"><div class="k">Executive Fidelity</div><div class="v">${s.avgFidelity}%</div></div>
+    <div class="card"><div class="k">Humanity</div><div class="v">${s.avgHumanity}</div></div>
+    <div class="card"><div class="k">Realism</div><div class="v">${s.realism}</div></div>
+    <div class="card"><div class="k">Pipeline avg</div><div class="v">${s.pipelineMsAvg}ms</div></div>
+    <div class="card"><div class="k">Callbacks</div><div class="v">${s.callbacks}</div></div>
+    <div class="card"><div class="k">Reflection adap.</div><div class="v">${s.reflectionAdaptations}</div></div>
+    <div class="card"><div class="k">Interrupt/Repair</div><div class="v">${s.interruptions}/${s.repairs}</div></div>`;
+        $("pos").textContent = `Turn ${TURN + 1} of ${json.turns.length}`;
+        $("prev").disabled = TURN === 0;
+        $("next").disabled = TURN >= json.turns.length - 1;
+        renderTurn(json.turns[TURN]);
+      }
+
+      function scoreClass(v, minGood = 80) {
+        if (v >= minGood) return "good";
+        if (v >= minGood * 0.75) return "mid";
+        return "bad";
+      }
+
+      function checksHtml(checks) {
+        return `<div class="checks">${checks.map((c) => `<span class="${c.applicable ? (c.passed ? "ok" : "bad") : "dim"}">${c.name}${c.applicable ? (c.passed ? " ✓" : " ✗") : " –"}</span>`).join("")}</div>`;
+      }
+
+      function renderTurn(t) {
+        if (!t) return;
+        $("content").innerHTML = `
+    <div class="turn">
+      <div class="turn-head">
+        <span class="tnum">TURN ${t.turn}</span>
+        <span class="pill">${t.pipelineMs}ms</span>
+        ${t.fidelity ? `<span class="score ${scoreClass(t.fidelity.percent)}">exec ${t.fidelity.percent}%</span>` : ""}
+        ${t.human ? `<span class="score ${scoreClass(t.human.score * 10, 70)}">human ${t.human.score}</span>` : ""}
+      </div>
+      <div class="block user"><div class="label">User</div><div class="val">${esc(t.userText)}</div></div>
+      <div class="block"><div class="label">Perception</div><div class="val">stt ${t.perception.sttConfidence} · ${t.perception.interruption ? "interrupted" : "clean"} · silence ${t.perception.silenceMs}ms · ${t.perception.tags.map((x) => `<span class="tag">${x}</span>`).join("")}</div></div>
+      <div class="block"><div class="label">Understanding</div><div class="val">move <b>${t.understanding.move}</b> · goal ${t.understanding.goal} · implicit ${t.understanding.implicit ?? "—"} · expected ${t.understanding.expected}${t.understanding.clarify ? ' · <span class="warn">clarify requested</span>' : ""}<br>social: ${t.understanding.social.map((x) => `<span class="tag">${x}</span>`).join("")}</div></div>
+      <div class="block"><div class="label">SWM</div><div class="val">${t.swm.length ? t.swm.map((x) => `<span class="tag">${x}</span>`).join("") : "<span class='dim'>none</span>"}</div></div>
+      <div class="block"><div class="label">Memory</div><div class="val">policy <b>${t.memory.policy}</b> · retrieved ${t.memory.retrieved} · injected ${t.memory.injected} · referenced <b class="${t.memory.referenced ? "ok" : "bad"}">${t.memory.referenced ? "YES" : "NO"}</b></div></div>
+      <div class="block"><div class="label">Relationship / Reflection</div><div class="val">stage <b>${t.relationship}</b> · ${t.reflection.adaptations.length ? "adapted: " + esc(t.reflection.adaptations.join("; ")) : "<span class='dim'>no adaptation</span>"}</div></div>
+      <div class="block"><div class="label">Language / Register</div><div class="val">${t.language.dominant} (${t.language.confidence}, stab ${t.language.stability}) · ${t.register.register} (${t.register.confidence})</div></div>
+      <div class="block"><div class="label">Executive</div><div class="val">strategy <b>${t.executive.strategy}</b> · initiative ${t.executive.initiative} · budget ${t.executive.budget} · confidence ${t.executive.confidence}<br><span class="dim">${esc(t.executive.rationale || "")}</span></div></div>
+      <div class="block"><div class="label">Speech</div><div class="val">speed ${t.speech.speed} · energy ${t.speech.energy} · warmth ${t.speech.warmth}${t.speech.thinking ? " · thinking: " + esc(t.speech.thinking) : ""}</div></div>
+      <div class="block"><div class="label">Prompt · ${t.promptTokens} tokens</div><div class="val dim">${esc(t.prompt)}</div></div>
+      <div class="block"><div class="label">LLM</div><div class="val">${t.llm ? esc(t.llm) : "<span class='dim'>— (wiring mode)</span>"}</div></div>
+      ${t.fidelity ? `<div class="block"><div class="label">Executive Fidelity ${t.fidelity.percent}%</div><div class="val">${checkLine("language", t.fidelity.language)}${checkLine("register", t.fidelity.register)}${checkLine("memory", t.fidelity.memory)}${checkLine("strategy", t.fidelity.strategy)}${checkLine("initiative", t.fidelity.initiative)}${checkLine("budget", t.fidelity.budget)}${t.fidelity.hallucinatedMemory ? '<div class="bad">hallucinated memory!</div>' : ""}</div></div>` : ""}
+      ${t.human ? `<div class="block"><div class="label">Human Judge ${t.human.score}/10 ${t.human.feelsHuman ? "· FEELS HUMAN" : "· robotic"}</div><div class="val">${checksHtml(t.human.checks)}</div></div>` : ""}
+      <div class="block"><div class="label">Engine activation</div><div class="val dim">${Object.entries(
+        t.engines,
+      )
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" · ")}</div></div>
+    </div>`;
+      }
+
+      function checkLine(name, pass) {
+        return `<span class="${pass ? "ok" : "bad"}">${name} ${pass ? "✓" : "✗"}</span> · `;
+      }
+
+      function esc(s) {
+        return String(s ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      $("prev").addEventListener("click", () => {
+        if (TURN > 0) {
+          TURN--;
+          render();
+        }
+      });
+      $("next").addEventListener("click", () => {
+        if (CURRENT && TURN < CURRENT.json.turns.length - 1) {
+          TURN++;
+          render();
+        }
+      });
+      $("auto").addEventListener("click", () => {
+        if (autoTimer) {
+          clearInterval(autoTimer);
+          autoTimer = null;
+          $("auto").textContent = "▶ Auto";
+          return;
+        }
+        $("auto").textContent = "⏸ Stop";
+        autoTimer = setInterval(() => {
+          if (!CURRENT) return;
+          if (TURN < CURRENT.json.turns.length - 1) {
+            TURN++;
+            render();
+          } else {
+            clearInterval(autoTimer);
+            autoTimer = null;
+            $("auto").textContent = "▶ Auto";
+          }
+        }, 1400);
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight") $("next").click();
+        if (e.key === "ArrowLeft") $("prev").click();
+      });
+
+      init();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "dataset": "sarcasm",
+  "telemetry": [
+    {
+      "turn": 1,
+      "events": 7
+    },
+    {
+      "turn": 2,
+      "events": 15
+    },
+    {
+      "turn": 3,
+      "events": 23
+    }
+  ]
+}

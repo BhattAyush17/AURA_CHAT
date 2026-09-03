@@ -1,6 +1,6 @@
 // src/runtime/humanTiming/ConversationTimingClassifier.ts
 
-export type ConversationIntent = 
+export type ConversationIntent =
   | "Greeting"
   | "QuickFact"
   | "FollowUp"
@@ -27,9 +27,12 @@ export class ConversationTimingClassifier {
     const t = text.toLowerCase().trim();
     if (!t) return "Unknown";
 
-    if (t.match(/^(hi|hello|hey|good morning|good evening|how are you|what's up)/)) return "Greeting";
-    if (t.match(/^(what is|who is|where is|when did|how many|what's the capital)/)) return "QuickFact";
-    if (t.match(/^(write|code|function|debug|error|compile|react|typescript|python|html)/)) return "Coding";
+    if (t.match(/^(hi|hello|hey|good morning|good evening|how are you|what's up)/))
+      return "Greeting";
+    if (t.match(/^(what is|who is|where is|when did|how many|what's the capital)/))
+      return "QuickFact";
+    if (t.match(/^(write|code|function|debug|error|compile|react|typescript|python|html)/))
+      return "Coding";
     if (t.match(/^(why did|how does|can you explain|reason|logic|because)/)) return "Reasoning";
     if (t.match(/^(feel|sad|happy|lonely|hurt|love|angry|upset|worried)/)) return "Emotional";
     if (t.match(/^(should i|decide|choose|better option|compare)/)) return "DecisionMaking";
@@ -40,7 +43,7 @@ export class ConversationTimingClassifier {
 
     // Length-based fallback heuristics
     if (t.split(" ").length < 4) return "FollowUp"; // Short bursts are often follow-ups
-    
+
     return "Unknown";
   }
 }
@@ -53,16 +56,26 @@ export class ThinkingWindowPlanner {
    */
   public estimateWindow(intent: ConversationIntent): [number, number] {
     switch (intent) {
-      case "Greeting": return [0, 150];
-      case "QuickFact": return [0, 250];
-      case "FollowUp": return [100, 300];
-      case "Interview": return [150, 400];
-      case "Coding": return [250, 600];
-      case "Reasoning": return [300, 700];
-      case "Emotional": return [300, 800];
-      case "DecisionMaking": return [400, 900];
-      case "DeepReflection": return [500, 1200];
-      default: return [200, 500];
+      case "Greeting":
+        return [0, 150];
+      case "QuickFact":
+        return [0, 250];
+      case "FollowUp":
+        return [100, 300];
+      case "Interview":
+        return [150, 400];
+      case "Coding":
+        return [250, 600];
+      case "Reasoning":
+        return [300, 700];
+      case "Emotional":
+        return [300, 800];
+      case "DecisionMaking":
+        return [400, 900];
+      case "DeepReflection":
+        return [500, 1200];
+      default:
+        return [200, 500];
     }
   }
 }

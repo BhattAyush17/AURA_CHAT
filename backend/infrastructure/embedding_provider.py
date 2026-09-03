@@ -13,10 +13,14 @@ All providers output exactly 768-dim vectors for pgvector compatibility.
 import os
 import asyncio
 from backend.infrastructure.logging import get_logger
+from backend.infrastructure.runtime_telemetry import timing
 
 log = get_logger("embedding_provider")
 
 VECTOR_DIM = 768
+# Startup probe budget per tier. Generous enough for a cold API call, short
+# enough that a dead tier does not stall boot.
+PROBE_TIMEOUT_S = 8.0
 
 
 class EmbeddingProvider:
@@ -38,7 +42,17 @@ class EmbeddingProvider:
         return self._active is not None
 
     async def initialize(self) -> str:
-        """Try each provider in priority order. Returns active provider name."""
+        """Try each provider in priority order. Returns active provider name.
+
+        Each tier is *probed with a real embed call* before being accepted.
+        Presence of an API key is not evidence that the key can embed: a
+        GEMINI_API_KEY scoped without access to the embeddings endpoint returns
+        401 ACCESS_TOKEN_TYPE_UNSUPPORTED on every call. Selecting a tier on key
+        presence alone pinned the whole chain to a provider that returned []
+        forever — so memories were written with no embedding and every semantic
+        query silently degraded to keyword/base-score ordering, while
+        `is_available` still reported True.
+        """
 
         # ── 1. Gemini ────────────────────────────────────────────
         gemini_key = os.environ.get("GEMINI_API_KEY", "")
@@ -47,10 +61,15 @@ class EmbeddingProvider:
                 from google import genai
                 self._gemini_client = genai.Client(api_key=gemini_key)
                 self._active = "gemini"
-                log.info("embedding_provider_ready", provider="gemini", dim=VECTOR_DIM)
-                return "gemini"
+                if await self._probe():
+                    log.info("embedding_provider_ready", provider="gemini", dim=VECTOR_DIM)
+                    return "gemini"
+                log.warning("embedding_provider_probe_failed", provider="gemini")
+                self._active = None
+                self._gemini_client = None
             except Exception as e:
                 log.warning("gemini_embed_init_failed", error=str(e))
+                self._active = None
 
         # ── 2. Cohere (free tier, multilingual) ──────────────────
         cohere_key = os.environ.get("COHERE_API_KEY", "")
@@ -60,10 +79,17 @@ class EmbeddingProvider:
                 self._cohere_key = cohere_key
                 self._httpx_client = httpx.AsyncClient(timeout=10.0)
                 self._active = "cohere"
-                log.info("embedding_provider_ready", provider="cohere", dim=VECTOR_DIM)
-                return "cohere"
+                if await self._probe():
+                    log.info("embedding_provider_ready", provider="cohere", dim=VECTOR_DIM)
+                    return "cohere"
+                log.warning("embedding_provider_probe_failed", provider="cohere")
+                self._active = None
+                await self._httpx_client.aclose()
+                self._httpx_client = None
+                self._cohere_key = None
             except Exception as e:
                 log.warning("cohere_embed_init_failed", error=str(e))
+                self._active = None
 
         # ── 3. FastEmbed (local, optional install) ───────────────
         try:
@@ -82,17 +108,34 @@ class EmbeddingProvider:
         log.info("no_embedding_provider", fallback="fts_keyword_search")
         return "none"
 
+    async def _probe(self) -> bool:
+        """One bounded embed call proving the active tier actually works.
+
+        Runs once per process at startup, not per request. FastEmbed is exempt
+        (local, and its model load is deliberately lazy).
+        """
+        try:
+            vec = await asyncio.wait_for(self.embed("aura embedding probe"), timeout=PROBE_TIMEOUT_S)
+            return len(vec) == VECTOR_DIM
+        except asyncio.TimeoutError:
+            log.warning("embedding_probe_timeout", provider=self._active, timeout_s=PROBE_TIMEOUT_S)
+            return False
+        except Exception as e:
+            log.warning("embedding_probe_error", provider=self._active, error=str(e))
+            return False
+
     async def embed(self, text: str) -> list:
         """Embed text into a 768-dim float vector. Returns [] on failure."""
         if not text.strip() or not self._active:
             return []
         try:
-            if self._active == "gemini":
-                return await self._embed_gemini(text)
-            elif self._active == "cohere":
-                return await self._embed_cohere(text)
-            elif self._active == "fastembed":
-                return await self._embed_fastembed(text)
+            with timing("embeddings", self._active):
+                if self._active == "gemini":
+                    return await self._embed_gemini(text)
+                elif self._active == "cohere":
+                    return await self._embed_cohere(text)
+                elif self._active == "fastembed":
+                    return await self._embed_fastembed(text)
         except Exception as e:
             log.warning("embed_failed", provider=self._active, error=str(e))
         return []

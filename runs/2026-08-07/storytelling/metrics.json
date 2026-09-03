@@ -1,0 +1,46 @@
+{
+  "dataset": "storytelling",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 67,
+    "avgHumanity": 6.333333333333333,
+    "realism": 6.3,
+    "productionReady": false,
+    "pipelineMsAvg": 2316
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Reflect",
+      "fidelity": 67,
+      "human": 5,
+      "feelsHuman": false,
+      "pipelineMs": 2865,
+      "llmWords": 22
+    },
+    {
+      "turn": 2,
+      "strategy": "Reflect",
+      "fidelity": 50,
+      "human": 4,
+      "feelsHuman": false,
+      "pipelineMs": 1967,
+      "llmWords": 24
+    },
+    {
+      "turn": 3,
+      "strategy": "Reflect",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2115,
+      "llmWords": 21
+    }
+  ]
+}

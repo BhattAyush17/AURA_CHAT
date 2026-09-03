@@ -5,7 +5,7 @@
  */
 export class AudioProvider {
   async getAudioUrl(source: string, trackId: string): Promise<string | null> {
-    return null; 
+    return null;
   }
 }
 export const audioProvider = new AudioProvider();

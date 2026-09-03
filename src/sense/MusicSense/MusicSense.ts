@@ -12,7 +12,7 @@ export class MusicSense extends BaseSense {
     dependencies: [],
     capabilities: ["audio_playback", "metadata_extraction"],
     providerRequirements: ["youtube_oauth", "ytdlp"],
-    requiredPermissions: ["youtube_readonly"]
+    requiredPermissions: ["youtube_readonly"],
   };
 
   private unsubscribeState: (() => void) | null = null;
@@ -25,7 +25,7 @@ export class MusicSense extends BaseSense {
 
   async connect(): Promise<void> {}
   async disconnect(): Promise<void> {}
-  
+
   async start(): Promise<void> {
     this.setStatus("active");
   }
@@ -52,7 +52,7 @@ export class MusicSense extends BaseSense {
         positionSeconds: state.positionMs / 1000,
         durationSeconds: state.durationMs / 1000,
       },
-      playerState: state.isPlaying ? "Playing" : (state.isPaused ? "Paused" : "Stopped"),
+      playerState: state.isPlaying ? "Playing" : state.isPaused ? "Paused" : "Stopped",
       volume: state.volume,
     };
 
@@ -62,7 +62,7 @@ export class MusicSense extends BaseSense {
       source: "music",
       timestamp: Date.now(),
       estimatedConfidence: state.currentTrack ? 0.95 : 0.2, // Rough estimate, fusion layer finalizes
-      payload
+      payload,
     };
   }
 }

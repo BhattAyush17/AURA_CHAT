@@ -20,7 +20,7 @@ interface BrowserProbe {
 
 /**
  * TODO(AURA): Legacy fallback — flag for removal once Gemini Native is exclusive.
- * Static device probe, cached for the page lifetime. 
+ * Static device probe, cached for the page lifetime.
  */
 function probeBrowserSpeech(): BrowserProbe {
   if (typeof window === "undefined") {

@@ -17,10 +17,15 @@ function runTests() {
   const manager = RuntimeManager.getInstance();
 
   // 1. SPEAK behavior test
-  const speakExecution = manager.evaluateDecision("Yes, I understand what you are saying.", "", 500, 500);
+  const speakExecution = manager.evaluateDecision(
+    "Yes, I understand what you are saying.",
+    "",
+    500,
+    500,
+  );
   check(
     "Test 1 — Normal transcript routes to SPEAK behavior",
-    speakExecution !== undefined && speakExecution.action === "SPEAK"
+    speakExecution !== undefined && speakExecution.action === "SPEAK",
   );
 
   // 2. BACKCHANNEL behavior test
@@ -29,7 +34,7 @@ function runTests() {
   const backchannelExecution = manager.evaluateDecision("And then...", "", 200, 200);
   check(
     "Test 2 — Short/Follow-up transcripts route to BACKCHANNEL behavior",
-    backchannelExecution !== undefined && backchannelExecution.action === "BACKCHANNEL"
+    backchannelExecution !== undefined && backchannelExecution.action === "BACKCHANNEL",
   );
 
   // 3. WAIT behavior test
@@ -39,15 +44,20 @@ function runTests() {
   const waitExecution = manager.evaluateDecision("uh", "", 100, 100);
   check(
     "Test 3 — Extremely short uncertain transcript routes to WAIT behavior",
-    waitExecution !== undefined && waitExecution.action === "WAIT"
+    waitExecution !== undefined && waitExecution.action === "WAIT",
   );
 
   // 4. Decision Telemetry (Failure handling logic fallback)
   // Even if intent is unknown, it should route to SPEAK rather than throwing an error.
-  const defaultExecution = manager.evaluateDecision("some random long unclassified text that doesn't match intents", "", 500, 500);
+  const defaultExecution = manager.evaluateDecision(
+    "some random long unclassified text that doesn't match intents",
+    "",
+    500,
+    500,
+  );
   check(
     "Test 4 — Unknown intent safely falls back to SPEAK behavior",
-    defaultExecution !== undefined && defaultExecution.action === "SPEAK"
+    defaultExecution !== undefined && defaultExecution.action === "SPEAK",
   );
 
   console.log(`\n${failures === 0 ? "ALL DECISION CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);

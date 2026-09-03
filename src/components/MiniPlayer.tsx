@@ -1,13 +1,13 @@
 /**
  * AURA Music System — MiniPlayer Component
- * 
+ *
  * Persistent in-chat music player with:
  * - Track title + artist
  * - Progress bar (clickable)
  * - Play/Pause, Next, Previous buttons
  * - Volume slider
  * - Collapse/expand animation
- * 
+ *
  * Matches AURA's monochrome design system.
  */
 
@@ -56,7 +56,7 @@ export function MiniPlayer() {
     availableProviders,
     switchProvider,
     audioUnlockState,
-    unlockAudio
+    unlockAudio,
   } = useMusicPlayer();
 
   const [expanded, setExpanded] = useState(true);
@@ -127,7 +127,10 @@ export function MiniPlayer() {
             </div>
             <div className="mini-player-collapsed-controls">
               <button
-                onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlayPause();
+                }}
                 className="mini-player-btn-sm"
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
@@ -146,31 +149,43 @@ export function MiniPlayer() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25 }}
             className="mini-player-expanded"
-            style={{ position: 'relative' }}
+            style={{ position: "relative" }}
           >
             {audioUnlockState === "blocked" && (
-              <div 
-                className="mini-player-unlock-overlay" 
+              <div
+                className="mini-player-unlock-overlay"
                 onClick={(e) => {
                   e.stopPropagation();
                   unlockAudio();
                 }}
                 style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(0,0,0,0.85)',
-                  backdropFilter: 'blur(4px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: "rgba(0,0,0,0.85)",
+                  backdropFilter: "blur(4px)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   zIndex: 100,
-                  cursor: 'pointer',
-                  borderRadius: 'inherit'
+                  cursor: "pointer",
+                  borderRadius: "inherit",
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
                   <Play className="w-6 h-6" fill="currentColor" />
-                  <span className="mini-player-title" style={{ fontSize: '13px' }}>Tap to enable music</span>
+                  <span className="mini-player-title" style={{ fontSize: "13px" }}>
+                    Tap to enable music
+                  </span>
                 </div>
               </div>
             )}
@@ -184,23 +199,23 @@ export function MiniPlayer() {
                 {isPlaying && <div className="mini-player-now-playing-dot" />}
               </div>
               <div className="mini-player-header-actions">
-                <select 
-                  className="mini-player-provider-select" 
+                <select
+                  className="mini-player-provider-select"
                   value={state.providerId || ""}
                   onChange={(e) => switchProvider(e.target.value)}
                   aria-label="Switch music provider"
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: '9px',
-                    marginRight: '8px',
-                    outline: 'none',
-                    cursor: 'pointer'
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255, 255, 255, 0.5)",
+                    fontSize: "9px",
+                    marginRight: "8px",
+                    outline: "none",
+                    cursor: "pointer",
                   }}
                 >
-                  {availableProviders.map(p => (
-                    <option key={p.id} value={p.id} style={{ background: '#111', color: '#fff' }}>
+                  {availableProviders.map((p) => (
+                    <option key={p.id} value={p.id} style={{ background: "#111", color: "#fff" }}>
                       {p.name}
                     </option>
                   ))}
@@ -212,11 +227,7 @@ export function MiniPlayer() {
                 >
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  onClick={stop}
-                  className="mini-player-btn-ghost"
-                  aria-label="Close player"
-                >
+                <button onClick={stop} className="mini-player-btn-ghost" aria-label="Close player">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -244,7 +255,9 @@ export function MiniPlayer() {
               )}
               <div className="mini-player-text">
                 <span className="mini-player-title">{currentTrack?.title || "Unknown Track"}</span>
-                <span className="mini-player-artist">{currentTrack?.artist || "Unknown Artist"}</span>
+                <span className="mini-player-artist">
+                  {currentTrack?.artist || "Unknown Artist"}
+                </span>
               </div>
             </div>
 
@@ -265,25 +278,15 @@ export function MiniPlayer() {
                 aria-valuenow={localPosition}
                 aria-label="Playback progress"
               >
-                <div
-                  className="mini-player-progress-fill"
-                  style={{ width: `${progress}%` }}
-                />
-                <div
-                  className="mini-player-progress-handle"
-                  style={{ left: `${progress}%` }}
-                />
+                <div className="mini-player-progress-fill" style={{ width: `${progress}%` }} />
+                <div className="mini-player-progress-handle" style={{ left: `${progress}%` }} />
               </div>
               <span className="mini-player-time">{formatTime(duration)}</span>
             </div>
 
             {/* Controls */}
             <div className="mini-player-controls">
-              <button
-                onClick={previous}
-                className="mini-player-btn"
-                aria-label="Previous track"
-              >
+              <button onClick={previous} className="mini-player-btn" aria-label="Previous track">
                 <SkipBack className="w-4 h-4" fill="currentColor" />
               </button>
               <button
@@ -297,11 +300,7 @@ export function MiniPlayer() {
                   <Play className="w-5 h-5" fill="currentColor" />
                 )}
               </button>
-              <button
-                onClick={next}
-                className="mini-player-btn"
-                aria-label="Next track"
-              >
+              <button onClick={next} className="mini-player-btn" aria-label="Next track">
                 <SkipForward className="w-4 h-4" fill="currentColor" />
               </button>
             </div>
@@ -336,9 +335,7 @@ export function MiniPlayer() {
                       className="mini-player-volume-slider"
                       aria-label="Volume"
                     />
-                    <span className="mini-player-volume-label">
-                      {Math.round(volume * 100)}%
-                    </span>
+                    <span className="mini-player-volume-label">{Math.round(volume * 100)}%</span>
                   </motion.div>
                 )}
               </AnimatePresence>

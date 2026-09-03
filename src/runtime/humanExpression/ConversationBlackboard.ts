@@ -16,12 +16,14 @@ export class ConversationBlackboard {
     initiative: "Listening",
     curiosity: "Surface",
     thinkingStyle: "Practical",
-    listeningStyle: "Quietly Observant"
+    listeningStyle: "Quietly Observant",
   };
 
   public update(newState: Partial<BlackboardState>) {
     this.state = { ...this.state, ...newState };
   }
-  
-  public getState() { return this.state; }
+
+  public getState() {
+    return this.state;
+  }
 }

@@ -12,10 +12,10 @@
  */
 
 const STORAGE_KEYS = {
-  ACCESS_TOKEN:  "aura_sense_google_access_token",
+  ACCESS_TOKEN: "aura_sense_google_access_token",
   REFRESH_TOKEN: "aura_sense_google_refresh_token",
-  EXPIRY:        "aura_sense_google_token_expiry",
-  EMAIL:         "aura_sense_google_email",
+  EXPIRY: "aura_sense_google_token_expiry",
+  EMAIL: "aura_sense_google_email",
 } as const;
 
 // Scopes required for Music Intelligence (YouTube read + control)
@@ -64,9 +64,7 @@ export class GoogleOAuthProvider {
    */
   async authenticate(): Promise<GoogleSession> {
     if (!this.clientId) {
-      throw new Error(
-        "Google Client ID not configured. Set VITE_GOOGLE_CLIENT_ID in environment."
-      );
+      throw new Error("Google Client ID not configured. Set VITE_GOOGLE_CLIENT_ID in environment.");
     }
 
     return new Promise((resolve, reject) => {
@@ -104,10 +102,10 @@ export class GoogleOAuthProvider {
             clearInterval(interval);
 
             const hash = new URLSearchParams(
-              url.includes("#") ? url.split("#")[1] : url.split("?")[1]
+              url.includes("#") ? url.split("#")[1] : url.split("?")[1],
             );
             const accessToken = hash.get("access_token");
-            const expiresIn   = parseInt(hash.get("expires_in") || "3600");
+            const expiresIn = parseInt(hash.get("expires_in") || "3600");
 
             if (!accessToken) {
               reject(new Error("No access token received."));
@@ -118,17 +116,19 @@ export class GoogleOAuthProvider {
             popup.close();
 
             // Fetch user email
-            this.fetchUserEmail(accessToken).then((email) => {
-              const session: GoogleSession = {
-                accessToken,
-                email,
-                expiresAt: Date.now() + expiresIn * 1000,
-              };
+            this.fetchUserEmail(accessToken)
+              .then((email) => {
+                const session: GoogleSession = {
+                  accessToken,
+                  email,
+                  expiresAt: Date.now() + expiresIn * 1000,
+                };
 
-              this.persistSession(session);
-              this.session = session;
-              resolve(session);
-            }).catch(reject);
+                this.persistSession(session);
+                this.session = session;
+                resolve(session);
+              })
+              .catch(reject);
           }
         } catch {
           // Cross-origin — popup still on Google's domain, keep polling
@@ -140,10 +140,9 @@ export class GoogleOAuthProvider {
   async revokeSession(): Promise<void> {
     if (this.session?.accessToken) {
       try {
-        await fetch(
-          `https://oauth2.googleapis.com/revoke?token=${this.session.accessToken}`,
-          { method: "POST" }
-        );
+        await fetch(`https://oauth2.googleapis.com/revoke?token=${this.session.accessToken}`, {
+          method: "POST",
+        });
       } catch {}
     }
     this.clearSession();
@@ -167,12 +166,12 @@ export class GoogleOAuthProvider {
 
   private restoreSession(): GoogleSession | null {
     const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    const expiry      = localStorage.getItem(STORAGE_KEYS.EXPIRY);
-    const email       = localStorage.getItem(STORAGE_KEYS.EMAIL);
+    const expiry = localStorage.getItem(STORAGE_KEYS.EXPIRY);
+    const email = localStorage.getItem(STORAGE_KEYS.EMAIL);
 
     if (!accessToken || !expiry || !email) return null;
     const expiresAt = parseInt(expiry);
-    if (expiresAt < Date.now()) return null;  // Expired
+    if (expiresAt < Date.now()) return null; // Expired
 
     return { accessToken, email, expiresAt };
   }

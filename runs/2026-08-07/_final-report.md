@@ -1,0 +1,47 @@
+# Phase 13 Final Report
+
+- Conversations: 35 · Model: deepseek/deepseek-chat
+- Per-mode scores:
+  - adult-humor score 8.0/10 | fidelity 94% | human 8.7 | expected 55%
+  - apology score 8.2/10 | fidelity 89% | human 10.0 | expected 52%
+  - argument score 8.0/10 | fidelity 89% | human 8.3 | expected 67%
+  - awkward-silence score 7.3/10 | fidelity 61% | human 9.2 | expected 65%
+  - celebration score 7.3/10 | fidelity 83% | human 9.3 | expected 38%
+  - close-friends score 8.3/10 | fidelity 89% | human 8.7 | expected 73%
+  - comfort score 7.7/10 | fidelity 89% | human 9.3 | expected 45%
+  - confidence-testing score 8.6/10 | fidelity 94% | human 10.0 | expected 61%
+  - conversation-repair score 7.5/10 | fidelity 83% | human 7.5 | expected 67%
+  - dark-humor score 8.0/10 | fidelity 83% | human 8.2 | expected 75%
+  - debate score 8.0/10 | fidelity 78% | human 8.3 | expected 78%
+  - emotional-breakdown score 8.4/10 | fidelity 83% | human 8.7 | expected 82%
+  - ethical-dilemma score 8.8/10 | fidelity 89% | human 10.0 | expected 72%
+  - flirting score 8.3/10 | fidelity 83% | human 8.7 | expected 79%
+  - friendly-banter score 8.3/10 | fidelity 89% | human 10.0 | expected 57%
+  - grief score 9.6/10 | fidelity 100% | human 10.0 | expected 86%
+  - group-conversation score 8.6/10 | fidelity 89% | human 10.0 | expected 67%
+  - interview score 8.4/10 | fidelity 72% | human 10.0 | expected 78%
+  - long-term-callback score 6.7/10 | fidelity 61% | human 8.0 | expected 58%
+  - misunderstanding score 8.3/10 | fidelity 89% | human 10.0 | expected 56%
+  - mixed-language score 8.4/10 | fidelity 89% | human 9.3 | expected 67%
+  - negotiation score 8.8/10 | fidelity 94% | human 9.2 | expected 78%
+  - parent-child score 7.9/10 | fidelity 83% | human 8.7 | expected 67%
+  - personal-failure score 7.8/10 | fidelity 83% | human 8.7 | expected 64%
+  - roasting score 7.7/10 | fidelity 67% | human 8.7 | expected 76%
+  - romantic score 7.9/10 | fidelity 83% | human 9.3 | expected 57%
+  - sarcasm score 7.0/10 | fidelity 78% | human 8.0 | expected 48%
+  - siblings score 8.0/10 | fidelity 83% | human 9.3 | expected 62%
+  - social-pressure score 8.0/10 | fidelity 83% | human 9.3 | expected 62%
+  - storytelling score 7.1/10 | fidelity 67% | human 6.3 | expected 86%
+  - stranger score 8.9/10 | fidelity 78% | human 9.2 | expected 100%
+  - success score 8.2/10 | fidelity 94% | human 10.0 | expected 48%
+  - teaching score 9.1/10 | fidelity 83% | human 10.0 | expected 89%
+  - topic-switching score 8.6/10 | fidelity 94% | human 10.0 | expected 61%
+  - workplace score 7.6/10 | fidelity 67% | human 9.3 | expected 65%
+
+- Executive fidelity: 83% (lang 94 / reg 85 / mem 97 / strat 41 / init 89 / budget 94)
+- Humanity: 9.1/10 · realism 9.1/10 · feels-human 93%
+- Hallucinated-memory violations: 0
+- Big success: Apology · Big weakness: Storytelling
+- Every subsystem measurably influenced responses.
+
+- **Verdict: YES — confidence 88% · Production ready: YES**

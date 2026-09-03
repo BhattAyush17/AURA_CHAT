@@ -3,7 +3,7 @@ export interface SenseRuntimeMetrics {
   rollingLatency: number;
   observationFrequency: number;
   provider: string | null;
-  providerHealth: 'healthy' | 'degraded' | 'failed' | 'disconnected';
+  providerHealth: "healthy" | "degraded" | "failed" | "disconnected";
   replayBufferSize: number;
   failureCount: number;
   restartCount: number;
@@ -15,17 +15,17 @@ export interface SenseRuntimeMetrics {
 
 export function createDefaultMetrics(): SenseRuntimeMetrics {
   return {
-    lifecycle: 'CREATED',
+    lifecycle: "CREATED",
     rollingLatency: 0,
     observationFrequency: 0,
     provider: null,
-    providerHealth: 'disconnected',
+    providerHealth: "disconnected",
     replayBufferSize: 0,
     failureCount: 0,
     restartCount: 0,
     recoveryAttempts: 0,
     uptime: 0,
     healthScore: 1.0,
-    lastSuccessfulObservation: 0
+    lastSuccessfulObservation: 0,
   };
 }

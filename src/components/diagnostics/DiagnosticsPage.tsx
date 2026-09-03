@@ -89,7 +89,11 @@ function Field({ label, value }: { label: string; value: string | number | boole
 
 function CompatibilityGauge({ score }: { score: number }) {
   const color =
-    score >= 80 ? "oklch(0.7 0.18 145)" : score >= 50 ? "oklch(0.75 0.15 85)" : "oklch(0.7 0.18 25)";
+    score >= 80
+      ? "oklch(0.7 0.18 145)"
+      : score >= 50
+        ? "oklch(0.75 0.15 85)"
+        : "oklch(0.7 0.18 25)";
   const label = score >= 80 ? "Excellent" : score >= 50 ? "Partial" : "Poor";
 
   return (
@@ -111,7 +115,9 @@ function CompatibilityGauge({ score }: { score: number }) {
           />
         </svg>
         <div className="diag-gauge__label">
-          <span className="diag-gauge__number" style={{ color }}>{score}%</span>
+          <span className="diag-gauge__number" style={{ color }}>
+            {score}%
+          </span>
           <span className="diag-gauge__text">{label}</span>
         </div>
       </div>
@@ -134,7 +140,10 @@ function DebugOverlay({ snapshot }: { snapshot: DiagnosticSnapshot | null }) {
   return (
     <div className="diag-overlay">
       {items.map((item) => (
-        <span key={item.label} className={`diag-overlay__item ${item.ok ? "diag-overlay__item--ok" : "diag-overlay__item--fail"}`}>
+        <span
+          key={item.label}
+          className={`diag-overlay__item ${item.ok ? "diag-overlay__item--ok" : "diag-overlay__item--fail"}`}
+        >
           {item.label} {item.ok ? "✓" : "✗"}
         </span>
       ))}
@@ -240,7 +249,10 @@ export function DiagnosticsPage() {
               <Field label="Browser" value={`${d.browser} ${d.browserVersion}`} />
               <Field label="Platform" value={d.platform} />
               <Field label="Mobile" value={d.mobile} />
-              <Field label="Screen" value={`${d.screenWidth}×${d.screenHeight} @${d.devicePixelRatio}x`} />
+              <Field
+                label="Screen"
+                value={`${d.screenWidth}×${d.screenHeight} @${d.devicePixelRatio}x`}
+              />
               <Field label="Online" value={d.online} />
               <Field label="CPU Cores" value={d.hardwareConcurrency} />
               <Field label="RAM" value={d.deviceMemory ? `${d.deviceMemory} GB` : "N/A"} />
@@ -359,9 +371,7 @@ export function DiagnosticsPage() {
 
       {/* Timestamp */}
       {snapshot && (
-        <p className="diag-timestamp">
-          Last scan: {new Date(snapshot.timestamp).toLocaleString()}
-        </p>
+        <p className="diag-timestamp">Last scan: {new Date(snapshot.timestamp).toLocaleString()}</p>
       )}
     </div>
   );

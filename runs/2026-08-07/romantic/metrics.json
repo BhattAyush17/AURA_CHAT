@@ -1,0 +1,46 @@
+{
+  "dataset": "romantic",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 83,
+    "avgHumanity": 9.333333333333334,
+    "realism": 9.3,
+    "productionReady": true,
+    "pipelineMsAvg": 2465
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3376,
+      "llmWords": 8
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1784,
+      "llmWords": 6
+    },
+    {
+      "turn": 3,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2234,
+      "llmWords": 3
+    }
+  ]
+}

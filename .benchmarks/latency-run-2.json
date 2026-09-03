@@ -1,0 +1,407 @@
+{
+  "durationMs": 100000,
+  "wsFrames": 7,
+  "wsLastFrameAt": 1786198573750,
+  "latencyEvents": [
+    {
+      "t": 130199,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 19482.899999999907
+      }
+    },
+    {
+      "t": 130327,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 128.60000000009313
+      }
+    },
+    {
+      "t": 130392,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64.39999999990687
+      }
+    },
+    {
+      "t": 130498,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 106.60000000009313
+      }
+    },
+    {
+      "t": 130562,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64.10000000009313
+      }
+    },
+    {
+      "t": 130648,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 85.60000000009313
+      }
+    },
+    {
+      "t": 130711,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 63.5
+      }
+    },
+    {
+      "t": 130777,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 65.39999999990687
+      }
+    },
+    {
+      "t": 130851,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 73.79999999981374
+      }
+    },
+    {
+      "t": 138043,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 7192.5
+      }
+    },
+    {
+      "t": 138130,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 87.20000000018626
+      }
+    },
+    {
+      "t": 138185,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 54.60000000009313
+      }
+    },
+    {
+      "t": 141948,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 3763.5
+      }
+    },
+    {
+      "t": 143326,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1377.1000000000931
+      }
+    },
+    {
+      "t": 145653,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 2327.0999999996275
+      }
+    },
+    {
+      "t": 147502,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1849.1000000000931
+      }
+    },
+    {
+      "t": 152439,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 4937.600000000093
+      }
+    },
+    {
+      "t": 153016,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 577.1000000000931
+      }
+    },
+    {
+      "t": 153326,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 310
+      }
+    },
+    {
+      "t": 153412,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 85.79999999981374
+      }
+    },
+    {
+      "t": 153476,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 63.700000000186265
+      }
+    },
+    {
+      "t": 153540,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64.29999999981374
+      }
+    },
+    {
+      "t": 153615,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 75.10000000009313
+      }
+    },
+    {
+      "t": 153680,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64.20000000018626
+      }
+    },
+    {
+      "t": 153761,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 81.79999999981374
+      }
+    },
+    {
+      "t": 153850,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 88.5
+      }
+    },
+    {
+      "t": 155432,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1581.7000000001863
+      }
+    },
+    {
+      "t": 163416,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 7984.5
+      }
+    },
+    {
+      "t": 165232,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1816.1999999997206
+      }
+    },
+    {
+      "t": 166215,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 983
+      }
+    },
+    {
+      "t": 173974,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 7758.899999999907
+      }
+    },
+    {
+      "t": 175481,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1507.1000000000931
+      }
+    },
+    {
+      "t": 176005,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 524.1000000000931
+      }
+    },
+    {
+      "t": 176069,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64
+      }
+    },
+    {
+      "t": 176134,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 64.10000000009313
+      }
+    },
+    {
+      "t": 176934,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 800.8999999999069
+      }
+    },
+    {
+      "t": 177106,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 172.10000000009313
+      }
+    },
+    {
+      "t": 179073,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1966.6999999997206
+      }
+    },
+    {
+      "t": 179147,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 74.3000000002794
+      }
+    },
+    {
+      "t": 179307,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 159.89999999990687
+      }
+    },
+    {
+      "t": 179414,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 106.70000000018626
+      }
+    },
+    {
+      "t": 180462,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1047.5
+      }
+    },
+    {
+      "t": 187366,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 6904.699999999721
+      }
+    },
+    {
+      "t": 187440,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 74.10000000009313
+      }
+    },
+    {
+      "t": 187612,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 171.5
+      }
+    },
+    {
+      "t": 188103,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 491.60000000009313
+      }
+    },
+    {
+      "t": 191566,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 3462.899999999907
+      }
+    },
+    {
+      "t": 192229,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 662.5
+      }
+    },
+    {
+      "t": 192325,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 95.79999999981374
+      }
+    },
+    {
+      "t": 192891,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 566.6000000000931
+      }
+    },
+    {
+      "t": 200351,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 7459.800000000279
+      }
+    },
+    {
+      "t": 203215,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 2864.2999999998137
+      }
+    },
+    {
+      "t": 216351,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 13135.299999999814
+      }
+    },
+    {
+      "t": 217782,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 1431.8000000002794
+      }
+    },
+    {
+      "t": 218424,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 641.3999999999069
+      }
+    },
+    {
+      "t": 218862,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 438.5
+      }
+    },
+    {
+      "t": 221352,
+      "detail": {
+        "type": "audioChunkInterval",
+        "value": 2490.100000000093
+      }
+    }
+  ],
+  "console": []
+}

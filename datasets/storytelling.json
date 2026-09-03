@@ -1,0 +1,71 @@
+{
+  "id": "storytelling",
+  "name": "Storytelling",
+  "trust": 0.75,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Kal ek ajeeb incident hua.",
+      "behavior": {
+        "act": "story",
+        "tags": ["story"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["tell-story"],
+        "strategy": ["Listen", "Reflect", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["storytelling-mode"]
+      }
+    },
+    {
+      "text": "Tu believe nahi karega.",
+      "behavior": {
+        "act": "story",
+        "tags": ["story", "playful"],
+        "intensity": 0.5,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["tell-story"],
+        "strategy": ["Listen", "Reflect", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["storytelling-mode"]
+      }
+    },
+    {
+      "text": "Aur phir sab ulta ho gaya.",
+      "behavior": {
+        "act": "story",
+        "tags": ["story"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["tell-story"],
+        "strategy": ["Listen", "Reflect", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["storytelling-mode"]
+      }
+    }
+  ]
+}

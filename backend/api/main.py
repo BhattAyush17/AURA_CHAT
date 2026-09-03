@@ -5,6 +5,7 @@ AURA Behavior Engine API Server v3
 import os
 import time
 import asyncio
+import functools
 from datetime import datetime, timedelta
 try:
     import pytz
@@ -28,11 +29,7 @@ from slowapi.errors import RateLimitExceeded
 from backend.memory.chroma import chroma_service
 from backend.memory.sync import (
     get_latest_seed,
-    save_seed_to_supabase,
-    persist_state_vector,
-    store_and_backup_memory,
-    get_chromadb_enrichment_v2,
-    get_gap_context
+    save_seed_to_supabase
 )
 from backend.bus.redis import (
     redis_bus,
@@ -44,14 +41,28 @@ from backend.bus.redis import (
 )
 from backend.infrastructure.embedding_cache import EmbeddingCache
 from backend.infrastructure.embedding_provider import embedding_provider
+from backend.infrastructure.runtime_telemetry import runtime_telemetry
+from backend.core.intelligence.action_schema import (
+    ACTION_SCHEMA,
+    RESPONSE_CONTRACT,
+    EMOTION_ACKNOWLEDGEMENT_DIRECTIVE,
+    build_prompt,
+)
 
-# Load .env.local from the project root (two directories up from backend/api)
+# Load env from the project root (two directories up from backend/api).
+# `.env.local` is loaded first and wins: load_dotenv() does not override
+# already-set keys, so the more specific file takes precedence over `.env`.
+# Both are required — SUPABASE_URL / GEMINI_API_KEY live in `.env`, while
+# REDIS_URL / OPENROUTER_API_KEY / SARVAM_API_KEY live in `.env.local`.
+# Loading only one of them leaves `supabase = None` and silently demotes
+# the embedding provider to its next fallback tier.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 load_dotenv(os.path.join(project_root, ".env.local"))
+load_dotenv(os.path.join(project_root, ".env"))
 import sys
 import os
 
-# FIX: Import collision workaround. The local ./supabase/ directory (CLI) 
+# FIX: Import collision workaround. The local ./supabase/ directory (CLI)
 # overrides the pip 'supabase' package. Temporarily drop cwd from path to import.
 _cwd = sys.path.pop(0) if sys.path and (sys.path[0] == '' or sys.path[0] == os.getcwd()) else None
 from supabase._async.client import AsyncClient, create_client as async_create_client
@@ -75,6 +86,19 @@ ALLOWED_ORIGINS = [
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 supabase: AsyncClient | None = None
+
+
+def get_supabase() -> "AsyncClient | None":
+    """Current Supabase client, resolved at call time.
+
+    `supabase` is None at import and only assigned in `startup_event`. Routers
+    that did `from backend.api.main import supabase` captured that None into
+    their own module namespace and never saw the real client — every request
+    took the `if not supabase` degrade path. Importing this function instead
+    defers the lookup to request time, so the rebinding is visible.
+    """
+    return supabase
+
 
 from backend.core.behavior import RuntimeEngine, build_sensing_injection, detect_language_profile
 from backend.core.vocab import vocab_learner
@@ -103,7 +127,9 @@ log = get_logger("server")
 app = FastAPI(
     title="AURA Behavior Engine",
     version="3.0",
-    docs_url="/docs" if ENVIRONMENT != "production" else None
+    docs_url="/docs" if ENVIRONMENT != "production" else None,
+    # FIX 4: Suppress stack traces and internal paths in production error responses
+    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
 )
 
 app.add_middleware(
@@ -113,12 +139,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from backend.api.cron import router as cron_router
-app.include_router(cron_router)
-
-from backend.api.memory_endpoints import router as memory_router
-app.include_router(memory_router)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -139,12 +159,17 @@ def _safe_background(coro, *, name: str = "unknown"):
     return asyncio.create_task(_wrapper())
 
 
-app = FastAPI(
-    title="AURA Behavior Engine",
-    version="3.0",
-    # FIX 4: Suppress stack traces and internal paths in production error responses
-    openapi_url=None if ENVIRONMENT == "production" else "/openapi.json",
-)
+# ═══════════════════════════════════════════════════════════════════
+# ROUTER REGISTRATION
+#
+# All routers are attached to the single `app` created above. This block
+# previously ran twice against two different FastAPI instances: an earlier
+# `app` received the cron + memory routers, then `app` was rebound to a new
+# FastAPI() which only received webhooks + cron. The memory router was
+# therefore never mounted on the served application, so
+# /api/memory/model/{user_id} and /api/memory/consolidate returned 404 —
+# which the frontend gateway could not distinguish from "no memories".
+# ═══════════════════════════════════════════════════════════════════
 
 try:
     from backend.api import webhooks
@@ -157,7 +182,12 @@ try:
     app.include_router(cron_router)
 except ImportError as e:
     log.error("Failed to import cron router", error=str(e))
-    pass
+
+try:
+    from backend.api.memory_endpoints import router as memory_router
+    app.include_router(memory_router)
+except ImportError as e:
+    log.error("Failed to import memory router", error=str(e))
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -186,6 +216,12 @@ async def startup_event():
         # Wire embedding cache with the multi-tier provider's embed function.
         # Cache works regardless of which backend (Gemini/Cohere/FastEmbed) is active.
         _embedding_cache = EmbeddingCache(redis_bus.client, embedding_provider.embed)
+
+        # P1: Initialize canonical MemoryOrchestrator
+        from backend.memory.orchestration.orchestrator import configure_orchestrator
+        configure_orchestrator(lambda: supabase, cache=_embedding_cache, degradation=degradation)
+        print("[AURA] Memory Orchestrator initialized")
+
         # P8 FIX: Wire vocab_learner singleton with persistence clients
         from backend.core.vocab import set_vocab_learner_clients
         set_vocab_learner_clients(redis_client=redis_bus.client, supabase_client=supabase)
@@ -194,13 +230,10 @@ async def startup_event():
         print("[AURA] Redis unavailable — Brain 3 running in sync fallback mode")
     print("[AURA] Background services initializing...")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# NOTE: CORSMiddleware is registered once, immediately after app creation
+# (see above). A second identical add_middleware call used to live here —
+# a leftover of the two-`app` era — which stacked the middleware twice and
+# emitted duplicate Access-Control-Allow-Origin headers.
 
 engine = RuntimeEngine(
     data_dir="./extracted_data",
@@ -228,6 +261,32 @@ async def apply_rate_limit(identifier: str, max_requests: int, response: Respons
         if e.status_code == 429:
             log.warning("rate_limit_exceeded", identifier=identifier, limit=max_requests)
         raise
+
+
+def timed_endpoint(service: str, op: str):
+    """Decorator: record endpoint success/failure + latency into runtime telemetry.
+
+    Observability-only — never alters responses. Places ABOVE the route
+    decorator so FastAPI routes the instrumented wrapper:
+        @app.post("/x")
+        @timed_endpoint("api", "x")
+        async def handler(...): ...
+    """
+    from backend.infrastructure.runtime_telemetry import now_ms as _now_ms
+
+    def deco(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            t0 = _now_ms()
+            try:
+                result = await fn(*args, **kwargs)
+                runtime_telemetry.record(service, op, status="success", latency_ms=_now_ms() - t0)
+                return result
+            except Exception:
+                runtime_telemetry.record(service, op, status="failure", latency_ms=_now_ms() - t0)
+                raise
+        return wrapper
+    return deco
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -382,11 +441,11 @@ class SessionStore:
                     last_active = datetime.fromisoformat(last_active.replace("Z", "+00:00"))
                 except:
                     last_active = now
-            
+
             # Ensure last_active is naive if now is naive (utc)
             if last_active.tzinfo:
                 last_active = last_active.replace(tzinfo=None)
-                
+
             if now - last_active > ttl:
                 expired.append(sid)
         return expired
@@ -425,39 +484,40 @@ _loaded_redis_url = None
 async def update_byok_credentials(request: Request):
     global _loaded_gemini_key, _loaded_or_key, _loaded_cohere_key, _loaded_pinecone_key, _loaded_redis_url
     import os
-    
+
     gemini_key = request.headers.get("x-gemini-key", "").strip(' \t\n\r"')
     or_key = request.headers.get("x-openrouter-key", "").strip(' \t\n\r"')
     cohere_key = request.headers.get("x-cohere-key", "").strip(' \t\n\r"')
     pinecone_key = request.headers.get("x-pinecone-key", "").strip(' \t\n\r"')
     redis_url = request.headers.get("x-redis-url", "").strip(' \t\n\r"')
-    
+
     changed_embed = False
-    
+
     if gemini_key and gemini_key != _loaded_gemini_key:
         os.environ["GEMINI_API_KEY"] = gemini_key
         _loaded_gemini_key = gemini_key
         changed_embed = True
-        
+
     if or_key and or_key != _loaded_or_key:
         os.environ["OPENROUTER_API_KEY"] = or_key
         _loaded_or_key = or_key
-        
+
     if cohere_key and cohere_key != _loaded_cohere_key:
         os.environ["COHERE_API_KEY"] = cohere_key
         _loaded_cohere_key = cohere_key
         changed_embed = True
-        
+
     if pinecone_key and pinecone_key != _loaded_pinecone_key:
         os.environ["PINECONE_API_KEY"] = pinecone_key
         _loaded_pinecone_key = pinecone_key
-        
+        runtime_telemetry.record("pinecone", "key_configured")
+
     if redis_url and redis_url != _loaded_redis_url:
         os.environ["REDIS_URL"] = redis_url
         _loaded_redis_url = redis_url
         from backend.bus.redis import redis_bus
         await redis_bus.initialize()
-        
+
     if changed_embed:
         from backend.infrastructure.embedding_provider import embedding_provider
         await embedding_provider.initialize()
@@ -474,18 +534,17 @@ except ImportError:
 
 async def prefetch_memory(text: str, session_id: str, user_id: str):
     try:
-        from backend.memory.sync import get_chromadb_enrichment_v2
-        from backend.core.behavior import _sensing_engines
-        state_dict = {}
-        if session_id in _sensing_engines:
-            state_dict = _sensing_engines[session_id].state.__dict__
-        memory_enrichment = await get_chromadb_enrichment_v2(
-            current_text=text,
-            state_vector=state_dict,
-            user_id=user_id,
-            timeout=2.0,
-            embedding_cache=_embedding_cache
-        )
+        from backend.memory.orchestration.orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        
+        memory_enrichment = ""
+        if orchestrator:
+            memory_enrichment = await orchestrator.read_context_block(
+                user_id=user_id,
+                query=text,
+                budget_chars=600
+            )
+            
         if redis_bus.client:
             await redis_bus.client.set(f"speculative_mem:{session_id}", memory_enrichment, ex=10)
         else:
@@ -503,11 +562,12 @@ async def retrieve_prefetched_memory(session_id: str) -> str:
     return ""
 
 @app.post("/api/speculate")
+@timed_endpoint("api", "speculate")
 async def speculate_memory(payload: dict, background_tasks: BackgroundTasks):
     session_id = payload.get("session_id")
     partial_text = payload.get("text", "")
     user_id = payload.get("user_id", "anonymous")
-    
+
     background_tasks.add_task(
         prefetch_memory,
         text=partial_text,
@@ -517,16 +577,17 @@ async def speculate_memory(payload: dict, background_tasks: BackgroundTasks):
     return {"status": "speculating"}
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
+@timed_endpoint("api", "analyze")
 async def analyze(request: Request, body: AnalyzeRequest, response: Response, background_tasks: BackgroundTasks):
     await apply_rate_limit(f"analyze:{body.session_id}", 60, response)
     """Runtime cascade: keyword → ChromaDB → fallback. Target <200ms.
-    
+
     Brain 3 path (Redis available):
       1. Publish transcript to Redis Stream (fire-and-forget, <1ms)
       2. Read cached analysis from previous consumer run
       3. Enrich with ChromaDB memory (async)
       4. Return immediately
-    
+
     Sync fallback path (Redis unavailable or cache cold):
       Original synchronous pipeline — identical to pre-migration behavior.
     """
@@ -542,7 +603,7 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response, ba
 
     t0 = time.perf_counter()
     level = degradation.level
-    
+
     if level == DegradationLevel.VOICE_ONLY:
         log.warning("analyze_request", session_id=body.session_id, degradation_level="voice_only", cache_hit=False, duration_ms=round((time.perf_counter() - t0) * 1000, 2))
         return AnalyzeResponse(
@@ -568,7 +629,7 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response, ba
         seed = session_data.get("seed", "") if session_data else ""
 
         turn_history = session_data.get("turn_history", []) if session_data else []
-        
+
         # Update session immediately
         turn_history.append({"text": body.user_text, "user_initiated": body.user_initiated})
         if len(turn_history) > 10: turn_history.pop(0)
@@ -579,15 +640,15 @@ async def analyze(request: Request, body: AnalyzeRequest, response: Response, ba
         # 1. HOT PATH: Instant Emotional Routing (< 5ms)
         # Calculate the 15-dimensional state dynamically inline. No DB calls.
         raw_analysis = engine.analyze(
-            transcript=body.user_text, 
+            transcript=body.user_text,
             ideology=body.ideology_hint,
             user_initiated=body.user_initiated,
             turn_history=turn_history
         )
-        
+
         # 2. INSTANT RAG: Retrieve the memory that was speculatively fetched moments ago
         cached_memory = await retrieve_prefetched_memory(body.session_id)
-        
+
         # Build the exact behavioral instructions to steer the LLM
         behavior_instructions = engine.build_instructions(raw_analysis)
         if cached_memory:
@@ -677,7 +738,7 @@ def get_time_context(user_timezone: str = "Asia/Kolkata") -> dict:
     else:
         # Final fallback to UTC or local time if no timezone support
         now = datetime.utcnow()
-    
+
     hour = now.hour
 
     period = (
@@ -693,6 +754,96 @@ def get_time_context(user_timezone: str = "Asia/Kolkata") -> dict:
         "hour": hour,
         "is_late_night": hour < 5 or hour >= 23,
         "day": now.strftime("%A")
+    }
+
+
+def _build_atmosphere_payload(raw_ctx: dict, query: str) -> dict:
+    """
+    Normalize the composer's raw context into a bounded, provenance-bearing
+    structured AtmosphereContext payload for the frontend.
+
+    IMPORTANT: preserves geographic provenance (source/confidence) so fallback
+    coordinates are never reported as verified user location, and preserves
+    news semantics (empty results == no fresh results, NOT 'no current events').
+    """
+    time_data = raw_ctx.get("time", {}) or {}
+    geo_data = raw_ctx.get("geo", {}) or {}
+    env_data = raw_ctx.get("environment", {}) or {}
+    live_data = raw_ctx.get("live_context", {}) or {}
+    dev_data = raw_ctx.get("device", {}) or {}
+    net_data = raw_ctx.get("network", {}) or {}
+
+    # Geographic provenance — fallback coordinates are NOT trusted location.
+    geo_source = geo_data.get("source")
+    geo_confidence = (
+        "low" if geo_source in ("fallback", "default") or geo_source is None
+        else "medium" if geo_source == "ipapi.co"
+        else "unknown"
+    )
+
+    # News: preserve availability + result count. Empty results MUST remain
+    # "no fresh results retrieved", never transformed into "no current events".
+    news_items = live_data.get("results") if live_data.get("triggered") else []
+    news_available = bool(news_items)
+    news = None
+    if live_data.get("triggered"):
+        news = {
+            "available": news_available,
+            "resultCount": len(news_items),
+            "fetchedAt": None,  # composer does not stamp wall-clock here; freshness via TTL cache
+            "source": live_data.get("provider"),
+            "query": query,
+        }
+
+    return {
+        "temporal": {
+            "available": bool(time_data.get("timestamp")),
+            "timestamp": time_data.get("timestamp"),
+            "dayOfWeek": time_data.get("day_of_week"),
+            "timezone": time_data.get("timezone"),
+            "utcOffset": time_data.get("utc_offset"),
+            "period": time_data.get("period"),
+            "season": time_data.get("season"),
+            "isLateNight": time_data.get("hour") is not None and (
+                time_data.get("hour") >= 23 or time_data.get("hour") < 5
+            ),
+            "isWeekend": time_data.get("is_weekend"),
+        },
+        "geography": {
+            "available": bool(geo_data.get("city")),
+            "city": geo_data.get("city"),
+            "region": geo_data.get("region"),
+            "country": geo_data.get("country"),
+            "latitude": geo_data.get("latitude"),
+            "longitude": geo_data.get("longitude"),
+            "source": geo_source,
+            "confidence": geo_confidence,
+        },
+        "weather": {
+            "available": bool(env_data.get("condition")),
+            "summary": env_data.get("summary"),
+            "temperature": env_data.get("temperature"),
+            "humidity": env_data.get("humidity"),
+            "conditions": env_data.get("condition"),
+            "source": env_data.get("source"),
+        },
+        "news": news,
+        "device": {
+            "available": bool(dev_data.get("os")),
+            "os": dev_data.get("os"),
+            "battery": (dev_data.get("battery") or {}).get("percentage"),
+        },
+        "network": {
+            "available": net_data.get("online") is not None,
+            "online": net_data.get("online"),
+            "quality": net_data.get("quality"),
+            "latencyMs": net_data.get("latency_ms"),
+        },
+        "freshness": {
+            "available": bool(time_data.get("timestamp")),
+            "timezone": time_data.get("timezone"),
+            "ttlSeconds": 900,
+        },
     }
 
 
@@ -716,25 +867,34 @@ class ChatRequest(BaseModel):
     # Phase E: Canonical cognitive block generated by frontend ConversationInterpreter
     cognitive_block: Optional[str] = Field(None, max_length=4000)
     music_context: Optional[dict] = None
+    # Phase 1 cognitive fix: compact serialized music state for the Path-A LLM
+    # (current track, playback state, position). Separate from music_context,
+    # which feeds the thought-field pipeline. Bounded, prompt-ready text.
+    music_context_text: Optional[str] = Field(None, max_length=2000)
+    # Atmosphere: frontend AdaptiveAttentionLayer relevance gate. When true,
+    # the backend prepends the composer's real-world grounding block to the
+    # LLM system prompt for THIS turn. When false/absent, no atmosphere is
+    # injected — the LLM must not be force-fed environment data.
+    include_atmosphere: Optional[bool] = Field(None)
 
 @app.post("/api/analyze/stream")
 async def analyze_turn_stream(request: Request, body: ChatRequest, response: Response, background_tasks: BackgroundTasks):
     from fastapi.responses import StreamingResponse
     import json
     await apply_rate_limit(f"analyze_stream:{body.session_id}", 60, response)
-    
+
     # ── BYOK: Extract API keys ──
     await update_byok_credentials(request)
-    
+
     session_id = body.session_id or "default"
-    
+
     base_id = get_base_session_id(session_id)
     session_data = await active_sessions.get(base_id)
     if not session_data:
         session_data = await active_sessions.get(session_id)
     seed = session_data.get("seed", "") if session_data else ""
     turn_history = session_data.get("turn_history", []) if session_data else []
-    
+
     turn_history.append({"text": body.text, "user_initiated": True})
     if len(turn_history) > 10: turn_history.pop(0)
 
@@ -742,22 +902,31 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
         # Canonical Path: Frontend ConversationInterpreter already did the work.
         raw_analysis = {"emotional_state": "neutral"}
         behavior_instructions = ""
-        system_prompt = f"{body.cognitive_block}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
+        # Phase 1 cognitive-integrity fix: the canonical Path-A prompt was
+        # "cognitive_block + length rule" — the action schema (music/seek/…),
+        # the Executive plan, and the music state were all severed at this
+        # boundary. Now assemble every computed decision that must reach the LLM.
+        _blocks = [
+            ACTION_SCHEMA,
+            EMOTION_ACKNOWLEDGEMENT_DIRECTIVE,
+            body.executive_plan or None,
+            body.music_context_text or None,
+            body.cognitive_block,
+        ]
+        system_prompt = build_prompt(_blocks)
+        system_prompt += (
+            "\n\nRESPONSE LENGTH:\n"
+            "Answer in 1-3 sentences. Speak naturally, not formally."
+        )
     else:
         # Fast path routing logic
         raw_analysis = engine.analyze(
-            transcript=body.text, 
+            transcript=body.text,
             user_initiated=True,
             turn_history=turn_history
         )
         behavior_instructions = engine.build_instructions(raw_analysis)
-        
-        # Phase 10: the Executive directive is the plan of record — it must
-        # reach the LLM or the entire decision chain is severed. First position
-        # = highest priority for the model.
-        if body.executive_plan:
-            behavior_instructions = f"{body.executive_plan}\n\n{behavior_instructions}"
-        
+
         # Phase 10: memory enforcement — memories the Executive ignored never
         # reach the LLM; local-mode memories (previously dropped on this path)
         # are injected when the policy allows.
@@ -773,18 +942,64 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             behavior_instructions += f"\n\n{cached_memory}"
         if memory_lines:
             behavior_instructions += f"\n\n[MEMORY ENRICHMENT]\n" + "\n".join(memory_lines) + "\n[END MEMORY]"
-            
-        system_prompt = f"{behavior_instructions}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
-    
+
+        # Phase 1 cognitive-integrity fix (C7/parity): the fast path must also
+        # receive the action schema, an explicit emotion-acknowledgment rule,
+        # the anti-leak response contract, and any music state — otherwise the
+        # decision chain is severed on this branch too.
+        music_ctx = body.music_context_text or None
+        system_prompt = build_prompt([
+            ACTION_SCHEMA,
+            EMOTION_ACKNOWLEDGEMENT_DIRECTIVE,
+            body.executive_plan or None,
+            music_ctx,
+            behavior_instructions,
+        ])
+        system_prompt += f"\n\n{RESPONSE_CONTRACT}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
+
+    # ── Atmosphere Context Layer ────────────────────────────────────────────
+    # Retrieve real-world grounding from the EXISTING composer (TTL-cached,
+    # fail-open). Build a structured, provenance-bearing object for the metadata
+    # event. When the frontend attention layer deemed atmosphere relevant this
+    # turn (include_atmosphere), prepend the grounded block to the system prompt.
+    atmosphere = None
+    atmosphere_grounding = ""
+    log.info("[atmosphere] gate_check include_atmosphere=%s", body.include_atmosphere)
+    if body.include_atmosphere:
+        # Serendipitous / low-latency retrieval: only fetch (and possibly inject)
+        # real-world context when the turn is atmosphere-relevant, as decided by
+        # the frontend Adaptive Attention gate. Non-relevant turns stay cheap.
+        try:
+            import asyncio
+
+            from backend.core.intelligence import composer
+            client_ip = request.client.host if request.client else None
+            raw_ctx = await asyncio.wait_for(
+                composer.get_context(
+                    query=body.text,
+                    ip_address=client_ip,
+                    client_device_info={"mic_available": True},
+                    session_id=session_id,
+                ),
+                timeout=10.0,
+            )
+            atmosphere = _build_atmosphere_payload(raw_ctx, body.text)
+            atmosphere_grounding = composer.serialize_to_prompt(raw_ctx) + "\n"
+            system_prompt = f"{atmosphere_grounding}{system_prompt}"
+            log.info("[atmosphere] composer_invoked session=%s geo_src=%s", session_id, (raw_ctx.get("geo") or {}).get("source"))
+        except Exception as e:
+            log.error("[atmosphere] fetch_failed session=%s err=%s", session_id, repr(e))
+
     async def event_generator():
         # 1. Yield metadata immediately
         initial_metadata = {
             "event": "metadata",
             "emotional_state": raw_analysis.get("emotional_state", "neutral"),
-            "behavior_instructions": behavior_instructions
+            "behavior_instructions": behavior_instructions,
+            "atmosphere": atmosphere,
         }
         yield f"data: {json.dumps(initial_metadata)}\n\n"
-        
+
         # 2. Yield LLM tokens
         from backend.core.intelligence.llm_pipeline import stream_openrouter_response
         full_response = ""
@@ -795,7 +1010,7 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             if "text" in chunk:
                 full_response += chunk["text"]
                 yield f"data: {json.dumps({'event': 'text_chunk', 'text': chunk['text']})}\n\n"
-            
+
         # 3. Trigger background tasks
         if qstash_client:
             qstash_client.publish_json(
@@ -832,7 +1047,7 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
                 ip_address=client_ip,
                 memory_timeout=2.0
             )
-        
+
         yield f"data: {json.dumps({'event': 'done'})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -843,7 +1058,7 @@ async def chat_endpoint(body: ChatRequest, request: Request):
     import time
     import os
     t_start = time.perf_counter()
-    
+
     # ── BYOK: Extract API keys from headers and inject into environment ──
     await update_byok_credentials(request)
 
@@ -900,21 +1115,23 @@ async def chat_endpoint(body: ChatRequest, request: Request):
 
     # Store interaction (only when server manages storage — Mode A)
     if active_memory_mode == "supabase":
-        _safe_background(degradation.execute_with_circuit(
-            'supabase',
-            store_and_backup_memory(
-                supabase_client=supabase,
-                chroma_service=chroma_service,
+        from backend.memory.orchestration.orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+
+        # Fallback to empty sync memory if orchestrator missing
+        if orchestrator:
+            _safe_background(orchestrator.write(
                 user_id=user_id,
                 session_id=session_id,
-                turn_text=body.text,
-                state=type('_sv', (), turn_result.sensing_state)(),
-                turn_number=turn_result.sensing_state.get("session_turn", 0),
-                embedding_cache=_embedding_cache
-            ),
-            fallback=None,
-            timeout=3.0,
-        ), name="store_chat_memory")
+                text=body.text,
+                metadata={
+                    "energy": turn_result.sensing_state.get("energy", 0.5),
+                    "trust": turn_result.sensing_state.get("trust", 0.3),
+                    "warmth": turn_result.sensing_state.get("warmth", 0.5),
+                    "arc": turn_result.sensing_state.get("arc", "opening"),
+                    "turn": turn_result.sensing_state.get("session_turn", 0)
+                }
+            ), name="store_chat_memory")
 
     return {
         "response_text": response_text,
@@ -941,7 +1158,7 @@ async def start_session(request: Request, user_id: str, seed: Optional[str] = ""
         "created_at": datetime.utcnow().isoformat(),
         "last_active": datetime.utcnow().isoformat()
     })
-    
+
     # Sync seed with Supabase — use whichever is newer
     canonical_seed = await get_latest_seed(
         supabase_client=supabase,
@@ -950,7 +1167,7 @@ async def start_session(request: Request, user_id: str, seed: Optional[str] = ""
     )
 
     _sensing_engines[session_id] = SensingEngine(canonical_seed or "")
-    
+
     # Rehydrate StateVector from Supabase if available
     try:
         if supabase:
@@ -993,7 +1210,7 @@ async def start_session(request: Request, user_id: str, seed: Optional[str] = ""
         pass
     gap = get_gap_context(last_seen)
     gap_note = f"[GAP] {gap} [/GAP]" if gap else ""
-    
+
     if _proactive_engine and last_seen:
         try:
             last = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
@@ -1115,7 +1332,7 @@ async def end_session_sync(request: Request, body: SessionEndRequest, background
     payload = body.dict()
     payload['transcript'] = merged
     payload['api_key'] = api_key
-    
+
     sensing_engine = _sensing_engines.get(base_id) or _sensing_engines.get(body.session_id)
     arc_summary = ""
     state_vector_dict = {}
@@ -1282,7 +1499,12 @@ async def health(request: Request, response: Response):
             t0 = _time.monotonic()
             # Lightweight probe: read one row from a table we know exists.
             # This validates both the connection and the service-role key.
-            res = await supabase.table("aura_storage").select("key").limit(1).execute()
+            try:
+                res = await supabase.table("aura_storage").select("key").limit(1).execute()
+                runtime_telemetry.record("supabase", "health_probe", status="success")
+            except Exception:
+                runtime_telemetry.record("supabase", "health_probe", status="failure")
+                raise
             latency = round((_time.monotonic() - t0) * 1000, 2)
             return True, latency
 
@@ -1310,6 +1532,37 @@ async def health(request: Request, response: Response):
         "embedding_cache": (await _embedding_cache.get_stats()) if _embedding_cache else {"status": "not_initialized"}
     }
 
+
+@app.get("/api/telemetry")
+async def runtime_telemetry_endpoint(request: Request, response: Response):
+    """Runtime telemetry counters + subsystem capability flags.
+
+    Observability-only. Returns aggregated counts (service/op/success/failure/
+    latency) and capability flags — NEVER credentials, keys, payloads, or user
+    content. The frontend correlates these aggregates with its own per-session
+    and per-request timelines.
+    """
+    client_ip = get_remote_address(request)
+    await apply_rate_limit(f"telemetry:{client_ip}", 60, response)
+    if not is_allowed_origin(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    stat_map = {
+        "status": "ok",
+        "embedding_provider": embedding_provider.provider_name,
+        "embedding_available": embedding_provider.is_available,
+        "chroma_ready": getattr(chroma_service, "is_ready", False),
+        "active_vector_store": "supabase_pgvector",
+        "pinecone": {
+            "key_configured": bool(os.environ.get("PINECONE_API_KEY") or _loaded_pinecone_key),
+            "active": False,  # Pinecone key is accepted but not the live vector store
+        },
+        "supabase_configured": bool(supabase),
+        "counters": runtime_telemetry.snapshot(),
+    }
+    return stat_map
+
+
 # ═══════════════════════════════════════════════════════════════════
 # REDIS UI ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════
@@ -1318,22 +1571,22 @@ async def health(request: Request, response: Response):
 async def get_redis_stats(request: Request):
     if not is_allowed_origin(request):
         raise HTTPException(status_code=403, detail="Forbidden")
-    
+
     await update_byok_credentials(request)
-    
+
     from backend.bus.redis import redis_bus
     if not redis_bus.available or not redis_bus.client:
         return {"available": False, "message": "Redis is not connected"}
-        
+
     client = redis_bus.client
-    
+
     try:
         info = await client.info("memory")
         used_memory_human = info.get("used_memory_human", "0B")
-        
+
         stats = await client.info("stats")
         total_commands_processed = stats.get("total_commands_processed", 0)
-        
+
         keys = await client.keys("aura:analysis:*")
         sessions = []
         for key in keys:
@@ -1343,12 +1596,12 @@ async def get_redis_stats(request: Request):
                 "id": session_id,
                 "ttl": ttl
             })
-            
+
         try:
             stream_len = await client.xlen("aura:transcripts")
         except Exception:
             stream_len = 0
-            
+
         return {
             "available": True,
             "memory_used": used_memory_human,
@@ -1369,7 +1622,7 @@ async def delete_redis_session(session_id: str, request: Request):
         raise HTTPException(status_code=503, detail="Redis unavailable")
     await redis_bus.client.delete(f"aura:analysis:{session_id}")
     return {"status": "success", "message": f"Deleted session {session_id}"}
-    
+
 @app.delete("/api/redis/stream")
 async def clear_redis_stream(request: Request):
     if not is_allowed_origin(request):
@@ -1529,6 +1782,7 @@ class YTMusicSearchResponse(BaseModel):
     youtube_id: Optional[str] = None
     audio_stream_url: Optional[str] = None
     http_headers: Optional[Dict[str, str]] = None
+    chapters: Optional[List[Dict[str, Any]]] = None
     source: str = "youtube"
     error: bool = False
     message: Optional[str] = None
@@ -1538,7 +1792,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
     import asyncio
     client_ip = request.client.host if request.client else "unknown"
     await apply_rate_limit(f"ytmusic:{client_ip}", 30, response)
-    
+
     def extract_with_ytdlp(q: str):
         try:
             import yt_dlp
@@ -1562,7 +1816,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
         import shutil
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
         temp_cookie_path = None
-        
+
         try:
             if os.path.exists(cookie_path):
                 fd, temp_cookie_path = tempfile.mkstemp(prefix='aura-youtube-cookies-', suffix='.txt')
@@ -1584,6 +1838,7 @@ async def search_ytmusic(query: str, request: Request, response: Response):
                         "youtube_id": entry.get('id'),
                         "audio_stream_url": entry.get('url'),
                         "http_headers": entry.get('http_headers', {}),
+                        "chapters": entry.get('chapters')
                     }
                 return None
         finally:
@@ -1609,12 +1864,12 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
     import asyncio
     client_ip = request.client.host if request.client else "unknown"
     await apply_rate_limit(f"ytmusic_resolve:{client_ip}", 30, response)
-    
+
     def extract_with_ytdlp(vid: str):
         try:
             import yt_dlp
         except ImportError:
-            return None
+            return {"error": True, "message": "yt-dlp dependency missing on backend"}
         ydl_opts = {
             'format': 'bestaudio/best',
             'noplaylist': True,
@@ -1629,7 +1884,7 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
         import shutil
         cookie_path = os.environ.get('YOUTUBE_COOKIES_FILE', '/etc/secrets/cookies.txt')
         temp_cookie_path = None
-        
+
         try:
             if os.path.exists(cookie_path):
                 fd, temp_cookie_path = tempfile.mkstemp(prefix='aura-youtube-cookies-', suffix='.txt')
@@ -1650,6 +1905,7 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
                         "youtube_id": info.get('id'),
                         "audio_stream_url": info.get('url'),
                         "http_headers": info.get('http_headers', {}),
+                        "chapters": info.get('chapters')
                     }
                 return None
         finally:
@@ -1664,10 +1920,12 @@ async def resolve_ytmusic(video_id: str, request: Request, response: Response):
         result = await asyncio.to_thread(extract_with_ytdlp, video_id)
         if result and result.get("audio_stream_url"):
             return YTMusicSearchResponse(**result)
+        if isinstance(result, dict) and result.get("error"):
+            return YTMusicSearchResponse(error=True, message=result.get("message", "Couldn't get an audio stream for this track."))
         return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
     except Exception as e:
         log.error("ytmusic_resolve_failed", error=str(e))
-        return YTMusicSearchResponse(error=True, message="Couldn't get an audio stream for this track.")
+        return YTMusicSearchResponse(error=True, message=f"yt-dlp Error: {str(e)}")
 
 
 
@@ -1715,51 +1973,43 @@ async def proxy_audio(url: str, request: Request, response: Response, h: Optiona
     if range_header:
         upstream_headers["Range"] = range_header
 
-    async def generate_stream():
-        """Generator that owns the entire httpx client and stream lifetime."""
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(15.0, read=120.0)) as client:
-                async with client.stream("GET", decoded_url, headers=upstream_headers) as upstream:
-                    async for chunk in upstream.aiter_bytes(chunk_size=65536):
-                        yield chunk
-        except Exception as e:
-            log.error("audio_proxy_stream_failed", error=str(e))
-
-    # Probe upstream headers cheaply before streaming
+    client = httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(15.0, read=120.0))
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as probe_client:
-            try:
-                probe = await probe_client.head(decoded_url, headers=upstream_headers)
-                status_code = probe.status_code
-                content_type = probe.headers.get("Content-Type", "audio/webm")
-                content_length = probe.headers.get("Content-Length")
-                content_range = probe.headers.get("Content-Range")
-            except Exception:
-                status_code = 200
-                content_type = "audio/webm"
-                content_length = None
-                content_range = None
+        req = client.build_request("GET", decoded_url, headers=upstream_headers)
+        upstream_res = await client.send(req, stream=True)
     except Exception as e:
-        log.error("audio_proxy_failed", error=str(e))
-        return Response(content="Proxy error", status_code=502)
+        log.error("audio_proxy_connect_failed", error=str(e))
+        await client.aclose()
+        return Response(content="Proxy connection failed", status_code=502)
 
-    if status_code not in (200, 206, 405):
-        log.error("audio_proxy_upstream_error", status=status_code, url=decoded_url[:80])
-        return Response(content=f"Upstream error {status_code}", status_code=502)
+    if upstream_res.status_code not in (200, 206):
+        log.error("audio_proxy_upstream_error", status=upstream_res.status_code, host=parsed.hostname)
+        await upstream_res.aclose()
+        await client.aclose()
+        return Response(content=f"Upstream error {upstream_res.status_code}", status_code=502)
 
+    content_type = upstream_res.headers.get("Content-Type", "audio/webm")
     response_headers: dict = {
         "Content-Type": content_type,
         "Accept-Ranges": "bytes",
         "Access-Control-Allow-Origin": "*",
     }
-    if content_length:
-        response_headers["Content-Length"] = content_length
-    if content_range:
-        response_headers["Content-Range"] = content_range
+    if "Content-Length" in upstream_res.headers:
+        response_headers["Content-Length"] = upstream_res.headers["Content-Length"]
+    if "Content-Range" in upstream_res.headers:
+        response_headers["Content-Range"] = upstream_res.headers["Content-Range"]
+
+    async def stream_body():
+        try:
+            async for chunk in upstream_res.aiter_bytes(chunk_size=65536):
+                yield chunk
+        finally:
+            await upstream_res.aclose()
+            await client.aclose()
 
     return StreamingResponse(
-        generate_stream(),
-        status_code=200,
+        stream_body(),
+        status_code=upstream_res.status_code,
         headers=response_headers,
         media_type=content_type,
     )

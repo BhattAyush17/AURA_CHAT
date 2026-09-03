@@ -28,19 +28,19 @@ import type {
 
 // Re-import constant value
 const THRESHOLDS = {
-  HEALTHY:   { enter: 80, exit: 72 },
-  WARNING:   { enter: 55, exit: 48 },
-  RECOVERY:  { enter: 30, exit: 22 },
+  HEALTHY: { enter: 80, exit: 72 },
+  WARNING: { enter: 55, exit: 48 },
+  RECOVERY: { enter: 30, exit: 22 },
 } as const;
 
 // ─── Weight Configuration ────────────────────────────────────────
 // Network and audio are weighted higher because they directly affect
 // perceived responsiveness. Device is a baseline floor.
 const WEIGHTS = {
-  device:  0.20,
+  device: 0.2,
   network: 0.35,
-  stt:     0.20,
-  audio:   0.25,
+  stt: 0.2,
+  audio: 0.25,
 } as const;
 
 export class ExperienceHealthEngine {
@@ -102,9 +102,7 @@ export class ExperienceHealthEngine {
         to: this.currentMode,
         ts: performance.now(),
       });
-      console.log(
-        `[ExperienceHealth] Mode: ${prevMode} → ${this.currentMode} (score: ${score})`
-      );
+      console.log(`[ExperienceHealth] Mode: ${prevMode} → ${this.currentMode} (score: ${score})`);
     }
 
     this.lastSnapshot = {
@@ -195,7 +193,8 @@ export class ExperienceHealthEngine {
     // Downgrade checks (in order of severity)
     if (score < THRESHOLDS.RECOVERY.exit) return "CRITICAL";
     if (score < THRESHOLDS.WARNING.exit && current !== "CRITICAL") return "RECOVERY";
-    if (score < THRESHOLDS.HEALTHY.exit && current !== "CRITICAL" && current !== "RECOVERY") return "WARNING";
+    if (score < THRESHOLDS.HEALTHY.exit && current !== "CRITICAL" && current !== "RECOVERY")
+      return "WARNING";
 
     // Upgrade checks (require exceeding the enter threshold of the better mode)
     if (current === "CRITICAL" && score >= THRESHOLDS.RECOVERY.enter) return "RECOVERY";

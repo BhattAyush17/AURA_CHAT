@@ -1,0 +1,69 @@
+{
+  "id": "workplace",
+  "name": "Workplace",
+  "trust": 0.4,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Deadline kal ki hai.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["stress", "work"],
+        "intensity": 0.5,
+        "frustration": 0.5
+      },
+      "emo": {
+        "frustration": 0.5,
+        "energy": 0.5
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "seek-help"],
+        "strategy": ["Answer", "Ask", "Observe"],
+        "register": ["NEUTRAL", "PROFESSIONAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Team ka confidence gir raha hai.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["stress", "work"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "frustration": 0.4,
+        "energy": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "seek-help"],
+        "strategy": ["Answer", "Reflect", "Ask"],
+        "register": ["NEUTRAL", "PROFESSIONAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-competence", "need-belonging"]
+      }
+    },
+    {
+      "text": "Kya priority honi chahiye?",
+      "behavior": {
+        "act": "question",
+        "tags": ["work"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "initiative": ["Ask", "Answer"],
+        "register": ["NEUTRAL", "PROFESSIONAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

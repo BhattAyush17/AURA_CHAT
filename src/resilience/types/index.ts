@@ -19,9 +19,9 @@ export type ExperienceMode = "HEALTHY" | "WARNING" | "RECOVERY" | "CRITICAL";
 
 /** Thresholds for mode transitions (hysteresis built in) */
 export const MODE_THRESHOLDS = {
-  HEALTHY:   { enter: 80, exit: 72 },
-  WARNING:   { enter: 55, exit: 48 },
-  RECOVERY:  { enter: 30, exit: 22 },
+  HEALTHY: { enter: 80, exit: 72 },
+  WARNING: { enter: 55, exit: 48 },
+  RECOVERY: { enter: 30, exit: 22 },
   // CRITICAL is anything below RECOVERY.exit
 } as const;
 

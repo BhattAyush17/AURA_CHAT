@@ -7,6 +7,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Google OAuth Implicit-Flow popup callback.
+      // Google redirects the popup back to <origin>#access_token=...&expires_in=...
+      // This runs before the app bundle loads and hands the token back to the
+      // opener window (GoogleIdentityService) which is listening for the
+      // GOOGLE_AUTH_SUCCESS postMessage. The opener closes this popup on
+      // success, so we do NOT close here — that avoids a race where the
+      // popup is marked closed before the token is processed.
+      (function () {
+        try {
+          var opener = window.opener;
+          var hash = window.location.hash || "";
+          if (opener && hash.indexOf("access_token=") !== -1) {
+            opener.postMessage({ type: "GOOGLE_AUTH_SUCCESS", hash: hash }, window.location.origin);
+          }
+        } catch (e) {
+          /* non-fatal — leave OAuth to surface its own error */
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,73 @@
+{
+  "id": "apology",
+  "name": "Apology",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "I'm sorry.",
+      "behavior": {
+        "act": "apology",
+        "tags": ["vulnerability", "repair"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "vulnerability": 0.5,
+        "tension": 0.4
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect", "Answer"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["PURE_ENGLISH", "HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["apology-opening", "reconciliation"]
+      }
+    },
+    {
+      "text": "Galti meri thi.",
+      "behavior": {
+        "act": "apology",
+        "tags": ["vulnerability", "repair"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "vulnerability": 0.55,
+        "tension": 0.4
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect", "Listen"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["apology-motive", "reconciliation"]
+      }
+    },
+    {
+      "text": "Can we fix this?",
+      "behavior": {
+        "act": "question",
+        "tags": ["vulnerability", "repair"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "vulnerability": 0.5,
+        "tension": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-help", "seek-information"],
+        "strategy": ["Answer", "Reflect", "Comfort"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["PURE_ENGLISH", "HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["reconciliation", "trust-building"]
+      }
+    }
+  ]
+}

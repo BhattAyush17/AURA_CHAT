@@ -17,11 +17,8 @@
  */
 
 import { ENDPOINTS } from "@/config/api";
-import {
-  storeLocalMemory,
-  retrieveLocalMemories,
-  type LocalMemoryEntry,
-} from "@/lib/local-memory";
+import { storeLocalMemory, retrieveLocalMemories, type LocalMemoryEntry } from "@/lib/local-memory";
+import { auraTelemetry } from "@/telemetry";
 
 // Re-export MemoryResult from local-memory so consumers import from gateway
 export type { MemoryResult } from "@/lib/local-memory";
@@ -73,9 +70,15 @@ export class MemoryGateway {
   private _supabaseReachable = false;
   private _promptShownThisSession = false;
 
-  get mode(): MemoryMode { return this._mode; }
-  get ready(): boolean { return this._ready; }
-  get supabaseReachable(): boolean { return this._supabaseReachable; }
+  get mode(): MemoryMode {
+    return this._mode;
+  }
+  get ready(): boolean {
+    return this._ready;
+  }
+  get supabaseReachable(): boolean {
+    return this._supabaseReachable;
+  }
 
   getState(): MemoryGatewayState {
     return {
@@ -108,7 +111,9 @@ export class MemoryGateway {
     }
 
     this._ready = true;
-    console.log(`[MemoryGateway] Mode: ${this._mode} (supabase reachable: ${this._supabaseReachable})`);
+    console.log(
+      `[MemoryGateway] Mode: ${this._mode} (supabase reachable: ${this._supabaseReachable})`,
+    );
     return this._mode;
   }
 
@@ -144,32 +149,68 @@ export class MemoryGateway {
   ): Promise<MemoryResult[]> {
     if (!this._ready) return [];
 
+    const service = this._mode === "supabase" ? "supabase" : "local";
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "memory_retrieval",
+      service,
+      embeddingHint: false,
+    });
+    const startedAt = performance.now();
+
     if (this._mode === "supabase") {
       try {
         const url = new URL(`${ENDPOINTS.base}/api/memory/model/${userId}`);
         if (query) url.searchParams.append("query", query);
-        
+
         const res = await fetch(url.toString());
-        if (!res.ok) return [];
-        const data = await res.json();
-        
-        // The backend now handles relevance ranking, semantic scoring, and the 1600-char budget limit.
-        if (data.results && Array.isArray(data.results)) {
-            return data.results;
+        if (!res.ok) {
+          // Do not fail silently: a 404 here (unregistered route) is
+          // indistinguishable from "no memories" downstream, because
+          // MemoryPolicy treats an empty array as "nothing retrieved".
+          console.warn(
+            `[MemoryGateway] Supabase memory retrieval failed: HTTP ${res.status} ${res.statusText} on ${url.pathname}`,
+          );
+          auraTelemetry.endMemoryOp(opId, {
+            status: "error",
+            latencyMs: performance.now() - startedAt,
+          });
+          return [];
         }
-        
-        return [];
+        const data = await res.json();
+
+        // The backend now handles relevance ranking, semantic scoring, and the 1600-char budget limit.
+        const results = data.results && Array.isArray(data.results) ? data.results : [];
+        auraTelemetry.endMemoryOp(opId, {
+          status: "success",
+          resultCount: results.length,
+          latencyMs: performance.now() - startedAt,
+        });
+        return results;
       } catch (e) {
         console.warn("[MemoryGateway] Supabase model fetch failed:", e);
+        auraTelemetry.endMemoryOp(opId, {
+          status: "error",
+          latencyMs: performance.now() - startedAt,
+        });
         return [];
       }
     }
 
     // Mode B: Local browser retrieval
     try {
-      return retrieveLocalMemories(query, userId, emotionalState);
+      const memories = retrieveLocalMemories(query, userId, emotionalState);
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        resultCount: memories.length,
+        latencyMs: performance.now() - startedAt,
+      });
+      return memories;
     } catch (e) {
       console.warn("[MemoryGateway] Local retrieval failed:", e);
+      auraTelemetry.endMemoryOp(opId, {
+        status: "error",
+        latencyMs: performance.now() - startedAt,
+      });
       return [];
     }
   }
@@ -188,20 +229,42 @@ export class MemoryGateway {
     content: string,
     userId: string,
     emotionalTags: Record<string, number>,
+    tier?: "ephemeral" | "short_term" | "durable",
   ): Promise<boolean> {
     if (!this._ready) return false;
+
+    const opId = auraTelemetry.beginMemoryOp({
+      type: "memory_write",
+      service: this._mode === "supabase" ? "supabase" : "local",
+    });
+    const startedAt = performance.now();
 
     if (this._mode === "supabase") {
       // In Supabase mode, storage is handled server-side by the /chat endpoint.
       // The backend stores memories after each interaction automatically.
+      auraTelemetry.endMemoryOp(opId, {
+        status: "success",
+        resultCount: 0,
+        latencyMs: performance.now() - startedAt,
+      });
       return true;
     }
 
     // Mode B: Local browser storage
     try {
-      return storeLocalMemory(content, userId, emotionalTags);
+      const ok = storeLocalMemory(content, userId, emotionalTags, tier);
+      auraTelemetry.endMemoryOp(opId, {
+        status: ok ? "success" : "error",
+        resultCount: ok ? 1 : 0,
+        latencyMs: performance.now() - startedAt,
+      });
+      return ok;
     } catch (e) {
       console.warn("[MemoryGateway] Local store failed:", e);
+      auraTelemetry.endMemoryOp(opId, {
+        status: "error",
+        latencyMs: performance.now() - startedAt,
+      });
       return false;
     }
   }

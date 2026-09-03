@@ -26,7 +26,7 @@ export class TimingDiffTelemetry {
     legacyPauseMs: number,
     hrtePauseMs: number,
     legacyDecision: string,
-    hrteDecision: string
+    hrteDecision: string,
   ) {
     this.events.push({
       turnId,
@@ -41,8 +41,10 @@ export class TimingDiffTelemetry {
     if (this.events.length > 100) {
       this.events.shift();
     }
-    
+
     // Log for shadow mode visibility
-    console.log(`[SHADOW TIMING] ⏱ Turn ${turnId} | Legacy: ${legacyPauseMs}ms | HRTE: ${hrtePauseMs}ms | Delta: ${hrtePauseMs - legacyPauseMs}ms`);
+    console.log(
+      `[SHADOW TIMING] ⏱ Turn ${turnId} | Legacy: ${legacyPauseMs}ms | HRTE: ${hrtePauseMs}ms | Delta: ${hrtePauseMs - legacyPauseMs}ms`,
+    );
   }
 }

@@ -32,11 +32,7 @@ const personalities: { id: PersonalityMode; label: string; hint: string }[] = [
   { id: "joyfulPassion", label: "Joyful Passion", hint: "playful · affectionate" },
 ];
 
-export function PersonalitySelector({
-  value,
-  onChange,
-  disabled,
-}: PersonalitySelectorProps) {
+export function PersonalitySelector({ value, onChange, disabled }: PersonalitySelectorProps) {
   return (
     <div className="flex w-full overflow-x-auto rounded-[2rem] border border-border bg-background p-1 hide-scrollbar">
       {personalities.map((p) => {

@@ -1,0 +1,73 @@
+{
+  "id": "flirting",
+  "name": "Flirting",
+  "trust": 0.7,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Tum smile achhi karti ho.",
+      "behavior": {
+        "act": "compliment",
+        "tags": ["flirt", "playful"],
+        "intensity": 0.5,
+        "playfulness": 0.7
+      },
+      "emo": {
+        "warmth": 0.7,
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["small-talk", "inform"],
+        "strategy": ["Answer", "Reflect", "Observe"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection"]
+      }
+    },
+    {
+      "text": "Bas casually bol raha tha.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["flirt", "playful"],
+        "intensity": 0.4,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "warmth": 0.6,
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["small-talk", "inform"],
+        "strategy": ["Observe", "Reflect", "Answer"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Coffee?",
+      "behavior": {
+        "act": "invite",
+        "tags": ["flirt"],
+        "intensity": 0.4,
+        "playfulness": 0.5
+      },
+      "emo": {
+        "warmth": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

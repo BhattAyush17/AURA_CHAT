@@ -1,0 +1,62 @@
+{
+  "id": "group-conversation",
+  "name": "Group Conversation",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Guys, ek idea hai.",
+      "behavior": {
+        "act": "share",
+        "tags": ["group"],
+        "intensity": 0.5,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["tell-story", "share-excitement"],
+        "strategy": ["Observe", "Ask", "Listen"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Wait, sabki opinion sunte hain.",
+      "behavior": {
+        "act": "proposal",
+        "tags": ["group"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform"],
+        "strategy": ["Observe", "Listen", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Final decision?",
+      "behavior": {
+        "act": "question",
+        "tags": ["group"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

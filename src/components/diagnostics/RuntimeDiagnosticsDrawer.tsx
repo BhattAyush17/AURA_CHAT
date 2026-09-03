@@ -48,6 +48,18 @@ import {
 import { getGeminiKey, getOpenRouterKey, getSarvamKey } from "@/lib/api";
 import { getCredential } from "@/lib/credentials";
 import type { ListeningState } from "@/hooks/useVoiceAcoustics";
+import { AIUsageSection } from "./AIUsageSection";
+import { MemoryPipelineSection } from "./MemoryPipelineSection";
+import { InfrastructureSection } from "./InfrastructureSection";
+import { MusicContextSection } from "./MusicContextSection";
+import { MobileMusicPipelineSection } from "./MobileMusicPipelineSection";
+import { auraTelemetry, startInfraPolling, stopInfraPolling } from "@/telemetry";
+import { acknowledgementGuard } from "@/runtime/humanExpression/AcknowledgementGuard";
+import { getMemoryCountsByTier } from "@/lib/local-memory";
+import { getCurrentUserId } from "@/lib/user-identity";
+import { getConversationArchive, type ArchiveStats } from "@/lib/storage/ConversationArchive";
+import { getSocialCognitionEngine } from "@/runtime/socialCognition/SocialCognitionEngine";
+import type { SocialCognitionSnapshot } from "@/runtime/socialCognition/SocialDecision";
 
 interface DiagnosticsDrawerProps {
   isOpen: boolean;
@@ -78,9 +90,17 @@ function useNetworkMetrics(): NetworkInfo {
 
   useEffect(() => {
     const updateNetworkInfo = () => {
-      const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const conn =
+        (navigator as any).connection ||
+        (navigator as any).mozConnection ||
+        (navigator as any).webkitConnection;
       if (conn) {
-        const type = conn.type === "cellular" ? "Cellular 4G/5G" : conn.type === "wifi" ? "Wi-Fi" : "Ethernet / Wi-Fi";
+        const type =
+          conn.type === "cellular"
+            ? "Cellular 4G/5G"
+            : conn.type === "wifi"
+              ? "Wi-Fi"
+              : "Ethernet / Wi-Fi";
         const downlink = conn.downlink || 48;
         const rtt = conn.rtt || 32;
         const quality = rtt < 50 ? "Excellent" : rtt < 120 ? "Good" : "Degraded";
@@ -188,6 +208,33 @@ export function RuntimeDiagnosticsDrawer({
   const [metrics, setMetrics] = useState<Record<string, any>>({});
   const [telemetry, setTelemetry] = useState<any[]>([]);
 
+  // Human Feel State
+  const [humanFeel, setHumanFeel] = useState<{
+    recentAcks: number;
+    consecutiveNoAck: number;
+    ackMode: string;
+    memoryTiers: Record<string, number>;
+    continuity: string;
+  }>({
+    recentAcks: 0,
+    consecutiveNoAck: 0,
+    ackMode: "casual",
+    memoryTiers: { ephemeral: 0, short_term: 0, durable: 0 },
+    continuity: "medium",
+  });
+
+  // Archive Stats (Conversation Archive)
+  const [archiveStats, setArchiveStats] = useState<ArchiveStats>({
+    totalConversations: 0,
+    totalMessages: 0,
+    approximateStorageBytes: 0,
+    oldestConversation: null,
+    newestConversation: null,
+  });
+
+  // Social Cognition
+  const [socialSnapshot, setSocialSnapshot] = useState<SocialCognitionSnapshot | null>(null);
+
   // Network Metrics
   const network = useNetworkMetrics();
 
@@ -199,11 +246,11 @@ export function RuntimeDiagnosticsDrawer({
     const interval = setInterval(() => {
       const entries = SenseManager.getInstance().getAllEntries();
       setSenses(entries);
-      
+
       const newMetrics: Record<string, any> = {};
-      entries.forEach(e => {
+      entries.forEach((e) => {
         if (e.sense) {
-           newMetrics[e.manifest.id] = senseHealthAggregator.getMetrics(e.manifest.id);
+          newMetrics[e.manifest.id] = senseHealthAggregator.getMetrics(e.manifest.id);
         }
       });
       setMetrics(newMetrics);
@@ -270,6 +317,48 @@ export function RuntimeDiagnosticsDrawer({
     return () => window.removeEventListener("aura:perception", onPerception);
   }, []);
 
+  // Human Feel Diagnostics — poll AcknowledgementGuard and memory tiers
+  useEffect(() => {
+    const userId = getCurrentUserId();
+    const interval = setInterval(() => {
+      const ackSummary = acknowledgementGuard.getDiagnosticSummary();
+      const memoryTiers = userId
+        ? getMemoryCountsByTier(userId)
+        : { ephemeral: 0, short_term: 0, durable: 0 };
+      setHumanFeel({
+        recentAcks: ackSummary.recentAcks,
+        consecutiveNoAck: ackSummary.consecutiveNoAck,
+        ackMode: ackSummary.mode,
+        memoryTiers,
+        continuity:
+          ackSummary.consecutiveNoAck > 3 ? "low" : ackSummary.recentAcks > 2 ? "medium" : "high",
+      });
+
+      // Conversation Archive stats — entirely client-side, no backend traffic
+      getConversationArchive().getStats().then(setArchiveStats);
+
+      // Social Cognition — no backend traffic, client-side only
+      setSocialSnapshot(getSocialCognitionEngine().getDiagnostics());
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Backend telemetry polling: only while the drawer is open. The fetch
+  // itself never triggers provider/LLM calls.
+  useEffect(() => {
+    if (!auraTelemetry.getSessionId()) {
+      auraTelemetry.beginSession();
+    }
+    if (isOpen) {
+      startInfraPolling();
+    }
+    return () => {
+      if (isOpen) {
+        stopInfraPolling();
+      }
+    };
+  }, [isOpen]);
+
   // Total turn time calculation
   const currentTurnEvents = flightEvents.filter((e) => e.turnId === turnId);
   const totalTurnTime = currentTurnEvents.reduce((sum, e) => sum + e.duration, 0);
@@ -280,19 +369,20 @@ export function RuntimeDiagnosticsDrawer({
     flightStage === "listening" || flightStage === "vad_wait" || flightStage === "stt_finalizing"
       ? 0
       : flightStage === "cognition" || flightStage === "prompt_build" || flightStage === "llm_ttft"
-      ? 1
-      : flightStage === "streaming" || flightStage === "chunking"
-      ? 2
-      : flightStage === "tts_generation" || flightStage === "audio_decode"
-      ? 3
-      : flightStage === "playback"
-      ? 4
-      : -1;
+        ? 1
+        : flightStage === "streaming" || flightStage === "chunking"
+          ? 2
+          : flightStage === "tts_generation" || flightStage === "audio_decode"
+            ? 3
+            : flightStage === "playback"
+              ? 4
+              : -1;
 
   // Filtered log events
-  const filteredTraceEvents = logFilter === "errors"
-    ? traceEvents.filter((e) => e.status === "error" || e.status === "warning")
-    : traceEvents;
+  const filteredTraceEvents =
+    logFilter === "errors"
+      ? traceEvents.filter((e) => e.status === "error" || e.status === "warning")
+      : traceEvents;
 
   return (
     <AnimatePresence>
@@ -347,7 +437,11 @@ export function RuntimeDiagnosticsDrawer({
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
               {/* ── 1. Pipeline Stage Timeline ── */}
-              <DiagnosticSection title="Pipeline Stage" icon={Cpu} badge={flightStage.toUpperCase()}>
+              <DiagnosticSection
+                title="Pipeline Stage"
+                icon={Cpu}
+                badge={flightStage.toUpperCase()}
+              >
                 <div className="flex items-center justify-between gap-1 py-2">
                   {PIPELINE_STAGES.map((stageName, idx) => {
                     const active = idx === currentStageIndex;
@@ -359,8 +453,8 @@ export function RuntimeDiagnosticsDrawer({
                             active
                               ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
                               : passed
-                              ? "bg-foreground/40"
-                              : "bg-foreground/10"
+                                ? "bg-foreground/40"
+                                : "bg-foreground/10"
                           }`}
                         />
                         <span
@@ -368,8 +462,8 @@ export function RuntimeDiagnosticsDrawer({
                             active
                               ? "text-emerald-400 font-bold"
                               : passed
-                              ? "text-foreground/70"
-                              : "text-muted-foreground/40"
+                                ? "text-foreground/70"
+                                : "text-muted-foreground/40"
                           }`}
                         >
                           {stageName}
@@ -399,8 +493,8 @@ export function RuntimeDiagnosticsDrawer({
                         totalTurnTime > 2000
                           ? "text-red-400"
                           : totalTurnTime > 1000
-                          ? "text-amber-400"
-                          : "text-emerald-400"
+                            ? "text-amber-400"
+                            : "text-emerald-400"
                       }`}
                     >
                       {totalTurnTime.toFixed(0)} ms
@@ -421,11 +515,80 @@ export function RuntimeDiagnosticsDrawer({
                       LLM Model
                     </span>
                     <span className="text-xs font-semibold text-foreground truncate block">
-                      {csState.active_llm || (activeBrain === "gemini" ? "Gemini Live" : "OpenRouter")}
+                      {csState.active_llm ||
+                        (activeBrain === "gemini" ? "Gemini Live" : "OpenRouter")}
                     </span>
                   </div>
                 </div>
               </DiagnosticSection>
+
+              {/* ── 2b. AI Usage — observable provider + token accounting ── */}
+              <AIUsageSection />
+
+              {/* ── 2c. Memory Pipeline — observable memory ops + backend deltas ── */}
+              <MemoryPipelineSection />
+
+              {/* ── 2c2. Human Feel — compact interaction awareness ── */}
+              <DiagnosticSection
+                title="Human Feel"
+                icon={CheckCircle2}
+                badge={humanFeel.continuity.toUpperCase()}
+              >
+                <div className="space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Interaction Mode</span>
+                    <span className="text-foreground font-semibold capitalize">
+                      {humanFeel.ackMode}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Consecutive No-Ack</span>
+                    <span
+                      className={
+                        humanFeel.consecutiveNoAck > 3
+                          ? "text-amber-400 font-semibold"
+                          : "text-foreground font-semibold"
+                      }
+                    >
+                      {humanFeel.consecutiveNoAck}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Recent Acks</span>
+                    <span className="text-foreground font-semibold">{humanFeel.recentAcks}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Memory Tiers</span>
+                    <span className="text-foreground font-semibold text-[10px]">
+                      E:{humanFeel.memoryTiers.ephemeral} S:{humanFeel.memoryTiers.short_term} D:
+                      {humanFeel.memoryTiers.durable}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-muted-foreground text-[11px]">Continuity</span>
+                    <span
+                      className={`font-semibold ${
+                        humanFeel.continuity === "high"
+                          ? "text-emerald-400"
+                          : humanFeel.continuity === "medium"
+                            ? "text-amber-400"
+                            : "text-red-400"
+                      }`}
+                    >
+                      {humanFeel.continuity.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </DiagnosticSection>
+
+              {/* ── 2d. Infrastructure — per-user credentials + server capabilities ── */}
+              <InfrastructureSection />
+
+              {/* ── 2e. Music Context — size estimate only ── */}
+              <MusicContextSection />
+
+              {/* ── 2f. Mobile Music Pipeline — forensic observability ── */}
+              <MobileMusicPipelineSection />
 
               {/* ── 3. Latency & Voice Timings ── */}
               <DiagnosticSection title="Voice & Latency" icon={Clock} badge="Realtime">
@@ -433,7 +596,9 @@ export function RuntimeDiagnosticsDrawer({
                   <div className="flex items-center justify-between py-1.5 border-b border-border/20">
                     <span className="text-muted-foreground text-[11px]">STT Processing</span>
                     <span className="text-foreground font-semibold">
-                      {csLatencies.l1_sensing_ms != null ? `${csLatencies.l1_sensing_ms}ms` : "89 ms"}
+                      {csLatencies.l1_sensing_ms != null
+                        ? `${csLatencies.l1_sensing_ms}ms`
+                        : "89 ms"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-border/20">
@@ -457,7 +622,9 @@ export function RuntimeDiagnosticsDrawer({
                       </div>
                       <div>
                         <span className="text-muted-foreground block">Confidence</span>
-                        <span className="text-emerald-400 font-bold">{lastTimingEvent.confidence.toFixed(1)}%</span>
+                        <span className="text-emerald-400 font-bold">
+                          {lastTimingEvent.confidence.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   )}
@@ -493,37 +660,67 @@ export function RuntimeDiagnosticsDrawer({
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Speech Detected</span>
-                      <span className={perception.speechDetected ? "text-emerald-400 font-bold" : "text-muted-foreground"}>
+                      <span
+                        className={
+                          perception.speechDetected
+                            ? "text-emerald-400 font-bold"
+                            : "text-muted-foreground"
+                        }
+                      >
                         {perception.speechDetected ? "YES" : "no"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Real Silence</span>
-                      <span className="text-foreground font-semibold">{Math.round(perception.realSilence)}ms</span>
+                      <span className="text-foreground font-semibold">
+                        {Math.round(perception.realSilence)}ms
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Noise Level</span>
-                      <span className="text-foreground font-semibold">{perception.noiseLevel.toFixed(0)} dBFS</span>
+                      <span className="text-foreground font-semibold">
+                        {perception.noiseLevel.toFixed(0)} dBFS
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">VAD Confidence</span>
-                      <span className={perception.vadConfidence > 0.7 ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                      <span
+                        className={
+                          perception.vadConfidence > 0.7
+                            ? "text-emerald-400 font-semibold"
+                            : "text-amber-400 font-semibold"
+                        }
+                      >
                         {Math.round(perception.vadConfidence * 100)}%
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Dominant Speech</span>
-                      <span className={perception.dominantSpeechDetected ? "text-emerald-400 font-bold" : "text-muted-foreground"}>
+                      <span
+                        className={
+                          perception.dominantSpeechDetected
+                            ? "text-emerald-400 font-bold"
+                            : "text-muted-foreground"
+                        }
+                      >
                         {perception.dominantSpeechDetected ? "tracking" : "—"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Detection Source</span>
-                      <span className="text-sky-400 font-semibold">{perception.detectionSource}</span>
+                      <span className="text-sky-400 font-semibold">
+                        {perception.detectionSource}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1">
                       <span className="text-muted-foreground text-[11px]">Audio Processing</span>
-                      <span className={perception.processingEnabled ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>
+                      <span
+                        className={
+                          perception.processingEnabled
+                            ? "text-emerald-400 font-semibold"
+                            : "text-amber-400 font-semibold"
+                        }
+                      >
                         {perception.processingEnabled ? "ENABLED" : "browser-managed"}
                       </span>
                     </div>
@@ -539,20 +736,32 @@ export function RuntimeDiagnosticsDrawer({
               <DiagnosticSection title="Network Metrics" icon={Wifi} badge={network.quality}>
                 <div className="grid grid-cols-2 gap-2 font-mono text-xs">
                   <div className="rounded-xl border border-border/30 bg-background/40 p-2.5">
-                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">Ping / RTT</span>
-                    <span className="text-xs font-bold text-foreground">{network.ping || 34} ms</span>
+                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">
+                      Ping / RTT
+                    </span>
+                    <span className="text-xs font-bold text-foreground">
+                      {network.ping || 34} ms
+                    </span>
                   </div>
                   <div className="rounded-xl border border-border/30 bg-background/40 p-2.5">
-                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">Connection</span>
+                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">
+                      Connection
+                    </span>
                     <span className="text-xs font-bold text-foreground">{network.connection}</span>
                   </div>
                   <div className="rounded-xl border border-border/30 bg-background/40 p-2.5">
-                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">Signal</span>
+                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">
+                      Signal
+                    </span>
                     <span className="text-xs font-bold text-emerald-400">{network.signal}</span>
                   </div>
                   <div className="rounded-xl border border-border/30 bg-background/40 p-2.5">
-                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">Downlink</span>
-                    <span className="text-xs font-bold text-foreground">{network.downlink} Mbps</span>
+                    <span className="text-[9px] uppercase tracking-widest text-muted-foreground block">
+                      Downlink
+                    </span>
+                    <span className="text-xs font-bold text-foreground">
+                      {network.downlink} Mbps
+                    </span>
                   </div>
                 </div>
               </DiagnosticSection>
@@ -568,64 +777,246 @@ export function RuntimeDiagnosticsDrawer({
                   </div>
                   <div className="flex items-center justify-between py-1">
                     <span className="text-muted-foreground text-[11px]">Cloud Sync (Supabase)</span>
-                    <span className={csState.supabase_connected ? "text-emerald-400 font-semibold" : "text-muted-foreground"}>
+                    <span
+                      className={
+                        csState.supabase_connected
+                          ? "text-emerald-400 font-semibold"
+                          : "text-muted-foreground"
+                      }
+                    >
                       {csState.supabase_connected ? "Connected ✓" : "Local Device Only"}
                     </span>
                   </div>
                 </div>
               </DiagnosticSection>
 
+              {/* ── 5b. Conversation Archive (Browser Storage) ── */}
+              <DiagnosticSection title="Conversation Archive" icon={Database}>
+                <div className="space-y-2 font-mono text-xs">
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Conversations</span>
+                    <span className="text-foreground font-semibold">
+                      {archiveStats.totalConversations}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Total Messages</span>
+                    <span className="text-foreground font-semibold">
+                      {archiveStats.totalMessages}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-border/20">
+                    <span className="text-muted-foreground text-[11px]">Storage Used</span>
+                    <span className="text-foreground font-semibold">
+                      {archiveStats.approximateStorageBytes > 0
+                        ? archiveStats.approximateStorageBytes < 1024
+                          ? `${archiveStats.approximateStorageBytes} B`
+                          : `${(archiveStats.approximateStorageBytes / 1024).toFixed(1)} KB`
+                        : "0 B"}
+                    </span>
+                  </div>
+                  {archiveStats.oldestConversation && (
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Oldest</span>
+                      <span className="text-foreground font-semibold text-[10px]">
+                        {new Date(archiveStats.oldestConversation).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                  {archiveStats.newestConversation && (
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-muted-foreground text-[11px]">Newest</span>
+                      <span className="text-foreground font-semibold text-[10px]">
+                        {new Date(archiveStats.newestConversation).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </DiagnosticSection>
+
+              {/* ── 5c. Social Cognition ── */}
+              <DiagnosticSection
+                title="Conversational Cognition"
+                icon={Cpu}
+                badge={socialSnapshot?.aura_stance ? socialSnapshot.aura_stance.replace(/_/g, " ") : "idle"}
+              >
+                {socialSnapshot ? (
+                  <div className="space-y-2 font-mono text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Purpose</span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.purpose}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Current Topic</span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.current_topic || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Momentum Carrier</span>
+                      <span className="text-foreground font-semibold">{socialSnapshot.momentum.replace(/_/g, " ")}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Predicted Trajectory</span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.predicted_trajectory}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Behavioral Shift</span>
+                      <span className={`font-semibold text-right ${
+                        socialSnapshot.behavioral_shift === "none" ? "text-muted-foreground" : "text-amber-400"
+                      }`}>
+                        {socialSnapshot.behavioral_shift === "none" ? "none" : socialSnapshot.behavioral_shift}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">AURA Stance</span>
+                      <span className={`font-semibold ${
+                        socialSnapshot.aura_stance === "challenge" || socialSnapshot.aura_stance === "disagree"
+                          ? "text-amber-400"
+                          : socialSnapshot.aura_stance === "question" || socialSnapshot.aura_stance === "clarify"
+                            ? "text-sky-400"
+                            : socialSnapshot.aura_stance === "acknowledge"
+                              ? "text-emerald-400"
+                              : "text-foreground"
+                      }`}>
+                        {socialSnapshot.aura_stance.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Response Mode</span>
+                      <span className={`font-semibold ${
+                        socialSnapshot.response_mode === "listen" ? "text-emerald-400" : "text-foreground"
+                      }`}>{socialSnapshot.response_mode}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Question Decision</span>
+                      <span className={`font-semibold ${socialSnapshot.should_question ? "text-sky-400" : "text-muted-foreground"}`}>
+                        {socialSnapshot.should_question ? "ASK" : "NO ASK"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Interruption Decision</span>
+                      <span className={`font-semibold ${socialSnapshot.should_interrupt ? "text-amber-400" : "text-muted-foreground"}`}>
+                        {socialSnapshot.should_interrupt ? "INTERRUPT" : "WAIT"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border/20">
+                      <span className="text-muted-foreground text-[11px]">Contribution</span>
+                      <span className="text-foreground font-semibold">{socialSnapshot.contribution === "none" ? "—" : socialSnapshot.contribution}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-muted-foreground text-[11px]">Confidence</span>
+                      <span className="text-foreground font-semibold">{(socialSnapshot.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground py-2">Waiting for conversation...</p>
+                )}
+              </DiagnosticSection>
+
               {/* ── 5.5 Perception Senses (Runtime Infrastructure) ── */}
-              <DiagnosticSection title="Perception Senses" icon={Activity} badge={`${senses.filter(s => s.available).length} Active`}>
+              <DiagnosticSection
+                title="Perception Senses"
+                icon={Activity}
+                badge={`${senses.filter((s) => s.available).length} Active`}
+              >
                 <div className="space-y-3 font-mono text-xs">
                   {senses.map((entry, idx) => {
                     if (!entry.sense) return null;
                     const h = entry.sense.health();
                     const m = metrics[entry.manifest.id];
                     return (
-                      <div key={idx} className="rounded-xl border border-border/30 bg-background/40 p-3">
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-border/30 bg-background/40 p-3"
+                      >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-foreground flex items-center gap-2">
                             {entry.manifest.icon} {entry.manifest.displayName}
                           </span>
-                          <span className={`text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded ${m?.lifecycle === 'READY' ? 'bg-emerald-500/20 text-emerald-400' : m?.lifecycle === 'DEGRADED' || m?.lifecycle === 'RECOVERING' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {m?.lifecycle || 'UNKNOWN'}
+                          <span
+                            className={`text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded ${m?.lifecycle === "READY" ? "bg-emerald-500/20 text-emerald-400" : m?.lifecycle === "DEGRADED" || m?.lifecycle === "RECOVERING" ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
+                          >
+                            {m?.lifecycle || "UNKNOWN"}
                           </span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px] mb-2 border-b border-border/10 pb-2">
                           <div>
                             <span className="text-muted-foreground block">Provider</span>
-                            <span className="text-foreground">{m?.provider || 'None'}</span>
+                            <span className="text-foreground">{m?.provider || "None"}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground block">Provider Health</span>
-                            <span className={m?.providerHealth === 'healthy' ? 'text-emerald-400' : 'text-amber-400'}>{m?.providerHealth}</span>
+                            <span
+                              className={
+                                m?.providerHealth === "healthy"
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              }
+                            >
+                              {m?.providerHealth}
+                            </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground block">Rolling Latency</span>
-                            <span className={m?.rollingLatency > 500 ? 'text-amber-400' : 'text-foreground'}>{Math.round(m?.rollingLatency || 0)}ms</span>
+                            <span
+                              className={
+                                m?.rollingLatency > 500 ? "text-amber-400" : "text-foreground"
+                              }
+                            >
+                              {Math.round(m?.rollingLatency || 0)}ms
+                            </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground block">Health Score</span>
-                            <span className={m?.healthScore >= 0.8 ? 'text-emerald-400' : 'text-red-400'}>{Math.round((m?.healthScore || 0) * 100)}%</span>
+                            <span
+                              className={
+                                m?.healthScore >= 0.8 ? "text-emerald-400" : "text-red-400"
+                              }
+                            >
+                              {Math.round((m?.healthScore || 0) * 100)}%
+                            </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-3 text-[9px] text-muted-foreground/80">
-                          <span>Restarts: <span className="text-foreground">{m?.restartCount || 0}</span></span>
-                          <span>Recoveries: <span className="text-foreground">{m?.recoveryAttempts || 0}</span></span>
-                          <span>Errors: <span className="text-red-400">{m?.failureCount || 0}</span></span>
+                          <span>
+                            Restarts:{" "}
+                            <span className="text-foreground">{m?.restartCount || 0}</span>
+                          </span>
+                          <span>
+                            Recoveries:{" "}
+                            <span className="text-foreground">{m?.recoveryAttempts || 0}</span>
+                          </span>
+                          <span>
+                            Errors: <span className="text-red-400">{m?.failureCount || 0}</span>
+                          </span>
                         </div>
                       </div>
                     );
                   })}
-                  
+
                   {telemetry.length > 0 && (
                     <div className="mt-2 border-t border-border/20 pt-2">
-                      <span className="text-[9px] uppercase tracking-widest text-muted-foreground block mb-1">Runtime Supervisor Events</span>
+                      <span className="text-[9px] uppercase tracking-widest text-muted-foreground block mb-1">
+                        Runtime Supervisor Events
+                      </span>
                       {telemetry.map((evt, i) => (
-                        <div key={i} className="flex justify-between items-center text-[10px] py-0.5">
-                          <span className={evt.type === 'HEALTH_DEGRADED' ? 'text-red-400' : evt.type === 'RECOVERY_ATTEMPT' ? 'text-amber-400' : 'text-sky-400'}>{evt.type}</span>
-                          <span className="text-muted-foreground truncate max-w-[120px]">{JSON.stringify(evt.details || '')}</span>
+                        <div
+                          key={i}
+                          className="flex justify-between items-center text-[10px] py-0.5"
+                        >
+                          <span
+                            className={
+                              evt.type === "HEALTH_DEGRADED"
+                                ? "text-red-400"
+                                : evt.type === "RECOVERY_ATTEMPT"
+                                  ? "text-amber-400"
+                                  : "text-sky-400"
+                            }
+                          >
+                            {evt.type}
+                          </span>
+                          <span className="text-muted-foreground truncate max-w-[120px]">
+                            {JSON.stringify(evt.details || "")}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -635,10 +1026,17 @@ export function RuntimeDiagnosticsDrawer({
 
               {/* ── 6. Failures & Fingerprints ── */}
               {fingerprints.length > 0 && (
-                <DiagnosticSection title="Failure Detection" icon={AlertTriangle} badge={`${fingerprints.length}`}>
+                <DiagnosticSection
+                  title="Failure Detection"
+                  icon={AlertTriangle}
+                  badge={`${fingerprints.length}`}
+                >
                   <div className="space-y-2 font-mono text-xs">
                     {fingerprints.slice(-3).map((fp, i) => (
-                      <div key={i} className="rounded-xl border border-red-500/30 bg-red-950/20 p-3">
+                      <div
+                        key={i}
+                        className="rounded-xl border border-red-500/30 bg-red-950/20 p-3"
+                      >
                         <div className="flex items-center justify-between text-red-400 font-bold mb-1">
                           <span>{fp.rootCause}</span>
                           <span>{fp.confidence}%</span>
@@ -651,14 +1049,22 @@ export function RuntimeDiagnosticsDrawer({
               )}
 
               {/* ── 7. Flight Recorder Event Logs ── */}
-              <DiagnosticSection title="Event Trace Log" icon={Terminal} badge={`${currentTurnEvents.length} events`}>
+              <DiagnosticSection
+                title="Event Trace Log"
+                icon={Terminal}
+                badge={`${currentTurnEvents.length} events`}
+              >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] text-muted-foreground font-mono">Recent Telemetry</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    Recent Telemetry
+                  </span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setLogFilter("all")}
                       className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded ${
-                        logFilter === "all" ? "bg-foreground/20 text-foreground" : "text-muted-foreground"
+                        logFilter === "all"
+                          ? "bg-foreground/20 text-foreground"
+                          : "text-muted-foreground"
                       }`}
                     >
                       All
@@ -666,7 +1072,9 @@ export function RuntimeDiagnosticsDrawer({
                     <button
                       onClick={() => setLogFilter("errors")}
                       className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded ${
-                        logFilter === "errors" ? "bg-red-500/20 text-red-400" : "text-muted-foreground"
+                        logFilter === "errors"
+                          ? "bg-red-500/20 text-red-400"
+                          : "text-muted-foreground"
                       }`}
                     >
                       Errors
@@ -682,7 +1090,10 @@ export function RuntimeDiagnosticsDrawer({
                   )}
 
                   {currentTurnEvents.map((evt, i) => (
-                    <div key={i} className="flex items-center justify-between py-1 border-b border-border/10">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between py-1 border-b border-border/10"
+                    >
                       <div className="truncate pr-2">
                         <span className={evt.blocking ? "text-red-400" : "text-sky-400"}>■ </span>
                         <span className="text-foreground">{evt.event}</span>
@@ -690,7 +1101,9 @@ export function RuntimeDiagnosticsDrawer({
                           {evt.module} ({evt.thread})
                         </span>
                       </div>
-                      <span className={`shrink-0 ${evt.duration > 300 ? "text-amber-400" : "text-muted-foreground"}`}>
+                      <span
+                        className={`shrink-0 ${evt.duration > 300 ? "text-amber-400" : "text-muted-foreground"}`}
+                      >
                         {evt.duration.toFixed(1)} ms
                       </span>
                     </div>
@@ -702,7 +1115,7 @@ export function RuntimeDiagnosticsDrawer({
             {/* Footer */}
             <div className="border-t border-border/30 p-4 bg-background/50 flex items-center justify-between">
               <span className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-mono">
-                AURA Dev Diagnostics v6.0
+                AURA Dev Diagnostics v7.0 · telemetry
               </span>
               <button
                 onClick={onClose}

@@ -1,0 +1,46 @@
+{
+  "dataset": "topic-switching",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 94,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 2307
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2300,
+      "llmWords": 17
+    },
+    {
+      "turn": 2,
+      "strategy": "Answer",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2155,
+      "llmWords": 17
+    },
+    {
+      "turn": 3,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2466,
+      "llmWords": 14
+    }
+  ]
+}

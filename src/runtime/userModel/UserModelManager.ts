@@ -34,7 +34,10 @@ export class UserModelManager {
         }
       }
     } catch (e) {
-      console.warn("[UserModelManager] Failed to load model. Falling back to INITIAL_USER_MODEL.", e);
+      console.warn(
+        "[UserModelManager] Failed to load model. Falling back to INITIAL_USER_MODEL.",
+        e,
+      );
     }
   }
 
@@ -55,7 +58,10 @@ export class UserModelManager {
     this.sessionTurns = 0;
   }
 
-  public updateCommunicationProfile(profile: AdaptiveCommunicationProfile, isNewConversation: boolean) {
+  public updateCommunicationProfile(
+    profile: AdaptiveCommunicationProfile,
+    isNewConversation: boolean,
+  ) {
     this.model.communicationProfile = profile;
     if (isNewConversation) {
       this.model.totalConversations++;
@@ -66,12 +72,17 @@ export class UserModelManager {
   /**
    * Extends the model with new observations from behavior/text.
    */
-  public observeTurn(text: string, behavior: BehaviorAnalysis | null, context: string, isMeaningful: boolean) {
+  public observeTurn(
+    text: string,
+    behavior: BehaviorAnalysis | null,
+    context: string,
+    isMeaningful: boolean,
+  ) {
     if (!isMeaningful) return;
 
     this.model.totalObservations++;
     this.sessionTurns++;
-    
+
     if (this.model.lastConversationId !== this.sessionId) {
       this.model.lastConversationId = this.sessionId;
       this.model.totalConversations++;
@@ -80,14 +91,14 @@ export class UserModelManager {
     // Extract explicit facts, preferences (simplistic regex for now, or based on backend tags)
     // The memoryGateway already extracts stableFacts, but we can capture explicit preferences if flagged by behavior
     if (text.toLowerCase().includes("i prefer") || text.toLowerCase().includes("i like")) {
-       // Just a simple heuristic for demonstration. Real implementation might use LLM extraction
-       const match = text.match(/i (prefer|like) (.*?)(?=\.|$)/i);
-       if (match) {
-         const pref = match[2].trim();
-         if (!this.model.explicitPreferences.includes(pref)) {
-           this.model.explicitPreferences.push(pref);
-         }
-       }
+      // Just a simple heuristic for demonstration. Real implementation might use LLM extraction
+      const match = text.match(/i (prefer|like) (.*?)(?=\.|$)/i);
+      if (match) {
+        const pref = match[2].trim();
+        if (!this.model.explicitPreferences.includes(pref)) {
+          this.model.explicitPreferences.push(pref);
+        }
+      }
     }
 
     this.saveModel();

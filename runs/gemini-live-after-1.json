@@ -1,0 +1,270 @@
+{
+  "capturedAt": "2026-08-08T08:12:40.821Z",
+  "keyPrefix": "AQ.A…",
+  "latency": [],
+  "statusText": [],
+  "errBanner": [],
+  "errText": [],
+  "consoleLogs": [
+    {
+      "t": 1786176679780,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176679798,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176680392,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176680443,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176680523,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176680540,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176680541,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176680543,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176680549,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176680564,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176680608,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176680608,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176680627,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176680627,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176681432,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176684780,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176684804,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176685569,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176685598,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176685635,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176685646,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176685647,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176685648,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176685648,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176685653,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176685670,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176685680,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176685681,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176685698,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176685698,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176685850,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    },
+    {
+      "t": 1786176690784,
+      "line": "[AURA] 🖱️ Starting session..."
+    },
+    {
+      "t": 1786176690786,
+      "line": "[AURA] 🎙️ Starting session request..."
+    },
+    {
+      "t": 1786176690792,
+      "line": "[AURA] Resolved Identity: user_480186147665"
+    },
+    {
+      "t": 1786176690795,
+      "line": "[AURA] Connecting... model [1/1]: models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176691136,
+      "line": "[AURA_AUDIO_STATE] AudioContext changed to: running"
+    },
+    {
+      "t": 1786176691962,
+      "line": "[AURA] ✓ Connected to models/gemini-3.1-flash-live-preview"
+    },
+    {
+      "t": 1786176692162,
+      "line": "[Telemetry] LifecycleManager: Object"
+    },
+    {
+      "t": 1786176692218,
+      "line": "[AURA] 🎤 Greeting sent."
+    },
+    {
+      "t": 1786176693232,
+      "line": "[AURA] ⏱ Response delay: 272ms"
+    },
+    {
+      "t": 1786176693232,
+      "line": "[SHADOW TIMING] ⏱ Turn turn_8500 | Legacy: 272ms | HRTE: 300ms | Delta: 28ms"
+    },
+    {
+      "t": 1786176709748,
+      "line": "[vite] hot updated: /src/styles.css"
+    },
+    {
+      "t": 1786176709750,
+      "line": "[vite] hot updated: /src/routes/index.tsx"
+    },
+    {
+      "t": 1786176709862,
+      "line": "[vite] hot updated: /src/styles.css"
+    },
+    {
+      "t": 1786176709862,
+      "line": "[vite] hot updated: /src/routes/index.tsx"
+    },
+    {
+      "t": 1786176709921,
+      "line": "[vite] hot updated: /src/styles.css"
+    },
+    {
+      "t": 1786176709921,
+      "line": "[vite] hot updated: /src/routes/index.tsx"
+    },
+    {
+      "t": 1786176709956,
+      "line": "[vite] hot updated: /src/styles.css"
+    },
+    {
+      "t": 1786176709956,
+      "line": "[vite] hot updated: /src/routes/index.tsx"
+    },
+    {
+      "t": 1786176710089,
+      "line": "[vite] connecting..."
+    },
+    {
+      "t": 1786176710104,
+      "line": "[vite] connected."
+    },
+    {
+      "t": 1786176710798,
+      "line": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "t": 1786176710823,
+      "line": "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. Copy .env.example → .env.local if you need to point to a different backend."
+    },
+    {
+      "t": 1786176710894,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176710907,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176710908,
+      "line": "[ConversationPreservation] Restored conversation state (topic: \"\", turns: 0)"
+    },
+    {
+      "t": 1786176710909,
+      "line": "[ResilienceOrchestrator] Started. Device score: 68"
+    },
+    {
+      "t": 1786176710911,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176710917,
+      "line": "[Sarvam] 🔊 Voice updated → speaker: priya"
+    },
+    {
+      "t": 1786176710938,
+      "line": "[Telemetry] LIFECYCLE_TRANSITION | music Object"
+    },
+    {
+      "t": 1786176710949,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176710950,
+      "line": "[MemoryGateway] Mode: local (supabase reachable: false)"
+    },
+    {
+      "t": 1786176710968,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176710968,
+      "line": "[Telemetry] RuntimeManager: Object"
+    },
+    {
+      "t": 1786176711218,
+      "line": "[MusicService] Initialized with YouTube Music Search and YouTube Native Playback"
+    }
+  ]
+}

@@ -51,10 +51,7 @@ export class AudioWatchdog {
 
   // ── Lifecycle ───────────────────────────────────────────────────
 
-  start(
-    callbacks: AudioWatchdogCallbacks,
-    eventSink?: (e: ResilienceEvent) => void
-  ): void {
+  start(callbacks: AudioWatchdogCallbacks, eventSink?: (e: ResilienceEvent) => void): void {
     this.callbacks = callbacks;
     this.eventSink = eventSink ?? null;
     this.tickHandle = setInterval(() => this.tick(), TICK_INTERVAL_MS);
@@ -160,19 +157,12 @@ export class AudioWatchdog {
     }
 
     // Empty queue during active playback
-    if (
-      this.isSpeakingExpected &&
-      this.state.queueDepth === 0 &&
-      this.state.state === "playing"
-    ) {
+    if (this.isSpeakingExpected && this.state.queueDepth === 0 && this.state.state === "playing") {
       this.callbacks?.onRequestNextChunk();
     }
 
     // Passive recovery when playing normally
-    if (
-      this.state.state === "playing" &&
-      now - this.state.lastPlaybackTs < 500
-    ) {
+    if (this.state.state === "playing" && now - this.state.lastPlaybackTs < 500) {
       this.state.health = Math.min(100, this.state.health + HEALTH_RECOVERY_PER_TICK);
     }
 

@@ -1,0 +1,46 @@
+{
+  "dataset": "close-friends",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 89,
+    "avgHumanity": 8.666666666666666,
+    "realism": 8.7,
+    "productionReady": true,
+    "pipelineMsAvg": 2307
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1962,
+      "llmWords": 7
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 6,
+      "feelsHuman": false,
+      "pipelineMs": 1836,
+      "llmWords": 11
+    },
+    {
+      "turn": 3,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3122,
+      "llmWords": 7
+    }
+  ]
+}

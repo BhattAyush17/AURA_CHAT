@@ -14,13 +14,13 @@ casual → playful) and trust growth. Harness: `scripts/test-relationship.ts`
 
 ## 1. The arc within a session — works exactly as designed
 
-| Turn | Stage | User register | AURA register |
-|---|---|---|---|
-| 1 | NEW | formal | **PROFESSIONAL** ✅ (never casual/playful/intimate) |
-| 3 | ACQUAINTING | casual | CASUAL |
-| 10 | COMFORTABLE | casual | CASUAL |
-| 20 | INTIMATE (trust ≥ 0.65) | playful | PLAYFUL |
-| 150 | INTIMATE | playful | PLAYFUL |
+| Turn | Stage                   | User register | AURA register                                       |
+| ---- | ----------------------- | ------------- | --------------------------------------------------- |
+| 1    | NEW                     | formal        | **PROFESSIONAL** ✅ (never casual/playful/intimate) |
+| 3    | ACQUAINTING             | casual        | CASUAL                                              |
+| 10   | COMFORTABLE             | casual        | CASUAL                                              |
+| 20   | INTIMATE (trust ≥ 0.65) | playful       | PLAYFUL                                             |
+| 150  | INTIMATE                | playful       | PLAYFUL                                             |
 
 Measured: stage is forward-only (never regresses over 150 turns); trust is a hard gate
 (0.64 at turn 20 ≠ INTIMATE, 0.65 = INTIMATE); register flips are momentum-gated
@@ -31,18 +31,18 @@ Measured: stage is forward-only (never regresses over 150 turns); trust is a har
 
 - **NEW stage:** PLAYFUL text → clamped to NEUTRAL; INTIMATE text → clamped to
   CASUAL/NEUTRAL (`clampToRelationship`, `RegisterState.ts:114-129`). Verified: the same
-  INTIMATE text is *permitted* at COMFORTABLE (turn 15). The relationship is the gate,
+  INTIMATE text is _permitted_ at COMFORTABLE (turn 15). The relationship is the gate,
   not the words.
 - INTIMATE register only realizes at COMFORTABLE+; PLAYFUL only at ACQUAINTING+.
 
 ## 3. Across sessions — the relationship resets
 
-| Session 2 turn | Stage (with history) | vs no history |
-|---|---|---|
-| 1 | **NEW** (INTIMATE not carried) | NEW |
-| 3 | ACQUAINTING | ACQUAINTING |
-| 5 | **COMFORTABLE** (memory shortcut) | ACQUAINTING |
-| 20 | INTIMATE (trust 0.8) | COMFORTABLE |
+| Session 2 turn | Stage (with history)              | vs no history |
+| -------------- | --------------------------------- | ------------- |
+| 1              | **NEW** (INTIMATE not carried)    | NEW           |
+| 3              | ACQUAINTING                       | ACQUAINTING   |
+| 5              | **COMFORTABLE** (memory shortcut) | ACQUAINTING   |
+| 20             | INTIMATE (trust 0.8)              | COMFORTABLE   |
 
 Measured: `hasPersonalHistory` only shortcuts ACQUAINTING→COMFORTABLE (turn 5); the
 momentum window is per-session (register restarts at NEUTRAL); **INTIMATE must be
@@ -52,14 +52,13 @@ re-earned over 20 turns of every session**.
 
 1. **Intimacy is re-earned, not remembered.** A 10-session relationship with trust 1.0
    still restarts at NEW every session; trust gates only the turn-20 check
-   (`RegisterState.ts:80`). The seed (relational memory) carries the *thread* and trust
+   (`RegisterState.ts:80`). The seed (relational memory) carries the _thread_ and trust
    back, but the stage ladder ignores both until turn thresholds are met.
 2. **Trust is the only session-persistent relationship signal — and it is not computed
    deterministically on the client** (backend sensing, per-session temporal decay
    `sensing.py:126`, seeded from stored trust). The frontend just forwards
    `sensing.trust ?? lastAnalysis.trust ?? 0.5` (`useSarvam.ts:1310`).
-3. **The one memory shortcut is asymmetric:** memory accelerates COMFORTABLE (turn 10 →
-   5) but does nothing for ACQUAINTING (3) or INTIMATE (20). The most valuable rung
+3. **The one memory shortcut is asymmetric:** memory accelerates COMFORTABLE (turn 10 → 5) but does nothing for ACQUAINTING (3) or INTIMATE (20). The most valuable rung
    (INTIMATE) has no persistence path.
 4. **Stage is monotonic only within a session** — the "ladder only moves forward"
    invariant (`RegisterState.ts:75`) resets at every session boundary by construction.

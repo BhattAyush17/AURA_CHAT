@@ -1,0 +1,78 @@
+{
+  "id": "friendly-banter",
+  "name": "Friendly Banter",
+  "trust": 0.85,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 18,
+  "turns": [
+    {
+      "text": "BC finally promotion mil gayi.",
+      "behavior": {
+        "act": "share",
+        "tags": ["excitement"],
+        "intensity": 0.8,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.8,
+        "arc": "peak",
+        "engagement": 0.9
+      },
+      "memory": ["waited three years for this promotion; boss never appreciated the hard work"],
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["share-excitement", "tell-story"],
+        "strategy": ["Encourage", "Reflect", "Ask"],
+        "initiative": ["Continue", "Ask"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-achievement", "career-transition"]
+      }
+    },
+    {
+      "text": "Bas ab attitude mat dikhana manager sahab.",
+      "behavior": {
+        "act": "tease",
+        "tags": ["teasing", "playful"],
+        "intensity": 0.4,
+        "playfulness": 0.7
+      },
+      "emo": {
+        "energy": 0.7,
+        "warmth": 0.7
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "small-talk", "test-aura"],
+        "strategy": ["Reflect", "Observe", "Ask", "Listen"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Chal coffee meri treat.",
+      "behavior": {
+        "act": "invite",
+        "tags": ["friendly", "casual"],
+        "intensity": 0.4,
+        "playfulness": 0.5
+      },
+      "emo": {
+        "energy": 0.7
+      },
+      "memory": ["invite friends for coffee treat"],
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "share-excitement"],
+        "strategy": ["Answer", "Ask", "Observe", "Reflect"],
+        "initiative": ["Continue", "Ask"],
+        "register": ["CASUAL", "PLAYFUL"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Optional"
+      }
+    }
+  ]
+}

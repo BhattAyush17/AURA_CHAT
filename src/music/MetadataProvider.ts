@@ -1,4 +1,4 @@
-import { Track } from './types';
+import { Track } from "./types";
 
 export class MetadataProvider {
   async enrichTrack(track: Track): Promise<Track> {

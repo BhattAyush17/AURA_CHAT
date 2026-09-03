@@ -1,0 +1,65 @@
+{
+  "id": "siblings",
+  "name": "Siblings",
+  "trust": 0.8,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Mummy ko mat batana warna maar padegi.",
+      "behavior": {
+        "act": "secret",
+        "tags": ["playful", "fear"],
+        "intensity": 0.4,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-comfort", "inform"],
+        "strategy": ["Answer", "Observe", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-security", "family-expectations"]
+      }
+    },
+    {
+      "text": "Waise galti meri nahi thi.",
+      "behavior": {
+        "act": "correction",
+        "tags": ["correction"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Repair"],
+        "goal": ["inform", "debate"],
+        "strategy": ["Observe", "Listen", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["family-expectations"]
+      }
+    },
+    {
+      "text": "Theek hai, aadha blame main leta hoon.",
+      "behavior": {
+        "act": "share",
+        "tags": ["casual"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform"],
+        "strategy": ["Observe", "Answer", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["family-expectations"]
+      }
+    }
+  ]
+}

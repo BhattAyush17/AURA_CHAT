@@ -1,11 +1,11 @@
-export type SenseLifecycleState = 
-  | 'CREATED'
-  | 'INITIALIZING'
-  | 'READY'
-  | 'DEGRADED'
-  | 'RECOVERING'
-  | 'FAILED'
-  | 'SHUTDOWN';
+export type SenseLifecycleState =
+  | "CREATED"
+  | "INITIALIZING"
+  | "READY"
+  | "DEGRADED"
+  | "RECOVERING"
+  | "FAILED"
+  | "SHUTDOWN";
 
 /**
  * Universal Sense Lifecycle.

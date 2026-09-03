@@ -152,8 +152,11 @@ async def store_and_backup_memory(
 
         # Buffer for bulk upsert (Phase 4 fix)
         await _buffer_memory_record(record, supabase_client)
-        
-        embedding_ms = round((time.perf_counter() - t_start) * 1000, 2)
+
+        # `embedding_ms` is already measured around the embed call above.
+        # A second assignment here referenced an undefined `t_start`, which
+        # raised NameError *after* the record was buffered — so every
+        # successful write was reported as `memory_buffer_failed`.
         store_mode = embedding_provider.provider_name if emb else "text_only"
         log.info("memory_buffered", user_id=user_id, session_id=session_id, mode=store_mode, embedding_ms=embedding_ms)
     except Exception as e:

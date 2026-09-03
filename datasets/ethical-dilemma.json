@@ -1,0 +1,66 @@
+{
+  "id": "ethical-dilemma",
+  "name": "Ethical Dilemma",
+  "trust": 0.5,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Sach bolu toh kisi ka nuksan hoga.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["dilemma"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "tension": 0.5,
+        "energy": 0.4
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["express-uncertainty", "seek-help"],
+        "strategy": ["Reflect", "Answer", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Jhoot bolu toh mera.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["dilemma"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "tension": 0.5,
+        "energy": 0.4
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["express-uncertainty", "seek-help"],
+        "strategy": ["Reflect", "Answer", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "What would you do?",
+      "behavior": {
+        "act": "question",
+        "tags": ["dilemma"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Reflect", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH", "HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

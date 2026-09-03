@@ -5,12 +5,15 @@ This document details the multi-tier failover chains integrated into the AURA ar
 ---
 
 ## 1. LLM Orchestration Pipeline (`llm_pipeline.py`)
+
 The core intelligence engine uses a cascading provider approach to ensure high availability for text and reasoning generation.
 
 ### P1: OpenRouter Cascade (Primary)
+
 The system iterates through the `FALLBACK_MODELS` list. If a model returns an error or empty response, the next model is tried automatically.
 
 **Intended priority order:**
+
 1. `deepseek/deepseek-chat` — Highest quality reasoning, best personality adherence.
 2. `meta-llama/llama-3.3-70b-instruct:free` — Strong free-tier fallback with broad capabilities.
 3. `google/gemini-2.0-flash-lite-001` — Fast, lightweight Google model.
@@ -21,14 +24,17 @@ The system iterates through the `FALLBACK_MODELS` list. If a model returns an er
 > **Current Code Gap:** `llm_pipeline.py` line 9–14 does NOT include DeepSeek in `FALLBACK_MODELS`. The list currently starts at Llama. DeepSeek must be added as the first entry.
 
 ### P2: Gemini Direct API (Secondary)
+
 If all OpenRouter models fail (or the API key is missing), the system falls back to calling the Gemini REST API directly using `gemini-1.5-flash`.
 
 ### P3: Stale / Heuristic Response (Critical Failure)
+
 If both P1 and P2 fail completely, the system returns the last cached assistant message from the conversation history, or a static localized "I'm having trouble connecting" message.
 
 ---
 
 ## 2. Voice I/O Pipeline (STT / TTS)
+
 The frontend manages audio processing through graceful degradation, prioritizing fidelity first, then native speed.
 
 - **Tier 1 (Primary):** **Sarvam APIs**
@@ -41,6 +47,7 @@ The frontend manages audio processing through graceful degradation, prioritizing
 ---
 
 ## 3. Memory & Embedding Pipeline
+
 Vector embeddings and memory retrieval are protected by strict timeouts and a hardware-agnostic fallback chain.
 
 - **Tier 1 (Primary):** **Gemini Embedding API (`embedding-001`)**
@@ -57,13 +64,14 @@ Vector embeddings and memory retrieval are protected by strict timeouts and a ha
 ---
 
 ## 4. Emotional Core & Infrastructure (Circuit Breakers)
+
 The `DegradationManager` monitors core infrastructure components (Redis, Supabase, Workers) and dynamically adjusts the complexity of the analytical pipeline.
 
-- **Level 0 (Full Operations):** 
+- **Level 0 (Full Operations):**
   - `consumer.py` calculates complex `StateVectors` and `EmotionVectors` asynchronously via Redis streams, injecting rich behavioral context into the LLM.
-- **Level 1 (NO_MEMORY):** *Supabase Circuit OPEN*
+- **Level 1 (NO_MEMORY):** _Supabase Circuit OPEN_
   - Persistent episodic memory is bypassed. AURA relies solely on the active session's short-term history and the initialized memory `seed`.
-- **Level 2 (NO_SENSING):** *Redis / Worker Circuit OPEN*
+- **Level 2 (NO_SENSING):** _Redis / Worker Circuit OPEN_
   - Async stream processing is aborted. The backend falls back to calculating emotional vectors synchronously within the fast `/api/analyze` FastAPI path.
-- **Level 3 (VOICE_ONLY):** *Total Infrastructure Collapse*
+- **Level 3 (VOICE_ONLY):** _Total Infrastructure Collapse_
   - All behavioral and emotional routing is bypassed. AURA falls back to acting as a standard, un-steered LLM with only the base static system prompt, ensuring the user can always converse.

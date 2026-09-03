@@ -1,0 +1,551 @@
+{
+  "dataset": {
+    "id": "roasting",
+    "name": "Roasting",
+    "trust": 0.8,
+    "hasPersonalHistory": true,
+    "languageMode": "hinglish",
+    "durationMinutes": 14,
+    "turns": [
+      {
+        "text": "Gym jaake bhi tummy wahi hai.",
+        "behavior": {
+          "act": "tease",
+          "tags": ["insult", "playful"],
+          "intensity": 0.5,
+          "playfulness": 0.9
+        },
+        "emo": {
+          "energy": 0.6,
+          "warmth": 0.6
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["inform", "test-aura"],
+          "strategy": ["Reflect", "Observe", "Answer"],
+          "register": ["CASUAL", "PLAYFUL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["humor-as-relief"]
+        }
+      },
+      {
+        "text": "Protein shake se personality nahi banti.",
+        "behavior": {
+          "act": "tease",
+          "tags": ["insult", "playful"],
+          "intensity": 0.5,
+          "playfulness": 0.9
+        },
+        "emo": {
+          "energy": 0.6,
+          "warmth": 0.6
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["inform", "test-aura"],
+          "strategy": ["Reflect", "Observe", "Answer"],
+          "register": ["CASUAL", "PLAYFUL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["humor-as-relief"]
+        }
+      },
+      {
+        "text": "Love you bro.",
+        "behavior": {
+          "act": "statement",
+          "tags": ["affection", "playful"],
+          "intensity": 0.3,
+          "playfulness": 0.5
+        },
+        "emo": {
+          "warmth": 0.8
+        },
+        "expected": {
+          "move": ["Answer", "Reflect"],
+          "goal": ["small-talk", "inform"],
+          "strategy": ["Answer", "Observe", "Reflect"],
+          "register": ["CASUAL", "PLAYFUL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Ignore",
+          "swm": ["need-connection"]
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:20:08.587Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "Gym jaake bhi tummy wahi hai.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["insult", "playful"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["playfulness(0.70)", "user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -3 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Observe",
+        "initiative": "Observe",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Observe\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 1) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Observe — acknowledge briefly and let them lead — no questions, no pushing\ntone: warmth 0.57 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 289,
+      "llm": "Workout ke saath diet bhi important hai, consistency rakho.",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -3 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": false,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 67
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1582,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Observe",
+        "plan": "Short/Observe/conf:High",
+        "prompt": "289t",
+        "llm": "9w",
+        "speech": "speed:1.00",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Protein shake se personality nahi banti.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["insult", "playful"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["playfulness(0.70)", "user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -8 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.7,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Observe",
+        "initiative": "Observe",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Observe\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.70, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: NEUTRAL (confidence 0.00, stable since turn 2) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Observe — acknowledge briefly and let them lead — no questions, no pushing\ntone: warmth 0.57 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 289,
+      "llm": "Protein shake sirf supplement hai, asli mehnat gym mein hoti hai.",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -8 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": false,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 67
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2233,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "NEUTRAL",
+        "executive": "Observe",
+        "plan": "Short/Observe/conf:High",
+        "prompt": "289t",
+        "llm": "11w",
+        "speech": "speed:1.00",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Love you bro.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["affection", "playful"]
+      },
+      "understanding": {
+        "move": "Answer",
+        "literal": "statement",
+        "goal": "inform",
+        "implicit": null,
+        "expected": "follow-up",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Ignore",
+        "retrieved": 0,
+        "injected": 0,
+        "referenced": true
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "language": {
+        "dominant": "HINGLISH",
+        "confidence": 0.64,
+        "stability": 0.667
+      },
+      "register": {
+        "register": "CASUAL",
+        "confidence": 0.95,
+        "stability": 1
+      },
+      "executive": {
+        "strategy": "Observe",
+        "initiative": "Observe",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Observe\nlanguage: HINGLISH / secondary ENGLISH (confidence 0.64, stable since turn 1) — mirror the user's Hindi-English balance in natural conversational Hinglish; do not collapse into one language; keep technical words as the user said them\nregister: CASUAL (confidence 0.95, stable since turn 3) — respond in relaxed, conversational language — contractions, short sentences, light slang, no formality; mirror the user's casual ease\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Observe — acknowledge briefly and let them lead — no questions, no pushing\ntone: warmth 0.71 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 1, energy 0.50\nwhy:   # register: CASUAL (conf 0.95)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 302,
+      "llm": "Aww, love you too bro! Keep grinding 💪",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Answer (0.95)",
+          "expected: follow-up"
+        ]
+      },
+      "fidelity": {
+        "language": false,
+        "register": true,
+        "memory": true,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": true,
+        "budget": true,
+        "percent": 67
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "friendliness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 10,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2074,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Answer/inform",
+        "swm": "none",
+        "memory": "Ignore(0)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "HINGLISH",
+        "register": "CASUAL",
+        "executive": "Observe",
+        "plan": "Short/Observe/conf:High",
+        "prompt": "302t",
+        "llm": "8w",
+        "speech": "speed:1.00",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 67,
+    "avgHumanity": 8.666666666666666,
+    "realism": 8.7,
+    "productionReady": false,
+    "pipelineMsAvg": 1963
+  }
+}

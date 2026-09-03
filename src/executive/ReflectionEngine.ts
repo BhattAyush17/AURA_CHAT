@@ -61,7 +61,7 @@ export class ReflectionEngine {
       console.warn("Failed to load reflection weights", e);
     }
   }
-  
+
   private saveWeights() {
     try {
       localStorage.setItem("aura_reflection_weights", JSON.stringify(this.weights));

@@ -5,7 +5,7 @@ export class GeminiAudioOutput {
   private audioContext: AudioContext | null = null;
   private outputAnalyser: AnalyserNode | null = null;
   private volume: number = 1.0;
-  
+
   constructor() {
     this.speechCoordinator = SpeechCoordinator.getInstance();
   }
@@ -13,7 +13,7 @@ export class GeminiAudioOutput {
   public initialize(audioContext: AudioContext, _inputAnalyser: AnalyserNode) {
     this.audioContext = audioContext;
     // Create a dedicated OUTPUT analyser that routes to audioContext.destination.
-    // The _inputAnalyser belongs to the microphone input chain (which has a 
+    // The _inputAnalyser belongs to the microphone input chain (which has a
     // zero-gain node) — routing playback through it silences all output.
     this.outputAnalyser = audioContext.createAnalyser();
     this.outputAnalyser.fftSize = 256;
@@ -29,7 +29,7 @@ export class GeminiAudioOutput {
     }
 
     const f32 = this.base64PcmToFloat32(base64Data);
-    
+
     if (this.volume !== 1.0) {
       for (let i = 0; i < f32.length; i++) {
         f32[i] *= this.volume;

@@ -1,0 +1,73 @@
+{
+  "id": "sarcasm",
+  "name": "Sarcasm",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "english",
+  "durationMinutes": 10,
+  "turns": [
+    {
+      "text": "Wow.",
+      "behavior": {
+        "act": "sarcasm",
+        "tags": ["sarcastic"],
+        "intensity": 0.5,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "frustration": 0.4
+      },
+      "expected": {
+        "move": ["Challenge", "Reflect"],
+        "goal": ["test-aura"],
+        "strategy": ["Challenge", "Reflect", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "Amazing.",
+      "behavior": {
+        "act": "sarcasm",
+        "tags": ["sarcastic"],
+        "intensity": 0.5,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "frustration": 0.4
+      },
+      "expected": {
+        "move": ["Challenge", "Reflect"],
+        "goal": ["test-aura"],
+        "strategy": ["Challenge", "Reflect", "Observe"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    },
+    {
+      "text": "Exactly what I wanted.",
+      "behavior": {
+        "act": "sarcasm",
+        "tags": ["sarcastic"],
+        "intensity": 0.5,
+        "playfulness": 0.6
+      },
+      "emo": {
+        "frustration": 0.4
+      },
+      "expected": {
+        "move": ["Challenge", "Reflect"],
+        "goal": ["test-aura"],
+        "strategy": ["Challenge", "Reflect", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["humor-as-relief"]
+      }
+    }
+  ]
+}

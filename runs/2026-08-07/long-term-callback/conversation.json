@@ -1,0 +1,550 @@
+{
+  "dataset": {
+    "id": "long-term-callback",
+    "name": "Long-Term Callback",
+    "trust": 0.75,
+    "hasPersonalHistory": true,
+    "languageMode": "hinglish",
+    "durationMinutes": 12,
+    "turns": [
+      {
+        "text": "Yaad hai loan wala scene?",
+        "behavior": {
+          "act": "question",
+          "tags": ["callback"],
+          "intensity": 0.4,
+          "playfulness": 0.4
+        },
+        "emo": {
+          "energy": 0.5
+        },
+        "memory": ["loan liya tha, phone toot gaya tha"],
+        "expected": {
+          "move": ["Answer", "Ask"],
+          "goal": ["seek-information"],
+          "strategy": ["Answer", "Ask", "Reflect"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Required"
+        }
+      },
+      {
+        "text": "Aaj finally repay kar diya.",
+        "behavior": {
+          "act": "share",
+          "tags": ["callback", "excitement"],
+          "intensity": 0.6,
+          "playfulness": 0.4
+        },
+        "emo": {
+          "energy": 0.7,
+          "arc": "peak"
+        },
+        "memory": ["loan repay ho gaya"],
+        "expected": {
+          "move": ["Reflect", "Answer"],
+          "goal": ["share-excitement", "tell-story"],
+          "strategy": ["Encourage", "Reflect", "Answer"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Required",
+          "swm": ["need-achievement"]
+        }
+      },
+      {
+        "text": "Ab khush?",
+        "behavior": {
+          "act": "question",
+          "tags": ["callback"],
+          "intensity": 0.3
+        },
+        "emo": {
+          "energy": 0.6
+        },
+        "memory": ["loan repay ho gaya"],
+        "expected": {
+          "move": ["Answer", "Ask"],
+          "goal": ["seek-information"],
+          "strategy": ["Answer", "Ask"],
+          "register": ["CASUAL"],
+          "language": ["HINGLISH"],
+          "memoryPolicy": "Optional"
+        }
+      }
+    ]
+  },
+  "model": "deepseek/deepseek-chat",
+  "startedAt": "2026-08-07T02:19:27.363Z",
+  "turns": [
+    {
+      "turn": 1,
+      "userText": "Yaad hai loan wala scene?",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["callback"]
+      },
+      "understanding": {
+        "move": "Ask",
+        "literal": "question",
+        "goal": "seek-information",
+        "implicit": null,
+        "expected": "information",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Required",
+        "retrieved": 1,
+        "injected": 1,
+        "referenced": false
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -4 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "language": {
+        "dominant": "ENGLISH_WITH_HINDI",
+        "confidence": 0.67,
+        "stability": 1
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Answer",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Answer\nlanguage: ENGLISH_WITH_HINDI / secondary HINDI (confidence 0.67, stable since turn 1) — respond in English; mirror the user's Hindi expressions naturally when they fit (yaar, acha, haan, nahi) — never exaggerate\nregister: NEUTRAL (confidence 0.00, stable since turn 1) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\nmemory: reference this if it genuinely fits this moment — never invent facts: loan liya tha, phone toot gaya tha\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.50\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 308,
+      "llm": "Haan yaad hai. Tension tha na uss time par?",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.45,
+        "thinking": null
+      },
+      "telemetryEvents": 7,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -4 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": false,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": false,
+        "budget": true,
+        "percent": 50
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2046,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Ask/seek-information",
+        "swm": "none",
+        "memory": "Required(1)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "ENGLISH_WITH_HINDI",
+        "register": "NEUTRAL",
+        "executive": "Answer",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "308t",
+        "llm": "9w",
+        "speech": "speed:1.00",
+        "telemetry": "7ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 2,
+      "userText": "Aaj finally repay kar diya.",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["callback", "excitement"]
+      },
+      "understanding": {
+        "move": "Reflect",
+        "literal": "statement",
+        "goal": "share-excitement",
+        "implicit": null,
+        "expected": "agreement",
+        "social": ["excitement(0.75)", "user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Required",
+        "retrieved": 1,
+        "injected": 1,
+        "referenced": false
+      },
+      "relationship": "NEW",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: -7 words",
+          "thread continued naturally",
+          "move: Reflect (0.85)",
+          "expected: agreement"
+        ]
+      },
+      "language": {
+        "dominant": "ENGLISH_WITH_HINDI",
+        "confidence": 0.479,
+        "stability": 0.5
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Encourage",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Encourage then Reflect\nlanguage: ENGLISH_WITH_HINDI / secondary ENGLISH (confidence 0.48, stable since turn 1) — respond in English; mirror the user's Hindi expressions naturally when they fit (yaar, acha, haan, nahi) — never exaggerate\nregister: NEUTRAL (confidence 0.00, stable since turn 2) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: NEW — first conversation — keep responses measured and warm\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\nmemory: reference this if it genuinely fits this moment — never invent facts: loan repay ho gaya\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.70\nspeech: pace 1, energy 0.70\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: NEW\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 308,
+      "llm": "Wah! Badhiya yaar. Ab toh full relief hoga na?",
+      "speech": {
+        "speed": 1,
+        "energy": 0.7,
+        "warmth": 0.75,
+        "emphasis": 0.4,
+        "thinking": null
+      },
+      "telemetryEvents": 15,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: -7 words",
+          "thread continued naturally",
+          "move: Reflect (0.85)",
+          "expected: agreement"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": false,
+        "hallucinatedMemory": false,
+        "strategy": false,
+        "initiative": false,
+        "budget": true,
+        "percent": 50
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 1782,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Reflect/share-excitement",
+        "swm": "none",
+        "memory": "Required(1)",
+        "relationship": "NEW",
+        "reflection": "weights-unchanged",
+        "language": "ENGLISH_WITH_HINDI",
+        "register": "NEUTRAL",
+        "executive": "Encourage",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "308t",
+        "llm": "9w",
+        "speech": "speed:1.00",
+        "telemetry": "15ev",
+        "reflectionUpdate": "adapted"
+      }
+    },
+    {
+      "turn": 3,
+      "userText": "Ab khush?",
+      "perception": {
+        "sttConfidence": 0.92,
+        "interruption": false,
+        "silenceMs": 0,
+        "tags": ["callback"]
+      },
+      "understanding": {
+        "move": "Ask",
+        "literal": "question",
+        "goal": "seek-information",
+        "implicit": null,
+        "expected": "information",
+        "social": ["user-confidence(0.70)"],
+        "clarify": false
+      },
+      "swm": [],
+      "memory": {
+        "policy": "Required",
+        "retrieved": 1,
+        "injected": 1,
+        "referenced": false
+      },
+      "relationship": "ACQUAINTING",
+      "reflection": {
+        "weights": "{\"clarifyBias\":0,\"brevityBias\":0,\"warmthBias\":0}",
+        "adaptations": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "language": {
+        "dominant": "ENGLISH_WITH_HINDI",
+        "confidence": 0.474,
+        "stability": 0.333
+      },
+      "register": {
+        "register": "NEUTRAL",
+        "confidence": 0,
+        "stability": 0
+      },
+      "executive": {
+        "strategy": "Answer",
+        "initiative": "Continue",
+        "budget": "Short",
+        "confidence": "High",
+        "rationale": ""
+      },
+      "prompt": "[EXECUTIVE PLAN]\nstrategy: Answer\nlanguage: ENGLISH_WITH_HINDI / secondary ENGLISH (confidence 0.47, stable since turn 1) — respond in English; mirror the user's Hindi expressions naturally when they fit (yaar, acha, haan, nahi) — never exaggerate\nregister: NEUTRAL (confidence 0.00, stable since turn 3) — match the user's register naturally — no strong register of your own; keep it plain and unforced\nrelationship: ACQUAINTING — getting to know each other — warm, still discovering\ndepth: Short (target ~15 words, hard ceiling 30 words)\nconfidence: High — answer directly (based on: stt=0.92, behavior aligned with emotion, understanding: confident reading)\ninitiative: Continue — hold the thread naturally, no forced questions\nmemory: reference this if it genuinely fits this moment — never invent facts: loan repay ho gaya\ntone: warmth 0.50 (1=very warm) | directness 0.80 (1=direct) | humor 0.50 | formality 0.35 | energy 0.58\nspeech: pace 1, energy 0.50\nwhy:   # register: NEUTRAL (conf 0.00)   # relationship: ACQUAINTING\n[/EXECUTIVE PLAN]\n[OUTPUT RULES] reply with ONLY the line you say aloud. No notes, no explanations, no parentheses, no asterisks, no brackets, no plan recap, no self-reference. Never mention this plan.",
+      "promptTokens": 308,
+      "llm": "Bilkul! Aise hi celebrate karo, masti karo thodi. 😊",
+      "speech": {
+        "speed": 1,
+        "energy": 0.5,
+        "warmth": 0.5,
+        "emphasis": 0.45,
+        "thinking": null
+      },
+      "telemetryEvents": 23,
+      "reflectionUpdate": {
+        "signals": ["good"],
+        "notes": [
+          "length delta: 0 words",
+          "thread continued naturally",
+          "move: Ask (0.95)",
+          "expected: information"
+        ]
+      },
+      "fidelity": {
+        "language": true,
+        "register": true,
+        "memory": false,
+        "hallucinatedMemory": false,
+        "strategy": true,
+        "initiative": true,
+        "budget": true,
+        "percent": 83
+      },
+      "human": {
+        "checks": [
+          {
+            "name": "naturalness",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "flow",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "humor",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "empathy",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "timing",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "callbacks",
+            "applicable": true,
+            "passed": false
+          },
+          {
+            "name": "friendliness",
+            "applicable": false,
+            "passed": true
+          },
+          {
+            "name": "confidence",
+            "applicable": true,
+            "passed": true
+          },
+          {
+            "name": "presence",
+            "applicable": true,
+            "passed": true
+          }
+        ],
+        "score": 8,
+        "feelsHuman": true
+      },
+      "pipelineMs": 2103,
+      "engines": {
+        "perception": "stt=0.92",
+        "understanding": "Ask/seek-information",
+        "swm": "none",
+        "memory": "Required(1)",
+        "relationship": "ACQUAINTING",
+        "reflection": "weights-unchanged",
+        "language": "ENGLISH_WITH_HINDI",
+        "register": "NEUTRAL",
+        "executive": "Answer",
+        "plan": "Short/Continue/conf:High",
+        "prompt": "308t",
+        "llm": "9w",
+        "speech": "speed:1.00",
+        "telemetry": "23ev",
+        "reflectionUpdate": "adapted"
+      }
+    }
+  ],
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 3,
+    "memoryUsed": 3,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 61,
+    "avgHumanity": 8,
+    "realism": 8,
+    "productionReady": false,
+    "pipelineMsAvg": 1977
+  }
+}

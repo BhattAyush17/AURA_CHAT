@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional, Any
 
 from backend.infrastructure.logging import get_logger
@@ -33,11 +34,11 @@ from backend.core.behavior import (
     build_sensing_injection,
     detect_language_profile,
 )
-from backend.memory.sync import get_chromadb_enrichment_v2
 from backend.core.vocab import VocabLearner
 from backend.core.intelligence import composer
 from backend.personality.toxicity_engine import process_toxicity_pipeline
 from backend.core.thought_field.AssociativeThoughtField import AssociativeThoughtField
+from backend.core.thought_field.identity.IdentityEvolution import observe_turn_live
 from backend.core.thought_field.CognitiveContext import CognitiveContext
 
 log = get_logger("core.pipeline")
@@ -230,8 +231,97 @@ async def run_turn_pipeline(
     cog_snapshot = envelope.cognitive_snapshot
     expression_behavior = envelope.behavior_expression
     
-    self_prompt = atf.self_model.get_state().to_prompt_injection()
+    # NOTE: Pre-existing typo fix on the integration path.
+    # `SelfModel` exposes `.state` (a `SelfState`) directly; there is no
+    # `get_state()` method. The previous form `atf.self_model.get_state()`
+    # raised AttributeError and broke the whole pipeline. The freshly updated
+    # state is already on `atf.self_model.state` because `atf.tick(ctx)`
+    # invokes `self_model.update(...)` itself.
+    self_prompt = atf.self_model.state.to_prompt_injection()
     combined_injection = sensing_injection + (vocab_injection or "") + f"\n\n{self_prompt}\n\n{cog_snapshot}\n\n{expression_behavior}"
+
+    # ── Step 4.4: Turn-level live UserModel state observation ────────────────
+    # Lightweight, fail-open. Owns only `current_state.topic` and
+    # `recent_context.unresolved_items`. Persistence is fire-and-forget so
+    # the conversational response path is never blocked.
+    if user_id and user_id != "anonymous":
+        try:
+            dominant_theme = ""
+            try:
+                if getattr(atf, "awareness_history", None) and atf.awareness_history.frames:
+                    dominant_theme = atf.awareness_history.frames[-1].dominant_theme or ""
+            except Exception:
+                dominant_theme = ""
+
+            async def _fetch_live_model(uid: str):
+                """Inline read of the UserModel from Supabase `aura_storage`.
+
+                Duplicated from `backend.api.memory_endpoints._fetch_user_model`
+                to avoid a top-level circular import (memory_endpoints -> main
+                -> pipeline). The body is small and the schema is stable.
+                """
+                try:
+                    from backend.api.main import supabase as _sb
+                    if not _sb:
+                        return None
+                    from backend.infrastructure.runtime_telemetry import timing
+                    from backend.core.thought_field.identity.UserModel import UserModel as _UM
+                    with timing("supabase", "read_aura_storage"):
+                        res = await _sb.table("aura_storage").select("data").eq("user_id", uid).eq("key", f"user_model_{uid}").execute()
+                    if res.data and len(res.data) > 0:
+                        return _UM.from_dict(res.data[0].get("data", {}))
+                except Exception as e:
+                    log.warning("live_state_fetch_failed user=%s err=%s", uid, e)
+                return None
+
+            async def _persist_live_state(model):
+                """Merge our live-state fields with a fresh DB read, then upsert.
+
+                Race characteristics: another process/session may update the
+                same UserModel concurrently (notably the consolidation path,
+                which mutates `unresolved_items` and `identity.*`). Because
+                the existing persistence layer is a full-model upsert with
+                no DB-level versioning, we mitigate by re-reading the row
+                immediately before writing and preserving every field we did
+                not touch. The only field where a residual last-writer-wins
+                race remains is `recent_context.unresolved_items`.
+                """
+                try:
+                    from backend.api.main import supabase as _sb
+                    if not _sb:
+                        return
+                    fresh = await _fetch_live_model(model.user_id)
+                    if fresh is None:
+                        fresh = model  # write our local model as-is
+                    # Preserve everything we didn't touch this turn.
+                    fresh.current_state = model.current_state
+                    fresh.recent_context.unresolved_items = list(
+                        model.recent_context.unresolved_items
+                    )
+                    fresh.recent_changes = list(model.recent_changes)
+                    fresh.metadata.updated_at = time.time()
+                    # `updated_at` is timestamptz: a float epoch is rejected
+                    # (22007). `on_conflict` is required because
+                    # idx_aura_storage_user_key is UNIQUE on (user_id, key).
+                    await _sb.table("aura_storage").upsert({
+                        "user_id": fresh.user_id,
+                        "key": f"user_model_{fresh.user_id}",
+                        "data": fresh.to_dict(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }, on_conflict="user_id,key").execute()
+                except Exception as e:
+                    log.warning("live_state_persist_callback_failed err=%s", e)
+
+            await observe_turn_live(
+                user_id=user_id,
+                session_id=session_id,
+                transcript=user_text,
+                dominant_theme=dominant_theme,
+                fetch_model=_fetch_live_model,
+                persist_model=_persist_live_state,
+            )
+        except Exception as e:
+            log.warning("live_state_observe_skipped err=%s", e)
 
     # ── Step 4.5: Intelligence Context Layer (L6) ────────────────────────────
     try:
@@ -260,20 +350,23 @@ async def run_turn_pipeline(
     # ── Step 4.7: Memory Retrieval (async, timeout-protected) ────────────────
     memory_enrichment = ""
     try:
-        memory_enrichment = await asyncio.wait_for(
-            get_chromadb_enrichment_v2(
-                current_text=user_text,
-                state_vector={
-                    "arc": state_vector.arc,
-                    "energy": state_vector.energy,
-                    "trust": state_vector.trust,
-                },
-                user_id=user_id,
-                timeout=memory_timeout,
-                embedding_cache=embedding_cache,
-            ),
-            timeout=memory_timeout + 0.1,
-        )
+        from backend.memory.orchestration.orchestrator import get_orchestrator
+        orchestrator = get_orchestrator()
+        if orchestrator:
+            block, _ = await asyncio.wait_for(
+                orchestrator.read_context_block(
+                    user_id=user_id,
+                    query=user_text,
+                    count=3,
+                    correlation_id=session_id
+                ),
+                timeout=memory_timeout + 0.1,
+            )
+            memory_enrichment = block
+        else:
+            # Fallback to current state if orchestrator is missing
+            from backend.memory.sync import frame_from_current_input
+            memory_enrichment = frame_from_current_input(user_text, state_vector)
     except asyncio.TimeoutError:
         log.warning("pipeline_memory_timeout", session_id=session_id)
     except Exception as e:

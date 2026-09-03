@@ -1,0 +1,74 @@
+{
+  "id": "social-pressure",
+  "name": "Social Pressure",
+  "trust": 0.7,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 14,
+  "turns": [
+    {
+      "text": "Sab judge karenge.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["anxiety", "vulnerability"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "vulnerability": 0.5,
+        "tension": 0.5,
+        "energy": 0.3
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["social-comparison", "need-security"]
+      }
+    },
+    {
+      "text": "Mujhe awkward feel ho raha hai.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["anxiety", "vulnerability"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "vulnerability": 0.55,
+        "tension": 0.5
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort"],
+        "strategy": ["Comfort", "Reflect"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["social-comparison", "need-belonging"]
+      }
+    },
+    {
+      "text": "Kya karun?",
+      "behavior": {
+        "act": "question",
+        "tags": ["anxiety"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "vulnerability": 0.4,
+        "tension": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["seek-information", "seek-help"],
+        "strategy": ["Answer", "Reflect", "Comfort"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["social-comparison"]
+      }
+    }
+  ]
+}

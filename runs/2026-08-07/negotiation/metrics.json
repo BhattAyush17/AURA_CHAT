@@ -1,0 +1,46 @@
+{
+  "dataset": "negotiation",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 94,
+    "avgHumanity": 9.166666666666666,
+    "realism": 9.2,
+    "productionReady": true,
+    "pipelineMsAvg": 2903
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3510,
+      "llmWords": 7
+    },
+    {
+      "turn": 2,
+      "strategy": "Answer",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 3452,
+      "llmWords": 12
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 100,
+      "human": 7.5,
+      "feelsHuman": true,
+      "pipelineMs": 1748,
+      "llmWords": 9
+    }
+  ]
+}

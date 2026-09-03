@@ -1,0 +1,46 @@
+{
+  "dataset": "social-pressure",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 83,
+    "avgHumanity": 9.333333333333334,
+    "realism": 9.3,
+    "productionReady": true,
+    "pipelineMsAvg": 2678
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 4634,
+      "llmWords": 5
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 83,
+      "human": 8,
+      "feelsHuman": true,
+      "pipelineMs": 1448,
+      "llmWords": 5
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 83,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1951,
+      "llmWords": 9
+    }
+  ]
+}

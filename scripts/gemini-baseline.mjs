@@ -51,7 +51,11 @@ async function connect(target) {
 }
 
 async function evaluate(cdp, expression) {
-  const r = await cdp.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+  const r = await cdp.send("Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+  });
   return r.result?.result?.value;
 }
 
@@ -135,5 +139,14 @@ const data = {
 };
 writeFileSync(OUT, JSON.stringify(data, null, 2));
 console.log("[DRIVER] saved", OUT);
-console.log("[DRIVER] latency events:", data.latency.length, "| trace events:", data.trace.length, "| status:", statusText, "| errors:", errBanner.filter(Boolean).length);
+console.log(
+  "[DRIVER] latency events:",
+  data.latency.length,
+  "| trace events:",
+  data.trace.length,
+  "| status:",
+  statusText,
+  "| errors:",
+  errBanner.filter(Boolean).length,
+);
 cdp.ws.close();

@@ -6,6 +6,7 @@
  */
 
 import type { BehaviorAnalysis } from "@/lib/behavior-client";
+import type { MusicalMoment } from "@/music/types";
 
 // ─── Session ────────────────────────────────────────────────────────
 
@@ -35,6 +36,12 @@ export interface TranscriptEntry {
   interpreted_text?: string;
   user_initiated: boolean;
   timestamp: number;
+  musicTrackId?: string;
+  musicMediaTime?: number;
+  musicSection?: string;
+  musicMoment?: MusicalMoment;
+  musicReferenceType?: string;
+  musicReferenceConfidence?: number;
 }
 
 // ─── Analysis / Emotion ─────────────────────────────────────────────

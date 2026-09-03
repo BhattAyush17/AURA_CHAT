@@ -25,7 +25,12 @@ const PROVIDERS: ProviderInfo[] = [
   { id: "sarvam", name: "Sarvam AI", subtitle: "Indian Voice" },
 ];
 
-export function ProviderSelector({ activeBrain, onChange, status, endSession }: ProviderSelectorProps) {
+export function ProviderSelector({
+  activeBrain,
+  onChange,
+  status,
+  endSession,
+}: ProviderSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [connStatus, setConnStatus] = useState<ConnectionStatus>("checking");
   const [statusMessage, setStatusMessage] = useState("Verifying Connection...");
@@ -36,36 +41,40 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
   // Helper to determine key existence
   const checkKeys = useCallback((provider: "gemini" | "openrouter" | "sarvam"): boolean => {
     if (provider === "gemini") return hasUserKey("aura_gemini_api_key");
-    if (provider === "sarvam") return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
+    if (provider === "sarvam")
+      return hasUserKey("openrouter_api_key") && hasUserKey("sarvam_api_key");
     return hasUserKey("openrouter_api_key");
   }, []);
 
   // Update status based on conditions
-  const updateStatus = useCallback((provider: "gemini" | "openrouter" | "sarvam") => {
-    if (typeof window !== "undefined" && !navigator.onLine) {
-      setConnStatus("offline");
-      setStatusMessage("Offline");
-      return;
-    }
+  const updateStatus = useCallback(
+    (provider: "gemini" | "openrouter" | "sarvam") => {
+      if (typeof window !== "undefined" && !navigator.onLine) {
+        setConnStatus("offline");
+        setStatusMessage("Offline");
+        return;
+      }
 
-    const hasKeys = checkKeys(provider);
-    if (!hasKeys) {
-      setConnStatus("missing_keys");
-      setStatusMessage("API Key Required");
-      return;
-    }
+      const hasKeys = checkKeys(provider);
+      if (!hasKeys) {
+        setConnStatus("missing_keys");
+        setStatusMessage("API Key Required");
+        return;
+      }
 
-    const cs = connectionState.getState();
-    if (provider === "sarvam" && !cs.sarvam_available && cs.init_complete) {
-      setConnStatus("error");
-      setStatusMessage("Provider Unavailable");
-      return;
-    }
+      const cs = connectionState.getState();
+      if (provider === "sarvam" && !cs.sarvam_available && cs.init_complete) {
+        setConnStatus("error");
+        setStatusMessage("Provider Unavailable");
+        return;
+      }
 
-    // Default to connected if keys exist and we are online
-    setConnStatus("connected");
-    setStatusMessage(provider === "gemini" ? "Ready" : "Connected");
-  }, [checkKeys]);
+      // Default to connected if keys exist and we are online
+      setConnStatus("connected");
+      setStatusMessage(provider === "gemini" ? "Ready" : "Connected");
+    },
+    [checkKeys],
+  );
 
   // Handle provider switch and simulate connection check
   const handleSelect = (providerId: "gemini" | "openrouter" | "sarvam") => {
@@ -93,7 +102,7 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
 
     const handleOnlineStatus = () => updateStatus(activeBrain);
     const handleCredentialsUpdated = () => updateStatus(activeBrain);
-    
+
     window.addEventListener("online", handleOnlineStatus);
     window.addEventListener("offline", handleOnlineStatus);
     window.addEventListener("aura_credentials_updated", handleCredentialsUpdated);
@@ -193,14 +202,17 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
           <span className="text-[10px] font-medium tracking-[0.03em] uppercase text-white group-hover:underline decoration-white/20 transition-all duration-120">
             {activeProvider.name}
           </span>
-          
+
           {/* Secondary Status Line: hidden on mobile, visible on tablet/desktop */}
           <span className="hidden sm:inline text-[9px] font-normal text-white/55 leading-none transition-opacity duration-120">
             {statusMessage}
           </span>
         </div>
 
-        <ChevronDown className="h-3 w-3 text-white/40 shrink-0 group-hover:text-white/60 transition-colors" strokeWidth={1.5} />
+        <ChevronDown
+          className="h-3 w-3 text-white/40 shrink-0 group-hover:text-white/60 transition-colors"
+          strokeWidth={1.5}
+        />
       </button>
 
       <AnimatePresence>
@@ -232,9 +244,7 @@ export function ProviderSelector({ activeBrain, onChange, status, endSession }: 
                   <span className="text-[9px] font-medium tracking-[0.03em] uppercase text-white truncate">
                     {provider.name}
                   </span>
-                  {isSelected && (
-                    <span className="h-1 w-1 rounded-full bg-white" />
-                  )}
+                  {isSelected && <span className="h-1 w-1 rounded-full bg-white" />}
                 </li>
               );
             })}

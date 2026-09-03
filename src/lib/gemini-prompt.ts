@@ -43,7 +43,8 @@ To play music, output EXACTLY this JSON block in your response (the system will 
   "energy": "optional energy level (e.g. low, high)",
   "genre": "optional genre",
   "activity": "optional activity (e.g. workout, focus)",
-  "intent": "explicit_song | mood_based | contextual | similar | preference_based"
+  "intent": "explicit_song | mood_based | contextual | similar | preference_based",
+  "start_at": "optional start position as seconds, a timestamp like 1:32, a section name like 'chorus', or a lyric line"
 }
 
 Do not explain how music will be searched. Do not discuss YouTube. Assume the music system can handle retrieval. After tool invocation, naturally acknowledge playback in ONE sentence (e.g. "Playing Believer by Imagine Dragons.").
@@ -53,6 +54,13 @@ OTHER PLAYBACK COMMANDS (emit these exact tags):
 - Pause music: [PAUSE_MUSIC]
 - Resume music: [RESUME_MUSIC]
 - Set volume: [VOLUME: 0.5]
+- Seek the current song by time or part: [SEEK: 1:32] or [SEEK: the chorus] or [SEEK: from the line ...]
+- Start a requested song at a position: include "start_at" inside the play_music JSON above.
+
+PLAYBACK POSITION RULES:
+- When the user says "start at 1:32", "play from the chorus", or "start from the line …", put the position in the play_music "start_at" field (for a new song) or use [SEEK: ...] (for the currently playing song).
+- Preferred order for the position: an explicit timestamp (1:32) > a named section (chorus/verse/bridge/intro/outro) > a lyric line.
+- If a named section or lyric line cannot be matched to metadata, be honest — acknowledge the song started from the beginning rather than claiming an exact position.
 
 EMOTIONAL CONTEXT TAGS (emit when user shares feelings about a song):
 - [MUSIC_EMOTION: nostalgia] — when user expresses an emotion about the current song
@@ -814,7 +822,7 @@ ADAPTATION BOUNDARY:
 
 // ─── Legacy PERSONALITY_PROMPTS alias (for backward compat if any consumer reads it directly) ─
 const PERSONALITY_PROMPTS: Record<string, string> = Object.fromEntries(
-  Object.entries(MODE_CONTRACTS).map(([k, v]) => [k, v.prompt])
+  Object.entries(MODE_CONTRACTS).map(([k, v]) => [k, v.prompt]),
 );
 
 /**
@@ -860,9 +868,6 @@ What MAY be personalized by the user communication profile:
 - humor calibration within mode limits
 [/AURA PERSONALITY MODE]`;
 }
-
-
-
 
 export function getSystemPromptForPersonality(personality?: string, seedBlock?: string): string {
   const normalized = (personality || "adaptive").toLowerCase();

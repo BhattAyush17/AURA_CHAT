@@ -4,5 +4,5 @@ export enum RuntimePolicy {
   LOW_POWER = "LOW_POWER",
   RECOVERY = "RECOVERY",
   BACKGROUND = "BACKGROUND",
-  NORMAL = "NORMAL"
+  NORMAL = "NORMAL",
 }

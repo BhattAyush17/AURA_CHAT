@@ -1,0 +1,74 @@
+{
+  "id": "long-term-callback",
+  "name": "Long-Term Callback",
+  "trust": 0.75,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Yaad hai loan wala scene?",
+      "behavior": {
+        "act": "question",
+        "tags": ["callback"],
+        "intensity": 0.4,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.5
+      },
+      "memory": ["loan liya tha, phone toot gaya tha"],
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Required"
+      }
+    },
+    {
+      "text": "Aaj finally repay kar diya.",
+      "behavior": {
+        "act": "share",
+        "tags": ["callback", "excitement"],
+        "intensity": 0.6,
+        "playfulness": 0.4
+      },
+      "emo": {
+        "energy": 0.7,
+        "arc": "peak"
+      },
+      "memory": ["loan repay ho gaya"],
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["share-excitement", "tell-story"],
+        "strategy": ["Encourage", "Reflect", "Answer"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Required",
+        "swm": ["need-achievement"]
+      }
+    },
+    {
+      "text": "Ab khush?",
+      "behavior": {
+        "act": "question",
+        "tags": ["callback"],
+        "intensity": 0.3
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "memory": ["loan repay ho gaya"],
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Optional"
+      }
+    }
+  ]
+}

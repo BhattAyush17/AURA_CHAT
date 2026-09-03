@@ -1,6 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, RotateCcw, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import type { ReadinessSnapshot, MilestoneStatus } from "@/providers/gemini-next/SessionReadinessManager";
+import type {
+  ReadinessSnapshot,
+  MilestoneStatus,
+} from "@/providers/gemini-next/SessionReadinessManager";
 
 interface InitializationPanelProps {
   snapshot: ReadinessSnapshot;
@@ -130,9 +133,7 @@ export function InitializationPanel({ snapshot, onRetry, onSettings }: Initializ
       )}
 
       {/* Current operation */}
-      {!isFailed && !isReady && (
-        <p className="init-operation">{snapshot.currentOperation}</p>
-      )}
+      {!isFailed && !isReady && <p className="init-operation">{snapshot.currentOperation}</p>}
 
       {/* Actions on failure */}
       {isFailed && (

@@ -67,7 +67,7 @@ export class YouTubeSearchProvider implements SearchProvider {
                   title: item.snippet.title,
                   artist: item.snippet.channelTitle,
                   albumArt: item.snippet.thumbnails.default.url,
-                  durationMs: 0,
+                  durationMs: ((resolveData?.duration as number) || 0) * 1000,
                   chapters: resolveData?.chapters,
                   source: "youtube",
                   url: audioUrl,
@@ -143,42 +143,58 @@ export class YouTubeSearchProvider implements SearchProvider {
       );
     }
 
-    // 3. Try Invidious Public API
-    try {
-      const res = await fetch(
-        `https://vid.puffyan.us/api/v1/search?q=${encodeURIComponent(query)}&type=video&sort_by=relevance`,
-        {
-          signal: AbortSignal.timeout(5000),
-        },
-      );
-      if (res.ok) {
-        const results = await res.json();
-        if (results && results.length > 0) {
-          const first = results[0];
-          let invidiousAudioUrl: string | undefined = undefined;
-          if (Array.isArray(first.adaptiveFormats)) {
-            const audioFormat = first.adaptiveFormats.find((f: any) => f.type?.includes("audio"));
-            if (audioFormat?.url) {
-              invidiousAudioUrl = audioFormat.url;
+    // 3. Try Invidious Public API (multiple instances; public instances rotate
+    //    and go down frequently, so try each in turn)
+    const INV_QUERY = encodeURIComponent(query);
+    const invidiousInstances = [
+      "https://invidious.protokolla.fi",
+      "https://yewtu.be",
+      "https://invidious.nerdvpn.de",
+      "https://vid.puffyan.us",
+    ];
+    for (const instance of invidiousInstances) {
+      try {
+        const res = await fetch(
+          `${instance}/api/v1/search?q=${INV_QUERY}&type=video&sort_by=relevance`,
+          {
+            signal: AbortSignal.timeout(6000),
+          },
+        );
+        if (res.ok) {
+          const contentType = res.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            // e.g. a CAPTCHA / antibot HTML page served with 200 — not usable
+            console.warn(`[YouTubeSearchProvider] Invidious ${instance} returned non-JSON`);
+            continue;
+          }
+          const results = await res.json();
+          if (results && results.length > 0) {
+            const first = results[0];
+            let invidiousAudioUrl: string | undefined = undefined;
+            if (Array.isArray(first.adaptiveFormats)) {
+              const audioFormat = first.adaptiveFormats.find((f: any) => f.type?.includes("audio"));
+              if (audioFormat?.url) {
+                invidiousAudioUrl = audioFormat.url;
+              }
+            }
+            if (isValidMediaUrl(invidiousAudioUrl)) {
+              return [
+                {
+                  id: first.videoId,
+                  title: first.title || query,
+                  artist: first.author || "Unknown Artist",
+                  albumArt: `https://img.youtube.com/vi/${first.videoId}/mqdefault.jpg`,
+                  durationMs: (first.lengthSeconds || 0) * 1000,
+                  url: invidiousAudioUrl,
+                  source: "youtube",
+                },
+              ];
             }
           }
-          if (isValidMediaUrl(invidiousAudioUrl)) {
-            return [
-              {
-                id: first.videoId,
-                title: first.title || query,
-                artist: first.author || "Unknown Artist",
-                albumArt: `https://img.youtube.com/vi/${first.videoId}/mqdefault.jpg`,
-                durationMs: (first.lengthSeconds || 0) * 1000,
-                url: invidiousAudioUrl,
-                source: "youtube",
-              },
-            ];
-          }
         }
+      } catch (fallbackErr) {
+        console.warn(`[YouTubeSearchProvider] Invidious fallback ${instance} failed:`, fallbackErr);
       }
-    } catch (fallbackErr) {
-      console.warn("[YouTubeSearchProvider] Invidious fallback search failed:", fallbackErr);
     }
 
     console.warn("[YouTubeSearchProvider] All search methods failed for query:", query);

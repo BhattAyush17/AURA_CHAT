@@ -10,13 +10,13 @@ export interface ConversationState {
 
 export class ConversationRuntime {
   private static instance: ConversationRuntime;
-  
+
   private state: ConversationState = {
     turnCount: 0,
     momentum: "Normal",
     confidence: 1.0,
     lastInteractionMs: performance.now(),
-    policy: "Interact"
+    policy: "Interact",
   };
 
   private constructor() {}
@@ -31,7 +31,7 @@ export class ConversationRuntime {
   public registerUserTurn(text: string) {
     this.state.turnCount++;
     this.state.lastInteractionMs = performance.now();
-    
+
     // Simple momentum tracking for now
     if (text.length < 10) {
       this.state.momentum = "Fast";
@@ -48,7 +48,7 @@ export class ConversationRuntime {
       momentum: "Normal",
       confidence: 1.0,
       lastInteractionMs: performance.now(),
-      policy: "Interact"
+      policy: "Interact",
     };
   }
 

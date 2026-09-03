@@ -1,12 +1,17 @@
 import { GeminiSession } from "./GeminiSession";
 import { GeminiAudioInput } from "./GeminiAudioInput";
 import { GeminiAudioOutput } from "./GeminiAudioOutput";
-import { VoiceEngineConfig, VoiceEngineEvents, GeminiSessionState, VoiceTelemetry } from "./GeminiTypes";
+import {
+  VoiceEngineConfig,
+  VoiceEngineEvents,
+  GeminiSessionState,
+  VoiceTelemetry,
+} from "./GeminiTypes";
 
 export class GeminiVoiceEngine {
   private config: VoiceEngineConfig;
   private events: VoiceEngineEvents;
-  
+
   private session: GeminiSession | null = null;
   private input: GeminiAudioInput;
   private output: GeminiAudioOutput;
@@ -43,7 +48,7 @@ export class GeminiVoiceEngine {
       this.events.onMilestone?.("microphone", "in_progress");
       const { audioContext, analyser } = await this.input.acquire();
       this.events.onMilestone?.("microphone", "complete");
-      
+
       // 2. Initialize Output
       this.events.onMilestone?.("audio_output", "in_progress");
       this.output.initialize(audioContext, analyser);
@@ -73,8 +78,8 @@ export class GeminiVoiceEngine {
             this.events.onAuraSpeechStart?.();
           }
           this.output.enqueueChunk(base64Data, () => {
-             // Chunk playback ended. We handle overall turn via onTurnComplete
-             this.telemetry.isPlaying = false;
+            // Chunk playback ended. We handle overall turn via onTurnComplete
+            this.telemetry.isPlaying = false;
           });
           this.events.onAudioChunkReceived?.(base64Data);
         },
@@ -124,12 +129,12 @@ export class GeminiVoiceEngine {
         onError: (err) => {
           this.telemetry.lastErrorAt = Date.now();
           this.events.onError?.(err);
-        }
+        },
       });
- 
+
       // 4. Connect to Gemini Live
       await this.session.connect();
- 
+
       // 5. Start streaming audio to session — verify input path
       this.events.onMilestone?.("input_path", "in_progress");
       this.input.startStreaming(
@@ -156,9 +161,8 @@ export class GeminiVoiceEngine {
         () => {
           console.log("[GeminiVoiceEngine] Barge-in/speech confirmed via local VAD.");
           this.events.onUserSpeechDetected?.();
-        }
+        },
       );
- 
     } catch (err: any) {
       this.updateState("ERROR");
       this.events.onError?.(err);
@@ -166,7 +170,7 @@ export class GeminiVoiceEngine {
       throw err;
     }
   }
- 
+
   public stop(): void {
     this.telemetry.isCapturing = false;
     this.telemetry.isPlaying = false;

@@ -1,8 +1,8 @@
 const STORAGE_KEYS = {
-  ACCESS_TOKEN:  "aura_sense_google_access_token",
+  ACCESS_TOKEN: "aura_sense_google_access_token",
   REFRESH_TOKEN: "aura_sense_google_refresh_token",
-  EXPIRY:        "aura_sense_google_token_expiry",
-  EMAIL:         "aura_sense_google_email",
+  EXPIRY: "aura_sense_google_token_expiry",
+  EMAIL: "aura_sense_google_email",
 } as const;
 
 // Scopes required for Music Intelligence (YouTube read + control)
@@ -30,7 +30,9 @@ export class GoogleIdentityService {
 
   private loadSession() {
     try {
-      const accessToken = sessionStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const accessToken =
+        sessionStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) ||
+        localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const email = localStorage.getItem(STORAGE_KEYS.EMAIL);
       const expiry = localStorage.getItem(STORAGE_KEYS.EXPIRY);
 
@@ -46,7 +48,12 @@ export class GoogleIdentityService {
     }
   }
 
-  private saveSession(accessToken: string, expiresIn: number, email: string, persist: boolean = true) {
+  private saveSession(
+    accessToken: string,
+    expiresIn: number,
+    email: string,
+    persist: boolean = true,
+  ) {
     const expiresAt = Date.now() + expiresIn * 1000;
     this.session = { accessToken, email, expiresAt };
 
@@ -85,7 +92,7 @@ export class GoogleIdentityService {
     return new Promise((resolve, reject) => {
       const redirectUri = window.location.origin;
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-      
+
       authUrl.searchParams.append("client_id", this.clientId);
       authUrl.searchParams.append("redirect_uri", redirectUri);
       authUrl.searchParams.append("response_type", "token");
@@ -97,11 +104,11 @@ export class GoogleIdentityService {
       const height = 600;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
-      
+
       const popup = window.open(
         authUrl.toString(),
         "Google Auth",
-        `width=${width},height=${height},left=${left},top=${top}`
+        `width=${width},height=${height},left=${left},top=${top}`,
       );
 
       if (!popup) {
@@ -109,10 +116,13 @@ export class GoogleIdentityService {
         return;
       }
 
+      let claimed = false; // set once a success message has been received
+
       const messageListener = (event: MessageEvent) => {
         if (event.origin !== window.location.origin) return;
 
-        if (event.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+        if (event.data?.type === "GOOGLE_AUTH_SUCCESS") {
+          claimed = true;
           window.removeEventListener("message", messageListener);
           popup.close();
 
@@ -121,10 +131,12 @@ export class GoogleIdentityService {
           const expiresIn = parseInt(hashParams.get("expires_in") || "3600", 10);
 
           if (accessToken) {
-            this.fetchProfile(accessToken).then(email => {
-              this.saveSession(accessToken, expiresIn, email, persist);
-              resolve(this.session!);
-            }).catch(reject);
+            this.fetchProfile(accessToken)
+              .then((email) => {
+                this.saveSession(accessToken, expiresIn, email, persist);
+                resolve(this.session!);
+              })
+              .catch(reject);
           } else {
             reject(new Error("No access token returned"));
           }
@@ -137,7 +149,9 @@ export class GoogleIdentityService {
         if (popup.closed) {
           clearInterval(checkClosed);
           window.removeEventListener("message", messageListener);
-          if (!this.isAuthenticated()) {
+          // Only treat a closed popup as "cancelled" if we never received a
+          // success token — otherwise we may still be awaiting the profile.
+          if (!claimed && !this.isAuthenticated()) {
             reject(new Error("Authentication cancelled"));
           }
         }
@@ -148,7 +162,7 @@ export class GoogleIdentityService {
   private async fetchProfile(accessToken: string): Promise<string> {
     try {
       const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) throw new Error("Failed to fetch profile");
       const data = await res.json();

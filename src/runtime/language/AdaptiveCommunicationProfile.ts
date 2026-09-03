@@ -6,7 +6,6 @@ export interface AdaptiveLanguageProfile {
   confidence: number;
 }
 
-
 export interface AdaptiveToneProfile {
   casual: number;
   formal: number;
@@ -73,7 +72,7 @@ export interface AdaptiveCommunicationProfile {
   style: EpistemicBelief<AdaptiveStyleProfile>;
   speech: EpistemicBelief<AdaptiveSpeechProfile>;
   preferences: EpistemicBelief<AdaptivePreferences>;
-  
+
   profileMaturity: number; // 0 to 1
 }
 
@@ -85,7 +84,10 @@ const DEFAULT_LANGUAGE_PROFILE: AdaptiveLanguageProfile = {
   confidence: 0,
 };
 
-export function createInitialBelief<T>(value: T, source: "explicit" | "inferred" = "inferred"): EpistemicBelief<T> {
+export function createInitialBelief<T>(
+  value: T,
+  source: "explicit" | "inferred" = "inferred",
+): EpistemicBelief<T> {
   return {
     value,
     confidence: 0,
@@ -96,7 +98,7 @@ export function createInitialBelief<T>(value: T, source: "explicit" | "inferred"
     lastObserved: 0,
     firstObserved: 0,
     state: "UNCERTAIN",
-    source
+    source,
   };
 }
 

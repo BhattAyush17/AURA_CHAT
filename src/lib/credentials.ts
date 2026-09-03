@@ -32,7 +32,7 @@ export function validateGeminiApiKey(key: string | null | undefined): boolean {
 export function setCredential(key: CredentialKey, value: string): void {
   sessionStorage.setItem(key, value);
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+    window.dispatchEvent(new CustomEvent("aura_credentials_updated"));
   }
 }
 
@@ -71,14 +71,14 @@ export function clearProviderCredentials(): void {
     "openrouter_api_key",
     "sarvam_api_key",
     "groq_api_key",
-    "cohere_api_key"
+    "cohere_api_key",
   ];
   providerKeys.forEach((key) => {
     sessionStorage.removeItem(key);
     localStorage.removeItem(key);
   });
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+    window.dispatchEvent(new CustomEvent("aura_credentials_updated"));
   }
 }
 
@@ -98,7 +98,7 @@ export function clearAllCredentials(): void {
     localStorage.removeItem("supabase_access_token");
   });
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent('aura_credentials_updated'));
+    window.dispatchEvent(new CustomEvent("aura_credentials_updated"));
   }
 }
 
@@ -108,7 +108,9 @@ export function clearAllCredentials(): void {
  * NOTE: Inline check avoids circular import with api.ts.
  */
 export function hasRequiredCredentials(): boolean {
-  const k = getCredential("aura_gemini_api_key") || (import.meta.env.DEV ? (import.meta.env.VITE_GEMINI_API_KEY as string ?? '') : '');
+  const k =
+    getCredential("aura_gemini_api_key") ||
+    (import.meta.env.DEV ? ((import.meta.env.VITE_GEMINI_API_KEY as string) ?? "") : "");
   return validateGeminiApiKey(k);
 }
 

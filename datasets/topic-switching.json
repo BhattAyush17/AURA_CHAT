@@ -1,0 +1,61 @@
+{
+  "id": "topic-switching",
+  "name": "Topic Switching",
+  "trust": 0.7,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Waise promotion ki baat chhodo.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["topic-shift"],
+        "intensity": 0.3
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform", "small-talk"],
+        "strategy": ["Answer", "Reflect", "Observe"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Kal match dekha?",
+      "behavior": {
+        "act": "question",
+        "tags": ["casual"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask", "Reflect"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Crazy tha.",
+      "behavior": {
+        "act": "statement",
+        "tags": ["casual"],
+        "intensity": 0.4
+      },
+      "emo": {
+        "energy": 0.6
+      },
+      "expected": {
+        "move": ["Reflect", "Answer"],
+        "goal": ["tell-story", "inform"],
+        "strategy": ["Reflect", "Listen", "Answer"],
+        "register": ["CASUAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "dataset": "grief",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 1,
+    "avgFidelity": 100,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 2029
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Comfort",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1945,
+      "llmWords": 4
+    },
+    {
+      "turn": 2,
+      "strategy": "Comfort",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1433,
+      "llmWords": 5
+    },
+    {
+      "turn": 3,
+      "strategy": "Comfort",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2709,
+      "llmWords": 5
+    }
+  ]
+}

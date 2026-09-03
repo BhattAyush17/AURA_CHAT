@@ -6,8 +6,10 @@ from fastapi.security.api_key import APIKeyHeader
 from backend.memory.consolidator import MemoryConsolidator
 from backend.infrastructure.embedding_provider import embedding_provider
 from backend.infrastructure.logging import get_logger
-# Import the shared Supabase client from your main app state
-from backend.api.main import supabase 
+# Resolve the shared Supabase client at request time. A plain
+# `from backend.api.main import supabase` captures the import-time value
+# (None) — the client is only created in main's startup_event.
+from backend.api.main import get_supabase
 
 log = get_logger("cron_endpoint")
 router = APIRouter()
@@ -34,7 +36,12 @@ async def execute_memory_consolidation():
     Scans the database for old, raw turns and compresses them into episode summaries.
     """
     log.info("starting_scheduled_consolidation")
-    
+
+    supabase = get_supabase()
+    if not supabase:
+        log.error("cron_consolidation_no_supabase")
+        raise HTTPException(status_code=503, detail="Supabase client unavailable")
+
     # 1. Initialize the consolidator with the multi-tier embedding provider
     consolidator = MemoryConsolidator(supabase, embedding_provider.embed)
     

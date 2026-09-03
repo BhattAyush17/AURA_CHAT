@@ -12,7 +12,19 @@ await page.evaluate(() => {
   r.interimResults = true;
   r.lang = "en-US";
   const t0 = performance.now();
-  for (const ev of ["start", "audiostart", "soundstart", "speechstart", "speechend", "soundend", "audioend", "result", "nomatch", "error", "end"]) {
+  for (const ev of [
+    "start",
+    "audiostart",
+    "soundstart",
+    "speechstart",
+    "speechend",
+    "soundend",
+    "audioend",
+    "result",
+    "nomatch",
+    "error",
+    "end",
+  ]) {
     try {
       r["on" + ev] = (e) => {
         let extra = "";

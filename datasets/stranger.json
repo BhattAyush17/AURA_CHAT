@@ -1,0 +1,58 @@
+{
+  "id": "stranger",
+  "name": "Stranger",
+  "trust": 0.2,
+  "hasPersonalHistory": false,
+  "languageMode": "english",
+  "durationMinutes": 8,
+  "turns": [
+    {
+      "text": "Hi.",
+      "behavior": {
+        "act": "greeting",
+        "tags": ["casual"],
+        "intensity": 0.2
+      },
+      "expected": {
+        "move": ["Continue", "Answer"],
+        "goal": ["small-talk"],
+        "strategy": ["Answer", "Ask", "Observe"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Is this seat free?",
+      "behavior": {
+        "act": "question",
+        "tags": ["casual"],
+        "intensity": 0.2
+      },
+      "expected": {
+        "move": ["Answer", "Ask"],
+        "goal": ["seek-information"],
+        "strategy": ["Answer", "Ask"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Nice meeting you.",
+      "behavior": {
+        "act": "farewell",
+        "tags": ["politeness"],
+        "intensity": 0.2
+      },
+      "expected": {
+        "move": ["Answer", "Continue"],
+        "goal": ["small-talk", "inform"],
+        "strategy": ["Answer", "Observe", "Ask"],
+        "register": ["NEUTRAL", "CASUAL"],
+        "language": ["PURE_ENGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

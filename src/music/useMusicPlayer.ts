@@ -1,6 +1,6 @@
 /**
  * AURA Music System — React Hook
- * 
+ *
  * Exposes the MusicManager singleton to React components with
  * automatic state synchronization via useSyncExternalStore pattern.
  */
@@ -20,20 +20,20 @@ export function useMusicPlayer() {
       setState({ ...newState });
     };
 
-    musicEvents.on('stateChanged', handleStateChange);
-    
+    musicEvents.on("stateChanged", handleStateChange);
+
     // Set initial state
     setState(playbackState.getState());
 
     return () => {
-      musicEvents.off('stateChanged', handleStateChange);
+      musicEvents.off("stateChanged", handleStateChange);
     };
   }, []);
 
   // ── Actions ───────────────────────────────────────────────────────
 
   const playQuery = useCallback(async (query: string) => {
-    // Note: playbackEngine doesn't directly expose playQuery. 
+    // Note: playbackEngine doesn't directly expose playQuery.
     // The ATF or IntentResolver should handle searching and queueing.
     // We'll leave this as a no-op or pass it to the engine if we implement it.
     console.warn("playQuery called from UI, should be handled by ATF");
@@ -121,8 +121,8 @@ export function useMusicPlayer() {
     unlockAudio: () => musicService.unlockAudio(),
     switchProvider: (id: string) => musicService.switchProvider(id),
     availableProviders: musicService.getAvailableProviders(),
-    
+
     // Engine access
-    engine: musicService
+    engine: musicService,
   };
 }

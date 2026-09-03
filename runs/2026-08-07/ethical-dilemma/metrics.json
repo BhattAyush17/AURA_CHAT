@@ -1,0 +1,46 @@
+{
+  "dataset": "ethical-dilemma",
+  "stats": {
+    "interruptions": 0,
+    "repairs": 0,
+    "callbacks": 0,
+    "memoryUsed": 0,
+    "reflectionAdaptations": 3,
+    "languageSwitches": 0,
+    "registerChanges": 0,
+    "avgFidelity": 89,
+    "avgHumanity": 10,
+    "realism": 10,
+    "productionReady": true,
+    "pipelineMsAvg": 1982
+  },
+  "metrics": [
+    {
+      "turn": 1,
+      "strategy": "Observe",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 2146,
+      "llmWords": 12
+    },
+    {
+      "turn": 2,
+      "strategy": "Observe",
+      "fidelity": 67,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1944,
+      "llmWords": 15
+    },
+    {
+      "turn": 3,
+      "strategy": "Answer",
+      "fidelity": 100,
+      "human": 10,
+      "feelsHuman": true,
+      "pipelineMs": 1856,
+      "llmWords": 14
+    }
+  ]
+}

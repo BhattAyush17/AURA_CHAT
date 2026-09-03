@@ -9,7 +9,10 @@ import {
   NOISE_CALIBRATION_FRAMES,
   PROB_DOMINANT_SPEECH,
 } from "@/audioRuntime/vadMath";
-import { publishVoicePerception, publishUtterancePerception } from "@/sense/VoiceSense/voicePerceptionStore";
+import {
+  publishVoicePerception,
+  publishUtterancePerception,
+} from "@/sense/VoiceSense/voicePerceptionStore";
 
 export interface AcousticProfile {
   energy: "whisper" | "low" | "normal" | "elevated" | "high";
@@ -257,13 +260,12 @@ export function useVoiceAcoustics() {
     totalRmsRef.current = 0;
     rmsSamplesRef.current = 0;
     lastUiUpdateRef.current = Date.now();
-    
+
     // The actual worklet updates will arrive via applyWorkletPerception,
     // which completely replaces the old requestAnimationFrame polling loop.
   }, []);
 
   const stopTrackingAndAnalyze = useCallback((text: string): void => {
-
     const durationSeconds = (Date.now() - speechStartTimeRef.current) / 1000;
     const wordCount = text.trim().split(/\s+/).length;
     const wpm = (wordCount / durationSeconds) * 60;
@@ -351,7 +353,6 @@ export function useVoiceAcoustics() {
       },
       language,
     });
-
   }, []);
 
   return {

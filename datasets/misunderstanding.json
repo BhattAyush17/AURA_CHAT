@@ -1,0 +1,64 @@
+{
+  "id": "misunderstanding",
+  "name": "Misunderstanding",
+  "trust": 0.6,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 12,
+  "turns": [
+    {
+      "text": "Maine woh nahi bola.",
+      "behavior": {
+        "act": "correction",
+        "tags": ["correction"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "frustration": 0.4
+      },
+      "expected": {
+        "move": ["Repair", "Answer"],
+        "goal": ["inform", "debate"],
+        "strategy": ["Reflect", "Listen", "Clarify"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Tumne galat samjha.",
+      "behavior": {
+        "act": "correction",
+        "tags": ["correction"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "frustration": 0.4
+      },
+      "expected": {
+        "move": ["Repair", "Answer"],
+        "goal": ["inform", "debate"],
+        "strategy": ["Reflect", "Listen", "Clarify"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    },
+    {
+      "text": "Ek baar phir suno.",
+      "behavior": {
+        "act": "request",
+        "tags": ["correction"],
+        "intensity": 0.4
+      },
+      "expected": {
+        "move": ["Answer", "Reflect"],
+        "goal": ["inform"],
+        "strategy": ["Listen", "Reflect", "Ask"],
+        "register": ["CASUAL", "NEUTRAL"],
+        "language": ["HINGLISH"],
+        "memoryPolicy": "Ignore"
+      }
+    }
+  ]
+}

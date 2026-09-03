@@ -221,7 +221,7 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
     recordAudioElementSnapshot(this.audio);
   }
 
-  async play(trackId: string): Promise<void> {
+  async play(trackId: string, startAtSeconds?: number): Promise<void> {
     const state = playbackState.getState();
     const track = state.currentTrack;
 
@@ -252,12 +252,40 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       try {
         console.log("[MUSIC_PLAY] starting audio element playback");
         recordEvent("play_requested");
+
+        // Honor a desired start position. If metadata isn't ready yet (very
+        // common for a freshly-loaded source), wait for it so the seek
+        // actually applies instead of being silently dropped by the browser.
+        if (startAtSeconds !== undefined && startAtSeconds > 0) {
+          await this.seekBeforePlay(startAtSeconds);
+        } else if (startAtSeconds === 0) {
+          // Explicit "start from the beginning" – reset position deterministically.
+          await this.seekBeforePlay(0);
+        }
+
         await this.audio.play();
         recordEvent("play_resolved");
         // After a successful play() we know that a user gesture must have
         // occurred upstream (otherwise play() would have rejected). Snapshot
         // the audio element so the panel can show currentTime advancing.
         recordAudioElementSnapshot(this.audio);
+
+        // Verity that playback actually began (playing event and/or currentTime
+        // advancing past the initial position). This prevents AURA from
+        // reporting "playing" purely because load()/play() resolved, while the
+        // source stalls silently.
+        const started = await this.waitForPlaybackStart(this.audio, 6000);
+        recordEvent(started ? "play_verified" : "play_stalled");
+        if (!started) {
+          playbackState.update({
+            isPlaying: false,
+            isLoading: false,
+            hasFailed: true,
+            failureReason:
+              "Playback did not start — the audio stream may be unavailable or stalled",
+          });
+          throw new Error("Playback could not be started (audio stream stalled or unavailable).");
+        }
       } catch (e: any) {
         recordEvent("play_rejected", `name=${e?.name || "?"}`);
         recordAudioElementSnapshot(this.audio);
@@ -295,6 +323,123 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
     }
   }
 
+  /**
+   * Set the desired position before/at the start of playback. Waits for
+   * metadata if it hasn't loaded yet, clamps to the track duration, and only
+   * proceeds when the resulting position is finite and in range.
+   */
+  private async seekBeforePlay(seconds: number): Promise<void> {
+    const audio = this.audio;
+    if (!audio) return;
+
+    if (!Number.isFinite(seconds)) {
+      throw new Error("Invalid start position requested.");
+    }
+
+    if (!Number.isFinite(audio.duration) || audio.duration === 0) {
+      await this.waitForMetadata(audio, 6000);
+    }
+
+    const duration = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+    const target = Math.max(0, Math.min(seconds, duration === Infinity ? seconds : duration));
+    audio.currentTime = target;
+
+    // If we haven't loaded enough to actually move, let load-on-play handle it.
+    const startedAt = audio.currentTime;
+    if (
+      !Number.isFinite(startedAt) ||
+      (Math.abs(startedAt - target) > 1 && Number.isFinite(duration))
+    ) {
+      throw new Error("Unable to apply the requested start position.");
+    }
+  }
+
+  private waitForMetadata(audio: HTMLAudioElement, timeoutMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        resolve();
+        return;
+      }
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve();
+      }, timeoutMs);
+      const onLoaded = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve();
+      };
+      const cleanup = () => {
+        audio.removeEventListener("loadedmetadata", onLoaded);
+        audio.removeEventListener("loadeddata", onLoaded);
+        audio.removeEventListener("error", onError);
+        clearTimeout(timer);
+      };
+      audio.addEventListener("loadedmetadata", onLoaded);
+      audio.addEventListener("loadeddata", onLoaded);
+      audio.addEventListener("error", onError);
+    });
+  }
+
+  /**
+   * Wait until the audio element genuinely begins playback — either the
+   * `playing` event fires or `currentTime` advances past the starting
+   * position. Resolves false if it never happens within `timeoutMs`.
+   */
+  private waitForPlaybackStart(audio: HTMLAudioElement, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const startTime = audio.currentTime || 0;
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(false);
+      }, timeoutMs);
+
+      const onPlaying = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(true);
+      };
+      const onTimeUpdate = () => {
+        if (finished) return;
+        if (audio.currentTime > startTime && !audio.paused) {
+          finished = true;
+          cleanup();
+          resolve(true);
+        }
+      };
+      const onError = () => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve(false);
+      };
+      const cleanup = () => {
+        audio.removeEventListener("playing", onPlaying);
+        audio.removeEventListener("timeupdate", onTimeUpdate);
+        audio.removeEventListener("error", onError);
+        clearTimeout(timer);
+      };
+
+      audio.addEventListener("playing", onPlaying);
+      audio.addEventListener("timeupdate", onTimeUpdate);
+      audio.addEventListener("error", onError);
+    });
+  }
+
   async pause(): Promise<void> {
     if (this.audio) {
       this.audio.pause();
@@ -305,16 +450,110 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
     if (this.audio) {
       try {
         await this.audio.play();
-      } catch (e) {
+      } catch (e: any) {
         console.error("[HTMLAudioPlaybackProvider] Resume failed:", e);
+        playbackState.update({
+          isPlaying: false,
+          hasFailed: true,
+          failureReason:
+            e?.name === "NotAllowedError"
+              ? "Playback requires user interaction"
+              : e?.message || "Resume failed",
+        });
+        throw e;
       }
     }
   }
 
   async seek(positionMs: number): Promise<void> {
     if (this.audio) {
-      this.audio.currentTime = positionMs / 1000;
+      const seconds = positionMs / 1000;
+      if (!Number.isFinite(seconds)) {
+        throw new Error("Invalid seek position requested.");
+      }
+
+      // Wait for metadata so currentTime can be set deterministically.
+      if (!Number.isFinite(this.audio.duration) || this.audio.duration === 0) {
+        await this.waitForMetadata(this.audio, 6000);
+      }
+
+      const durationMs = Number.isFinite(this.audio.duration) ? this.audio.duration * 1000 : NaN;
+      const maxMs = durationMs > 0 ? durationMs : Infinity;
+
+      let target = positionMs;
+      // Out-of-range targets are clamped to the track bounds (incl. the end);
+      // explicit rejection would break normal "seek to end" semantics.
+      if (maxMs !== Infinity) {
+        target = Math.max(0, Math.min(positionMs, maxMs));
+      }
+
+      const fromSec = this.audio.currentTime;
+
+      this.audio.currentTime = target / 1000;
+
+      // Ask the pipeline to actually re-seek (refresh position state via the
+      // native `seeking`/`seeked` listeners by giving the media element a
+      // chance to flush the new time).
+      if (this.audio.paused) {
+        // Nothing to do; currentTime assignment already moved the playhead.
+        playbackState.update({ positionMs: target });
+      } else {
+        // Wait for the seek to land so we report verified state.
+        await this.waitForSeeked(this.audio, fromSec, target / 1000, 4000).catch(() => {
+          // Fall through with honest state rather than an unhandled rejection.
+        });
+      }
+      recordAudioElementSnapshot(this.audio);
+    } else {
+      throw new Error("No audio element available to seek.");
     }
+  }
+
+  private waitForSeeked(
+    audio: HTMLAudioElement,
+    fromSec: number,
+    toSec: number,
+    timeoutMs: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      const timer = setTimeout(() => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        // If playback advanced off the requested target it's a good-enough signal.
+        if (Math.abs(audio.currentTime - toSec) < 1.5 || audio.currentTime > fromSec) {
+          resolve();
+        } else {
+          reject(new Error("Seek did not complete."));
+        }
+      }, timeoutMs);
+
+      const onSeeked = () => {
+        if (finished) return;
+        if (Math.abs(audio.currentTime - toSec) <= 1.5) {
+          finished = true;
+          cleanup();
+          resolve();
+        }
+      };
+      const onTimeUpdate = () => {
+        if (finished) return;
+        if (Math.abs(audio.currentTime - toSec) <= 1.5) {
+          finished = true;
+          cleanup();
+          resolve();
+        }
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        audio.removeEventListener("seeked", onSeeked);
+        audio.removeEventListener("timeupdate", onTimeUpdate);
+      };
+
+      audio.addEventListener("seeked", onSeeked);
+      audio.addEventListener("timeupdate", onTimeUpdate);
+    });
   }
 
   async setVolume(volume: number): Promise<void> {

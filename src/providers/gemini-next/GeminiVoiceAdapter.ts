@@ -1,12 +1,23 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { GeminiVoiceEngine } from "./GeminiVoiceEngine";
 import { GeminiSessionState, VoiceEngineConfig } from "./GeminiTypes";
-import { SessionReadinessManager, ReadinessSnapshot, ReadinessErrorCode } from "./SessionReadinessManager";
+import {
+  SessionReadinessManager,
+  ReadinessSnapshot,
+  ReadinessErrorCode,
+} from "./SessionReadinessManager";
 import { getGeminiKey } from "@/lib/api";
 import { VoiceHealthWatchdog } from "./VoiceHealthWatchdog";
 
 export interface GeminiVoiceAdapterState {
-  status: "idle" | "connecting" | "listening" | "processing" | "speaking" | "error" | "reconnecting";
+  status:
+    | "idle"
+    | "connecting"
+    | "listening"
+    | "processing"
+    | "speaking"
+    | "error"
+    | "reconnecting";
   isSpeaking: boolean;
   isThinking: boolean;
   words: string;
@@ -30,18 +41,19 @@ export function useGeminiVoiceAdapter(options: {
   onInputTranscription?: (text: string) => void;
   onAuraSpeechStart?: () => void;
   onUserSpeechDetected?: () => void;
+  onUsageMetadata?: (meta: any) => void;
 }): GeminiVoiceAdapterState {
   const engineRef = useRef<GeminiVoiceEngine | null>(null);
   const readinessRef = useRef<SessionReadinessManager | null>(null);
   const watchdogRef = useRef<VoiceHealthWatchdog | null>(null);
-  
+
   const [status, setStatus] = useState<GeminiVoiceAdapterState["status"]>("idle");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [words, setWords] = useState("");
   const [lastError, setLastError] = useState<string | null>(null);
   const [readinessSnapshot, setReadinessSnapshot] = useState<ReadinessSnapshot | null>(null);
-  
+
   const currentUserTextRef = useRef("");
   const currentModelTextRef = useRef("");
 
@@ -49,7 +61,9 @@ export function useGeminiVoiceAdapter(options: {
   const MAX_RECOVERY_ATTEMPTS = 3;
   const recoveryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stableTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastConfigRef = useRef<{ systemInstruction: string; tools: any[]; voice: string } | null>(null);
+  const lastConfigRef = useRef<{ systemInstruction: string; tools: any[]; voice: string } | null>(
+    null,
+  );
 
   const handleRecovery = useCallback(async (isCritical: boolean = false) => {
     if (recoveryAttemptsRef.current >= MAX_RECOVERY_ATTEMPTS) {
@@ -60,10 +74,10 @@ export function useGeminiVoiceAdapter(options: {
 
     recoveryAttemptsRef.current++;
     setStatus("reconnecting");
-    
+
     if (engineRef.current) {
       await engineRef.current.stop();
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
       await engineRef.current.start();
     }
   }, []);
@@ -71,12 +85,12 @@ export function useGeminiVoiceAdapter(options: {
   const endSession = useCallback(async () => {
     if (recoveryTimeoutRef.current) clearTimeout(recoveryTimeoutRef.current);
     if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
-    
+
     if (watchdogRef.current) {
       watchdogRef.current.stop();
       watchdogRef.current = null;
     }
-    
+
     if (readinessRef.current) {
       readinessRef.current.dispose();
       readinessRef.current = null;
@@ -94,175 +108,187 @@ export function useGeminiVoiceAdapter(options: {
     currentModelTextRef.current = "";
   }, []);
 
-  const startSession = useCallback(async (systemInstruction: string, tools: any[], voice: string, isRecovery = false) => {
-    if (!isRecovery) {
-      recoveryAttemptsRef.current = 0;
-      lastConfigRef.current = { systemInstruction, tools, voice };
-    }
+  const startSession = useCallback(
+    async (systemInstruction: string, tools: any[], voice: string, isRecovery = false) => {
+      if (!isRecovery) {
+        recoveryAttemptsRef.current = 0;
+        lastConfigRef.current = { systemInstruction, tools, voice };
+      }
 
-    await endSession();
-    
-    setLastError(null);
-    setStatus("connecting");
-    setWords("Listening...");
+      await endSession();
 
-    // Create readiness manager
-    const readiness = new SessionReadinessManager();
-    readinessRef.current = readiness;
-    readiness.onUpdate((snapshot) => {
-      setReadinessSnapshot({ ...snapshot });
-    });
-    readiness.begin();
+      setLastError(null);
+      setStatus("connecting");
+      setWords("Listening...");
 
-    // 1. Credential check
-    readiness.markInProgress("credentials");
-    const apiKey = getGeminiKey();
-    if (!apiKey) {
-      readiness.markFailed("credentials", "MISSING_CREDENTIAL");
-      setLastError("Missing Gemini API Key");
-      setStatus("error");
-      return;
-    }
-    readiness.markComplete("credentials");
+      // Create readiness manager
+      const readiness = new SessionReadinessManager();
+      readinessRef.current = readiness;
+      readiness.onUpdate((snapshot) => {
+        setReadinessSnapshot({ ...snapshot });
+      });
+      readiness.begin();
 
-    const config: VoiceEngineConfig = {
-      apiKey,
-      model: "models/gemini-3.1-flash-live-preview",
-      voice: voice,
-      systemInstruction: systemInstruction,
-    };
+      // 1. Credential check
+      readiness.markInProgress("credentials");
+      const apiKey = getGeminiKey();
+      if (!apiKey) {
+        readiness.markFailed("credentials", "MISSING_CREDENTIAL");
+        setLastError("Missing Gemini API Key");
+        setStatus("error");
+        return;
+      }
+      readiness.markComplete("credentials");
 
-    const engine = new GeminiVoiceEngine(config, {
-      onStateChange: (state: GeminiSessionState) => {
-        console.log(`[GeminiVoiceAdapter] Engine state transitioned to: ${state}`);
-        switch (state) {
-          case "IDLE": setStatus("idle"); break;
-          case "CONNECTING": setStatus(isRecovery ? "reconnecting" : "connecting"); break;
-          case "CONNECTED": 
-            setStatus("listening");
-            watchdogRef.current?.start();
-            // Reset recovery attempts after 30s of stable connection
-            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
-            stableTimeoutRef.current = setTimeout(() => {
-              recoveryAttemptsRef.current = 0;
-            }, 30000);
-            break;
-          case "ERROR": 
-            setStatus("error"); 
-            break;
-          case "CLOSED": 
-            setStatus("idle"); 
-            watchdogRef.current?.stop();
-            break;
-        }
-      },
-      onModelText: (text: string) => {
-        setIsThinking(false);
-        setIsSpeaking(true);
-        setStatus("speaking");
-        currentModelTextRef.current += text;
-      },
-      onInputTranscription: (text: string) => {
-        currentUserTextRef.current += text + " ";
-        setWords(currentUserTextRef.current);
-        if (options.onInputTranscription) {
-          options.onInputTranscription(text);
-        }
-      },
-      onTurnComplete: () => {
-        setIsSpeaking(false);
-        setStatus("listening");
-        
-        const userTxt = currentUserTextRef.current.trim();
-        const modelTxt = currentModelTextRef.current.trim();
-        
-        if (options.onTurnComplete && (userTxt || modelTxt)) {
-          options.onTurnComplete(userTxt, modelTxt);
-        }
-        
-        currentUserTextRef.current = "";
-        currentModelTextRef.current = "";
-        setWords("");
-      },
-      onToolCall: async (calls: any[]) => {
-        if (options.onToolCall && calls.length > 0) {
-          const resps = [];
-          for (const call of calls) {
-            const res = await options.onToolCall(call);
-            resps.push({
-              id: call.id,
-              name: call.name,
-              response: res
-            });
+      const config: VoiceEngineConfig = {
+        apiKey,
+        model: "models/gemini-3.1-flash-live-preview",
+        voice: voice,
+        systemInstruction: systemInstruction,
+      };
+
+      const engine = new GeminiVoiceEngine(config, {
+        onStateChange: (state: GeminiSessionState) => {
+          console.log(`[GeminiVoiceAdapter] Engine state transitioned to: ${state}`);
+          switch (state) {
+            case "IDLE":
+              setStatus("idle");
+              break;
+            case "CONNECTING":
+              setStatus(isRecovery ? "reconnecting" : "connecting");
+              break;
+            case "CONNECTED":
+              setStatus("listening");
+              watchdogRef.current?.start();
+              // Reset recovery attempts after 30s of stable connection
+              if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+              stableTimeoutRef.current = setTimeout(() => {
+                recoveryAttemptsRef.current = 0;
+              }, 30000);
+              break;
+            case "ERROR":
+              setStatus("error");
+              break;
+            case "CLOSED":
+              setStatus("idle");
+              watchdogRef.current?.stop();
+              break;
           }
-          return resps;
-        }
-        return [];
-      },
-      onInterrupted: () => {
-        if (options.onInterruption) {
-          options.onInterruption();
-        }
-        currentUserTextRef.current = "";
-        currentModelTextRef.current = "";
-        setWords("");
-        setIsSpeaking(false);
-        setStatus("listening");
-      },
-      onAuraSpeechStart: () => {
-        if (options.onAuraSpeechStart) {
-          options.onAuraSpeechStart();
-        }
-      },
-      onUserSpeechDetected: () => {
-        if (options.onUserSpeechDetected) {
-          options.onUserSpeechDetected();
-        }
-      },
-      onMilestone: (id, milestoneStatus, error) => {
-        if (!readinessRef.current) return;
-        switch (milestoneStatus) {
-          case "in_progress":
-            readinessRef.current.markInProgress(id);
-            break;
-          case "complete":
-            readinessRef.current.markComplete(id);
-            break;
-          case "failed":
-            readinessRef.current.markFailed(id, "UNKNOWN" as ReadinessErrorCode, error);
-            break;
-        }
-      },
-      onError: (err: any) => {
-        setLastError(err.message || String(err));
-        // If we're still initializing, mark the current in-progress milestone as failed
-        if (readinessRef.current) {
-          const snapshot = readinessRef.current.getSnapshot();
-          if (snapshot.overall === "initializing") {
-            const inProgress = snapshot.milestones.find((m) => m.status === "in_progress");
-            if (inProgress) {
-              const errorMsg = err.message || String(err);
-              const errorCode = classifyError(inProgress.id, errorMsg);
-              readinessRef.current.markFailed(inProgress.id, errorCode, errorMsg);
+        },
+        onModelText: (text: string) => {
+          setIsThinking(false);
+          setIsSpeaking(true);
+          setStatus("speaking");
+          currentModelTextRef.current += text;
+        },
+        onInputTranscription: (text: string) => {
+          currentUserTextRef.current += text + " ";
+          setWords(currentUserTextRef.current);
+          if (options.onInputTranscription) {
+            options.onInputTranscription(text);
+          }
+        },
+        onTurnComplete: () => {
+          setIsSpeaking(false);
+          setStatus("listening");
+
+          const userTxt = currentUserTextRef.current.trim();
+          const modelTxt = currentModelTextRef.current.trim();
+
+          if (options.onTurnComplete && (userTxt || modelTxt)) {
+            options.onTurnComplete(userTxt, modelTxt);
+          }
+
+          currentUserTextRef.current = "";
+          currentModelTextRef.current = "";
+          setWords("");
+        },
+        onToolCall: async (calls: any[]) => {
+          if (options.onToolCall && calls.length > 0) {
+            const resps = [];
+            for (const call of calls) {
+              const res = await options.onToolCall(call);
+              resps.push({
+                id: call.id,
+                name: call.name,
+                response: res,
+              });
+            }
+            return resps;
+          }
+          return [];
+        },
+        onInterrupted: () => {
+          if (options.onInterruption) {
+            options.onInterruption();
+          }
+          currentUserTextRef.current = "";
+          currentModelTextRef.current = "";
+          setWords("");
+          setIsSpeaking(false);
+          setStatus("listening");
+        },
+        onAuraSpeechStart: () => {
+          if (options.onAuraSpeechStart) {
+            options.onAuraSpeechStart();
+          }
+        },
+        onUserSpeechDetected: () => {
+          if (options.onUserSpeechDetected) {
+            options.onUserSpeechDetected();
+          }
+        },
+        onUsageMetadata: (meta: any) => {
+          if (options.onUsageMetadata) {
+            options.onUsageMetadata(meta);
+          }
+        },
+        onMilestone: (id, milestoneStatus, error) => {
+          if (!readinessRef.current) return;
+          switch (milestoneStatus) {
+            case "in_progress":
+              readinessRef.current.markInProgress(id);
+              break;
+            case "complete":
+              readinessRef.current.markComplete(id);
+              break;
+            case "failed":
+              readinessRef.current.markFailed(id, "UNKNOWN" as ReadinessErrorCode, error);
+              break;
+          }
+        },
+        onError: (err: any) => {
+          setLastError(err.message || String(err));
+          // If we're still initializing, mark the current in-progress milestone as failed
+          if (readinessRef.current) {
+            const snapshot = readinessRef.current.getSnapshot();
+            if (snapshot.overall === "initializing") {
+              const inProgress = snapshot.milestones.find((m) => m.status === "in_progress");
+              if (inProgress) {
+                const errorMsg = err.message || String(err);
+                const errorCode = classifyError(inProgress.id, errorMsg);
+                readinessRef.current.markFailed(inProgress.id, errorCode, errorMsg);
+              }
             }
           }
-        }
-      },
-    });
-    watchdogRef.current = new VoiceHealthWatchdog(engine, (reason) => {
-      console.warn(`[GeminiVoiceAdapter] Watchdog triggered recovery for reason: ${reason}`);
-      handleRecovery(true);
-    });
-    engineRef.current = engine;
+        },
+      });
+      watchdogRef.current = new VoiceHealthWatchdog(engine, (reason) => {
+        console.warn(`[GeminiVoiceAdapter] Watchdog triggered recovery for reason: ${reason}`);
+        handleRecovery(true);
+      });
+      engineRef.current = engine;
 
-    try {
-      await engine.start();
-    } catch (e: any) {
-      setLastError(e.message);
-      setStatus("error");
-      // Engine errors are already routed through onError → readiness
-    }
-  }, [endSession, options]);
+      try {
+        await engine.start();
+      } catch (e: any) {
+        setLastError(e.message);
+        setStatus("error");
+        // Engine errors are already routed through onError → readiness
+      }
+    },
+    [endSession, options],
+  );
 
   const sendText = useCallback((text: string) => {
     if (engineRef.current) {
@@ -338,7 +364,11 @@ function classifyError(milestoneId: string, message: string): ReadinessErrorCode
   if (lower.includes("permission") || lower.includes("notallowederror")) {
     return "PERMISSION_DENIED";
   }
-  if (lower.includes("notfounderror") || lower.includes("no device") || lower.includes("no microphone")) {
+  if (
+    lower.includes("notfounderror") ||
+    lower.includes("no device") ||
+    lower.includes("no microphone")
+  ) {
     return "MICROPHONE_UNAVAILABLE";
   }
   if (lower.includes("audiocontext") || lower.includes("audio context")) {
@@ -358,11 +388,17 @@ function classifyError(milestoneId: string, message: string): ReadinessErrorCode
   }
 
   switch (milestoneId) {
-    case "microphone": return "MICROPHONE_UNAVAILABLE";
-    case "audio_output": return "OUTPUT_INITIALIZATION_FAILED";
-    case "gemini_session": return "GEMINI_CONNECTION_FAILED";
-    case "input_path": return "PCM_CAPTURE_FAILED";
-    case "output_path": return "OUTPUT_INITIALIZATION_FAILED";
-    default: return "UNKNOWN";
+    case "microphone":
+      return "MICROPHONE_UNAVAILABLE";
+    case "audio_output":
+      return "OUTPUT_INITIALIZATION_FAILED";
+    case "gemini_session":
+      return "GEMINI_CONNECTION_FAILED";
+    case "input_path":
+      return "PCM_CAPTURE_FAILED";
+    case "output_path":
+      return "OUTPUT_INITIALIZATION_FAILED";
+    default:
+      return "UNKNOWN";
   }
 }

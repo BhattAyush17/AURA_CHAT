@@ -13,7 +13,7 @@ export class AdaptiveExecutionEngine {
     if (confidence > 85 && cap === CapabilityScore.HIGH) {
       return RuntimePolicy.FULL_QUALITY;
     }
-    
+
     if (confidence < 40 || cap === CapabilityScore.LOW) {
       return RuntimePolicy.LOW_POWER; // Fallback to smaller buffers, faster execution
     }

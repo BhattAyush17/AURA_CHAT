@@ -1,0 +1,75 @@
+{
+  "id": "close-friends",
+  "name": "Close Friends",
+  "trust": 0.85,
+  "hasPersonalHistory": true,
+  "languageMode": "hinglish",
+  "durationMinutes": 20,
+  "turns": [
+    {
+      "text": "Sach bolu... aaj thoda toot sa gaya hoon.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["vulnerability", "sadness"],
+        "intensity": 0.6
+      },
+      "emo": {
+        "vulnerability": 0.6,
+        "energy": 0.3,
+        "warmth": 0.5
+      },
+      "expected": {
+        "move": ["Comfort"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect"],
+        "initiative": ["Continue", "Observe"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection", "need-security"]
+      }
+    },
+    {
+      "text": "Bas kisi ko batane ka mann nahi tha.",
+      "behavior": {
+        "act": "vent",
+        "tags": ["vulnerability"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "vulnerability": 0.6,
+        "energy": 0.3
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect", "Listen"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection"]
+      }
+    },
+    {
+      "text": "Tu hai isliye bol diya.",
+      "behavior": {
+        "act": "share",
+        "tags": ["vulnerability", "trust"],
+        "intensity": 0.5
+      },
+      "emo": {
+        "vulnerability": 0.5,
+        "warmth": 0.7
+      },
+      "expected": {
+        "move": ["Comfort", "Reflect"],
+        "goal": ["seek-comfort", "express-uncertainty"],
+        "strategy": ["Comfort", "Reflect", "Listen"],
+        "register": ["CASUAL", "SUPPORTIVE"],
+        "language": ["HINGLISH", "PURE_ENGLISH"],
+        "memoryPolicy": "Ignore",
+        "swm": ["need-connection"]
+      }
+    }
+  ]
+}

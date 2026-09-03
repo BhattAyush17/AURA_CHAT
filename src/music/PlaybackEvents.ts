@@ -31,7 +31,7 @@ export class PlaybackEvents {
     }
 
     if (this.listeners.has(event)) {
-      this.listeners.get(event)!.forEach(cb => {
+      this.listeners.get(event)!.forEach((cb) => {
         try {
           cb(payload);
         } catch (e) {

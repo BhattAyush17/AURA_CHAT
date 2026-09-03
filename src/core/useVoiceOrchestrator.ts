@@ -124,16 +124,18 @@ export function useVoiceOrchestrator(
       startSession: async () => {
         await activePipeline.startSession();
         import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
-          RuntimeManager.getInstance().getLifecycleManager().startSession(
-            (text) => console.log("[AURA Idle Warning]", text),
-            () => pipelineRef.current.endSession(),
-            () => ({
-              isSpeaking: pipelineRef.current.isSpeaking,
-              isThinking: pipelineRef.current.isThinking,
-              isActiveVoice: pipelineRef.current.isActiveVoice,
-              status: pipelineRef.current.status
-            })
-          );
+          RuntimeManager.getInstance()
+            .getLifecycleManager()
+            .startSession(
+              (text) => console.log("[AURA Idle Warning]", text),
+              () => pipelineRef.current.endSession(),
+              () => ({
+                isSpeaking: pipelineRef.current.isSpeaking,
+                isThinking: pipelineRef.current.isThinking,
+                isActiveVoice: pipelineRef.current.isActiveVoice,
+                status: pipelineRef.current.status,
+              }),
+            );
         });
       },
       endSession: () => {
@@ -141,7 +143,7 @@ export function useVoiceOrchestrator(
         import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
           RuntimeManager.getInstance().getLifecycleManager().dispose();
         });
-      }
+      },
     };
   }, [activePipeline.startSession, activePipeline.endSession]);
 
@@ -156,9 +158,11 @@ export function useVoiceOrchestrator(
 
     if (providerChanged || voiceChanged) {
       if (wasActiveRef.current) {
-        console.log(`[AURA] Seamless handoff: ${providerChanged ? 'provider' : 'voice'} changed while active`);
+        console.log(
+          `[AURA] Seamless handoff: ${providerChanged ? "provider" : "voice"} changed while active`,
+        );
         wrappedPipeline.endSession();
-        
+
         // Wait briefly for teardown, then automatically start the new session
         setTimeout(() => {
           wrappedPipeline.startSession();
@@ -167,7 +171,7 @@ export function useVoiceOrchestrator(
       previousProviderRef.current = provider;
       previousVoiceRef.current = voice;
     }
-    
+
     if (isActive) {
       wasActiveRef.current = true;
     } else if (!providerChanged && !voiceChanged) {

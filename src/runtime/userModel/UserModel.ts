@@ -1,4 +1,7 @@
-import { AdaptiveCommunicationProfile, EpistemicBelief } from "../language/AdaptiveCommunicationProfile";
+import {
+  AdaptiveCommunicationProfile,
+  EpistemicBelief,
+} from "../language/AdaptiveCommunicationProfile";
 
 export interface EvidenceObservation {
   value: any;
@@ -6,7 +9,6 @@ export interface EvidenceObservation {
   timestamp: number;
   context: string;
 }
-
 
 export interface UserModel {
   schemaVersion: number;
@@ -16,13 +18,13 @@ export interface UserModel {
 
   explicitFacts: EpistemicBelief<string>[];
   explicitPreferences: EpistemicBelief<string>[];
-  
+
   tendencies: Record<string, EpistemicBelief<any>>; // keyed by trait
-  
+
   contextualPatterns: Record<string, any>;
-  
+
   communicationProfile: AdaptiveCommunicationProfile | null;
-  
+
   goals: EpistemicBelief<string>[];
   interests: EpistemicBelief<string>[];
 }

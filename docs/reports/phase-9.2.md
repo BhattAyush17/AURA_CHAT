@@ -15,39 +15,39 @@ rejection, and ambiguity.
 
 ## 1. The Cognition Matrix
 
-| # | Dimension | Verdict | Evidence |
-|---|---|---|---|
-| 1 | **Conversation ownership** | ❌ ABSENT | No model of who drives; initiative is per-turn, never accumulated across turns |
-| 2 | **Topic maintenance** | ❌ ABSENT | No topic object anywhere; word-overlap over last 3 turns is used *only to score engagement* (`backend/core/emotion.py:135-142`) |
-| 3 | **Thread switching** | ⚠️ AD HOC | "Redirection warranted" fires only on raw turn count (`src/executive/InitiativePolicy.ts:52`; `StrategyPlanner.ts:256`) — no topic signal |
-| 4 | **Implicit questions** | ❌ ABSENT | `isQuestion` is syntax-only (9.1: "Hmm?" → Answer). Probe: "I am tired of waiting for this" → act **ASSERTION**, no request, no frustration detected |
-| 5 | **Emotional subtext** | ⚠️ PARTIAL | `EmotionalStateRouter` (engagement/vulnerability/playfulness scorers, `emotion.py:114-198`) + `SensingEngine` (arc, warmth, tension, trust, temporal decay, `sensing.py:126-295`) + priority routing (`emotion.py:101`). Only conversation-aware layer. But keyword-pattern based → misfires (9.1: "No... that's not what I meant." → Comfort) |
-| 6 | **Humor** | ⚠️ PARTIAL | JOKE act (`behavior.py:291`), playfulness scorer (`emotion.py:171`) — detects humor *markers*, comprehends nothing |
-| 7 | **Irony** | ❌ ABSENT | No mechanism |
-| 8 | **Sarcasm** | ❌ ABSENT — **reads as the opposite** | Probes below: sarcasm scores as AGREEMENT + trust |
-| 9 | **Agreement** | ⚠️ PARTIAL | AGREEMENT act (`behavior.py:292`); probe shows sarcasm falsely lands here |
-| 10 | **Disagreement** | ⚠️ PARTIAL | Challenge strategy exists (`StrategyPlanner`), gated on behavior tag whose supply is keyword-data-dependent; "no" doubles as a frustration keyword (`sensing_engine.py:7`) |
-| 11 | **Challenge** | ⚠️ PARTIAL | Challenge strategy exists but is tag-gated, not reasoned |
-| 12 | **Silence** | ✅ IMPLEMENTED | `SilenceStateMachine` (`behavior.py:370`) + frontend timing snapshot + InitiativePolicy silence → Ask (9.1 gate: long silence → Ask passes) |
-| 13 | **Awkwardness** | ❌ ABSENT | No mechanism |
-| 14 | **Repair** | ❌ ABSENT | 9.1 harness: "Actually... wait... let me explain." → Observe (by fallback, not understanding); "No... that's not what I meant." → **Comfort** |
-| 15 | **Conversation goals** | ❌ ABSENT | No session goal/agenda; `ConversationContext.intent` is per-turn |
-| 16 | **Social intentions** | ⚠️ PARTIAL | 5 coarse keyword acts — REQUEST/QUESTION/JOKE/AGREEMENT/ASSERTION (`behavior.py:288-294`) + content tags |
-| 17 | **Hidden meaning** | ❌ ABSENT | No mechanism |
+| #   | Dimension                  | Verdict                               | Evidence                                                                                                                                                                                                                                                                                                                                       |
+| --- | -------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Conversation ownership** | ❌ ABSENT                             | No model of who drives; initiative is per-turn, never accumulated across turns                                                                                                                                                                                                                                                                 |
+| 2   | **Topic maintenance**      | ❌ ABSENT                             | No topic object anywhere; word-overlap over last 3 turns is used _only to score engagement_ (`backend/core/emotion.py:135-142`)                                                                                                                                                                                                                |
+| 3   | **Thread switching**       | ⚠️ AD HOC                             | "Redirection warranted" fires only on raw turn count (`src/executive/InitiativePolicy.ts:52`; `StrategyPlanner.ts:256`) — no topic signal                                                                                                                                                                                                      |
+| 4   | **Implicit questions**     | ❌ ABSENT                             | `isQuestion` is syntax-only (9.1: "Hmm?" → Answer). Probe: "I am tired of waiting for this" → act **ASSERTION**, no request, no frustration detected                                                                                                                                                                                           |
+| 5   | **Emotional subtext**      | ⚠️ PARTIAL                            | `EmotionalStateRouter` (engagement/vulnerability/playfulness scorers, `emotion.py:114-198`) + `SensingEngine` (arc, warmth, tension, trust, temporal decay, `sensing.py:126-295`) + priority routing (`emotion.py:101`). Only conversation-aware layer. But keyword-pattern based → misfires (9.1: "No... that's not what I meant." → Comfort) |
+| 6   | **Humor**                  | ⚠️ PARTIAL                            | JOKE act (`behavior.py:291`), playfulness scorer (`emotion.py:171`) — detects humor _markers_, comprehends nothing                                                                                                                                                                                                                             |
+| 7   | **Irony**                  | ❌ ABSENT                             | No mechanism                                                                                                                                                                                                                                                                                                                                   |
+| 8   | **Sarcasm**                | ❌ ABSENT — **reads as the opposite** | Probes below: sarcasm scores as AGREEMENT + trust                                                                                                                                                                                                                                                                                              |
+| 9   | **Agreement**              | ⚠️ PARTIAL                            | AGREEMENT act (`behavior.py:292`); probe shows sarcasm falsely lands here                                                                                                                                                                                                                                                                      |
+| 10  | **Disagreement**           | ⚠️ PARTIAL                            | Challenge strategy exists (`StrategyPlanner`), gated on behavior tag whose supply is keyword-data-dependent; "no" doubles as a frustration keyword (`sensing_engine.py:7`)                                                                                                                                                                     |
+| 11  | **Challenge**              | ⚠️ PARTIAL                            | Challenge strategy exists but is tag-gated, not reasoned                                                                                                                                                                                                                                                                                       |
+| 12  | **Silence**                | ✅ IMPLEMENTED                        | `SilenceStateMachine` (`behavior.py:370`) + frontend timing snapshot + InitiativePolicy silence → Ask (9.1 gate: long silence → Ask passes)                                                                                                                                                                                                    |
+| 13  | **Awkwardness**            | ❌ ABSENT                             | No mechanism                                                                                                                                                                                                                                                                                                                                   |
+| 14  | **Repair**                 | ❌ ABSENT                             | 9.1 harness: "Actually... wait... let me explain." → Observe (by fallback, not understanding); "No... that's not what I meant." → **Comfort**                                                                                                                                                                                                  |
+| 15  | **Conversation goals**     | ❌ ABSENT                             | No session goal/agenda; `ConversationContext.intent` is per-turn                                                                                                                                                                                                                                                                               |
+| 16  | **Social intentions**      | ⚠️ PARTIAL                            | 5 coarse keyword acts — REQUEST/QUESTION/JOKE/AGREEMENT/ASSERTION (`behavior.py:288-294`) + content tags                                                                                                                                                                                                                                       |
+| 17  | **Hidden meaning**         | ❌ ABSENT                             | No mechanism                                                                                                                                                                                                                                                                                                                                   |
 
 **Conversation Cognition Index: 25%** (4.25/17 — silence 1.0 + six partials × 0.5 + thread-switch 0.25). Only 1 of 17 dimensions has a real, dedicated mechanism.
 
 ## 2. Empirical probes — the sarcasm and implication blindness
 
-| Utterance (real meaning) | Act | Energy | L1 emotion |
-|---|---|---|---|
-| "great, another feature that works perfectly" (sarcastic complaint) | **AGREEMENT** | neutral | frustration 0.25 |
-| "oh sure, because THAT always goes well" (sarcasm) | **AGREEMENT** | neutral | **trust 0.25** |
-| "wow, what a surprise. amazing." (sarcasm) | **QUESTION** | high | engagement 0.5 |
-| "I am sooo excited to restart this app again" (frustrated resignation) | ASSERTION | neutral | *nothing* |
-| "Yeah right, and Im the queen of England" (sarcasm) | **REQUEST** | neutral | *nothing* |
-| "I am tired of waiting for this" (implicit complaint/ask) | ASSERTION | low | *nothing* |
-| "you know what, never mind" (retraction) | **QUESTION** | neutral | frustration 0.25 |
+| Utterance (real meaning)                                               | Act           | Energy  | L1 emotion       |
+| ---------------------------------------------------------------------- | ------------- | ------- | ---------------- |
+| "great, another feature that works perfectly" (sarcastic complaint)    | **AGREEMENT** | neutral | frustration 0.25 |
+| "oh sure, because THAT always goes well" (sarcasm)                     | **AGREEMENT** | neutral | **trust 0.25**   |
+| "wow, what a surprise. amazing." (sarcasm)                             | **QUESTION**  | high    | engagement 0.5   |
+| "I am sooo excited to restart this app again" (frustrated resignation) | ASSERTION     | neutral | _nothing_        |
+| "Yeah right, and Im the queen of England" (sarcasm)                    | **REQUEST**   | neutral | _nothing_        |
+| "I am tired of waiting for this" (implicit complaint/ask)              | ASSERTION     | low     | _nothing_        |
+| "you know what, never mind" (retraction)                               | **QUESTION**  | neutral | frustration 0.25 |
 
 Three failure modes visible:
 
@@ -64,7 +64,7 @@ Three failure modes visible:
 1. **Cognition is delegated, not implemented.** The only thing that can actually understand
    a conversation is the LLM, via `conversation_history` in the prompt. The deterministic
    layer perceives per-turn features (emotion, length, punctuation, markers) and decides
-   with them — but *never consults the model for its decisions* (Phase 9.1: plan() runs
+   with them — but _never consults the model for its decisions_ (Phase 9.1: plan() runs
    before any LLM reply). Result: the layer that decides has no conversation understanding;
    the layer that understands has no say.
 2. **The only session-level state is emotional.** `EmotionalStateRouter.active_state`

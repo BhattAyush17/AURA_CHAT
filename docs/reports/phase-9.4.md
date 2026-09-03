@@ -24,13 +24,13 @@ interruption flag (negative) and "spoke again within 6s" (follow-up).
 
 ## 2. Measurements
 
-| Weight | Ratchet reachable? | Behavioral outlet? | Measured |
-|---|---|---|---|
-| **brevityBias** (too_short) | ✅ Tiny plan + follow-up, +0.05 | ✅ budget grows Tiny→Short | **Turn 4** (bias −0.15 crosses gate) |
-| **brevityBias** (too_long) | ✅ Detailed plan + negative | ✅ budget shrinks Detailed→Normal | **Turn 4** (bias +0.15 crosses gate) |
-| **warmthBias** | ✅ low-warmth plan + negative | ✅ tone warms | tone 0.29 → 0.43 over 10 turns |
-| **clarifyBias** | ⚠️ reachable only via Medium+clarify=false (interruption turn) | ❌ **no outlet** | ratchets to 0.60; forcing gate never fires |
-| **too_long (DeepDive branch)** | ❌ **DeepDive is unproducible** | — | dead code |
+| Weight                         | Ratchet reachable?                                             | Behavioral outlet?                | Measured                                   |
+| ------------------------------ | -------------------------------------------------------------- | --------------------------------- | ------------------------------------------ |
+| **brevityBias** (too_short)    | ✅ Tiny plan + follow-up, +0.05                                | ✅ budget grows Tiny→Short        | **Turn 4** (bias −0.15 crosses gate)       |
+| **brevityBias** (too_long)     | ✅ Detailed plan + negative                                    | ✅ budget shrinks Detailed→Normal | **Turn 4** (bias +0.15 crosses gate)       |
+| **warmthBias**                 | ✅ low-warmth plan + negative                                  | ✅ tone warms                     | tone 0.29 → 0.43 over 10 turns             |
+| **clarifyBias**                | ⚠️ reachable only via Medium+clarify=false (interruption turn) | ❌ **no outlet**                  | ratchets to 0.60; forcing gate never fires |
+| **too_long (DeepDive branch)** | ❌ **DeepDive is unproducible**                                | —                                 | dead code                                  |
 
 Control: without reflection, 200 identical turns produce byte-identical plans — behavior
 change is entirely attributable to the weights.
@@ -38,10 +38,10 @@ change is entirely attributable to the weights.
 ## 3. Findings
 
 1. **The headline weight is behaviorally dead.** `clarifyBias` ratchets only on
-   *"clarified too late"* — producible (question + interruption → Answer/Medium/
+   _"clarified too late"_ — producible (question + interruption → Answer/Medium/
    clarify=false), and it does accumulate (+0.05/turn, measured 0.60 after 12 turns). But
    the forcing gate at `ConversationExecutive.ts:143-154` requires `confidence === "Low"`
-   *with* `clarification.required === false` — and the pipeline never produces that plan
+   _with_ `clarification.required === false` — and the pipeline never produces that plan
    shape: Low confidence comes from degraded STT, which the ClarificationPolicy turns into
    `Clarify`/clarify=true; clarify=false turns have clean STT, which rates High/Medium.
    The weight moves; nothing listens to it. The one behavior change reflection was built
@@ -51,13 +51,13 @@ change is entirely attributable to the weights.
    classes). The branch at `ReflectionEngine.ts:75` can never fire.
 3. **`too_short` and `too_long` work and demonstrably mutate plans** — both cross the
    ±0.15 gate at exactly 4 ratchets, and the plan's rationale records the adjustment.
-   But they operate on *budget only*: 200-turn simulations show strategy and initiative
+   But they operate on _budget only_: 200-turn simulations show strategy and initiative
    are never touched by reflection.
 4. **The length-delta input is dead from both ends.** `TurnOutcome.nextTurnLengthDelta` is
    never passed (`useSarvam.ts:1199-1202`) and never read inside `reflect()` — the depth
    calibration that uses the user's actual next-turn length does not exist.
 5. **Live signals are coarse.** Negative = interruption only — frustration spikes,
-   disengagement, and negative tone never reach reflection. Follow-up = *any* speech within
+   disengagement, and negative tone never reach reflection. Follow-up = _any_ speech within
    6s — an "ok" or a backchannel counts as "thread continued naturally".
 6. **Cross-phase dead branch:** the ConfidenceManager's memory-conflict downgrade
    (`ConfidenceManager.ts:27-34`) requires `relevanceScores.length >= 2`, which is never
@@ -68,7 +68,7 @@ change is entirely attributable to the weights.
 - The forcing gate was written conservatively (Low confidence required) but the pipeline
   invariants make Low+no-clarify impossible — a spec/reality mismatch, not a tuning
   problem.
-- Ratchets are correct but only wired to *budget* and *tone*; the strategy and initiative
+- Ratchets are correct but only wired to _budget_ and _tone_; the strategy and initiative
   layers never listen to reflection, so the socially-important learning (when to clarify,
   when to hold) has no channel.
 - The live caller reduces a rich outcome (length delta, frustration, disengagement) to
@@ -84,7 +84,7 @@ change is entirely attributable to the weights.
    available in the transcript) into `reflect()` and use it as a real depth-calibration
    signal.
 3. **Enrich live signals:** negative = interruption OR frustration spike (compare turn
-   emotion vs rolling baseline); follow-up = follow-up on *topic* (not 6s proximity).
+   emotion vs rolling baseline); follow-up = follow-up on _topic_ (not 6s proximity).
 4. **Remove or implement DeepDive:** either extend InformationBudgetEngine (e.g. heavy
    technical + engagement → DeepDive) or delete the dead branch.
 5. **Let reflection reach strategy:** e.g. repeat `strategy_ineffective` on the same
@@ -94,8 +94,8 @@ change is entirely attributable to the weights.
 
 Reflection is **not just logging** — two of three weights measurably change what AURA does
 (budget depth, tone warmth), with deterministic flip points. But the most important
-learning loop — *"I keep clarifying too late; I should clarify more"* — is disconnected
+learning loop — _"I keep clarifying too late; I should clarify more"_ — is disconnected
 from the decisions it is supposed to change, the DeepDive branch is unreachable, the
 length-delta input is unused, and the live outcome signals are two coarse booleans.
-Reflection today tunes *how much* AURA says and *how warm* she sounds; it cannot yet tune
-*what she decides*.
+Reflection today tunes _how much_ AURA says and _how warm_ she sounds; it cannot yet tune
+_what she decides_.

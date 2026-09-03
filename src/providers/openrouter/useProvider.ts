@@ -31,6 +31,7 @@ import { getSystemPromptForPersonality } from "@/lib/gemini-prompt";
 import { getAdaptiveModulation } from "@/lib/adaptive-modulation";
 import type { UserPresentation } from "@/lib/adaptive-modulation";
 import type { ChatMessage } from "./types";
+import { auraTelemetry, endProviderCall } from "@/telemetry";
 import {
   JoyfulPassionSystemPrompt,
   isJoyfulPassionMode,
@@ -42,13 +43,32 @@ import { connectionState } from "@/config/connectionState";
 import { ENDPOINTS } from "@/config/api";
 import { memoryGateway } from "@/lib/memory-gateway";
 import { useBargeIn } from "./useInterruption.ts";
+import { buildMusicContext } from "@/lib/aura-actions";
+import { boundCognitiveBlock, boundMusicContextText } from "@/lib/cognitive-budget";
+import { playbackState } from "@/music/PlaybackState";
+import { resolvePositionPhraseToSeconds } from "@/music/DeicticResolver";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 import { useConversationalPauses } from "@/shared/useConversationalPauses";
 import { useResilience } from "@/resilience";
+import type { AtmosphereContext } from "@/executive/AtmosphereContext";
+import { atmosphereFromComposer } from "@/executive/AtmosphereContext";
 
 export type { ChatMessage };
 
-export type SegmentStyle = "normal" | "aside" | "thinking" | "whisper" | "laugh" | "sigh" | "breath" | "cry" | "grunt" | "scoff" | "moan" | "serious" | "excited";
+export type SegmentStyle =
+  | "normal"
+  | "aside"
+  | "thinking"
+  | "whisper"
+  | "laugh"
+  | "sigh"
+  | "breath"
+  | "cry"
+  | "grunt"
+  | "scoff"
+  | "moan"
+  | "serious"
+  | "excited";
 
 export interface SpeechSegment {
   text: string;
@@ -60,26 +80,47 @@ let lastActionTime = 0;
 
 // ─── Audio Asset Styles (physical sounds that play MP3s) ────────────
 const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
-  "laugh", "sigh", "breath", "cry", "grunt", "scoff", "moan"
+  "laugh",
+  "sigh",
+  "breath",
+  "cry",
+  "grunt",
+  "scoff",
+  "moan",
 ]);
 
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
 
   // Extract JSON tool calls first
-  let processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
+  const processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
     try {
       const data = JSON.parse(match);
-      if (data.user_query) {
-        import("@/music/MusicService").then(({ musicService }) => {
-          musicService.processIntent({ type: "play", query: data.user_query });
-        });
+      const seekSeconds =
+        typeof data.start_at === "string" ? resolvePositionPhraseToSeconds(data.start_at) : null;
+      const queryToPlay =
+        (typeof data.user_query === "string" && data.user_query) ||
+        (typeof data.query === "string" && data.query);
+      if (queryToPlay) {
+        import("@/music/MusicService")
+          .then(({ musicService }) => {
+            musicService
+              .processIntent({
+                type: "play",
+                query: queryToPlay,
+                ...(seekSeconds !== null && seekSeconds >= 0
+                  ? { startAtSeconds: seekSeconds }
+                  : {}),
+              })
+              .catch((err) => console.error("[OpenRouter] Background play failed:", err));
+          })
+          .catch((err) => console.error("[OpenRouter] MusicService import failed:", err));
       }
-    } catch (e) { }
+    } catch (e) {}
     return "";
   });
 
-  const noEmojis = processedText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+  const noEmojis = processedText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
   const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]|<([^>]+)>/g;
   let lastIndex = 0;
   let match;
@@ -95,31 +136,43 @@ export function parseSegments(text: string): SpeechSegment[] {
     const actionText = (match[1] || match[2] || match[3] || match[4] || "").trim();
     const actionLower = actionText.toLowerCase();
     const now = performance.now();
-    const canAct = (now - lastActionTime) > ACTION_COOLDOWN;
+    const canAct = now - lastActionTime > ACTION_COOLDOWN;
 
     // ── Music Intent Tags → MusicManager ──
     if (actionText.startsWith("PLAY_YOUTUBE:")) {
       const query = actionText.replace("PLAY_YOUTUBE:", "").trim();
       // Route through MusicManager instead of raw CustomEvents
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.processIntent({ type: "play", query });
-      });
+      import("@/music/MusicService")
+        .then(({ musicService }) => {
+          musicService
+            .processIntent({ type: "play", query })
+            .catch((err) => console.error("[OpenRouter] Background play failed:", err));
+        })
+        .catch((err) => console.error("[OpenRouter] MusicService import failed:", err));
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "STOP_YOUTUBE") {
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.processIntent({ type: "stop" });
-      });
+      import("@/music/MusicService")
+        .then(({ musicService }) => {
+          musicService
+            .processIntent({ type: "stop" })
+            .catch((err) => console.error("[OpenRouter] Background stop failed:", err));
+        })
+        .catch((err) => console.error("[OpenRouter] MusicService import failed:", err));
       lastIndex = regex.lastIndex;
       continue;
     }
 
     if (actionText === "PAUSE_MUSIC") {
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.processIntent({ type: "pause" });
-      });
+      import("@/music/MusicService")
+        .then(({ musicService }) => {
+          musicService
+            .processIntent({ type: "pause" })
+            .catch((err) => console.error("[OpenRouter] Background pause failed:", err));
+        })
+        .catch((err) => console.error("[OpenRouter] MusicService import failed:", err));
       lastIndex = regex.lastIndex;
       continue;
     }
@@ -127,6 +180,22 @@ export function parseSegments(text: string): SpeechSegment[] {
     if (actionText === "RESUME_MUSIC") {
       import("@/music/MusicService").then(({ musicService }) => {
         musicService.processIntent({ type: "resume" });
+      });
+      lastIndex = regex.lastIndex;
+      continue;
+    }
+
+    if (actionText.startsWith("SEEK:")) {
+      const seekPhrase = actionText.replace("SEEK:", "").trim();
+      const seekSeconds = resolvePositionPhraseToSeconds(seekPhrase);
+      import("@/music/MusicService").then(({ musicService }) => {
+        if (seekSeconds !== null && seekSeconds >= 0) {
+          musicService
+            .seek(seekSeconds * 1000)
+            .catch((err) => console.error("[OpenRouter] Background seek failed:", err));
+        } else {
+          console.warn("[OpenRouter] Could not resolve seek target:", seekPhrase);
+        }
       });
       lastIndex = regex.lastIndex;
       continue;
@@ -194,17 +263,70 @@ export function parseSegments(text: string): SpeechSegment[] {
     }
 
     let style: SegmentStyle = "aside";
-    if (actionLower.includes("laugh") || actionLower.includes("chuckle") || actionLower.includes("giggle")) style = "laugh";
+    if (
+      actionLower.includes("laugh") ||
+      actionLower.includes("chuckle") ||
+      actionLower.includes("giggle")
+    )
+      style = "laugh";
     else if (actionLower.includes("sigh")) style = "sigh";
-    else if (actionLower.includes("breath") || actionLower.includes("inhale") || actionLower.includes("exhale")) style = "breath";
-    else if (actionLower.includes("cry") || actionLower.includes("sob") || actionLower.includes("tear") || actionLower.includes("sniffle")) style = "cry";
-    else if (actionLower.includes("grunt") || actionLower.includes("groan") || actionLower.includes("ugh")) style = "grunt";
-    else if (actionLower.includes("scoff") || actionLower.includes("rolls eyes") || actionLower.includes("dismissive")) style = "scoff";
-    else if (actionLower.includes("moan") || actionLower.includes("pant") || actionLower.includes("breathe heavily")) style = "moan";
-    else if (match[2] || actionLower.includes("thinking") || actionLower.includes("ponders") || actionLower.includes("considers")) style = "thinking";
-    else if (match[3] || actionLower.includes("whisper") || actionLower.includes("murmur") || actionLower.includes("softly")) style = "whisper";
-    else if (actionLower.includes("serious") || actionLower.includes("stern") || actionLower.includes("firm")) style = "serious";
-    else if (actionLower.includes("excited") || actionLower.includes("beaming") || actionLower.includes("grinning")) style = "excited";
+    else if (
+      actionLower.includes("breath") ||
+      actionLower.includes("inhale") ||
+      actionLower.includes("exhale")
+    )
+      style = "breath";
+    else if (
+      actionLower.includes("cry") ||
+      actionLower.includes("sob") ||
+      actionLower.includes("tear") ||
+      actionLower.includes("sniffle")
+    )
+      style = "cry";
+    else if (
+      actionLower.includes("grunt") ||
+      actionLower.includes("groan") ||
+      actionLower.includes("ugh")
+    )
+      style = "grunt";
+    else if (
+      actionLower.includes("scoff") ||
+      actionLower.includes("rolls eyes") ||
+      actionLower.includes("dismissive")
+    )
+      style = "scoff";
+    else if (
+      actionLower.includes("moan") ||
+      actionLower.includes("pant") ||
+      actionLower.includes("breathe heavily")
+    )
+      style = "moan";
+    else if (
+      match[2] ||
+      actionLower.includes("thinking") ||
+      actionLower.includes("ponders") ||
+      actionLower.includes("considers")
+    )
+      style = "thinking";
+    else if (
+      match[3] ||
+      actionLower.includes("whisper") ||
+      actionLower.includes("murmur") ||
+      actionLower.includes("softly")
+    )
+      style = "whisper";
+    else if (
+      actionLower.includes("serious") ||
+      actionLower.includes("stern") ||
+      actionLower.includes("firm")
+    )
+      style = "serious";
+    else if (
+      actionLower.includes("excited") ||
+      actionLower.includes("beaming") ||
+      actionLower.includes("grinning")
+    )
+      style = "excited";
 
     if (AUDIO_ASSET_STYLES.has(style)) {
       if (canAct) {
@@ -228,7 +350,7 @@ export function parseSegments(text: string): SpeechSegment[] {
 // ─── Smart Audio Loader with Gender Fallback Chain ──────────────────
 // Priority: gender-specific file → shared gender-neutral file → null (skip)
 const getAudioClip = (filename: string) => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   return new Audio(`/emotion_sounds/${filename}`);
 };
 
@@ -239,24 +361,29 @@ const getAudioClip = (filename: string) => {
  *   [2] shared gender-neutral fallback (works for both)
  */
 const ASSET_TABLE: Record<string, [string, string, string | null]> = {
-  laughs: ['female_laugh.mp3', 'male_laugh.mp3', 'soft_laugh.mp3'],
-  sighs: ['female-sigh.mp3', 'male_sigh.mp3', 'deep_sigh.mp3'],
-  breaths: ['female_deepbreath.mp3', 'male_deepbreath.mp3', 'inhale.mp3'],
-  cries: ['female_cry.mp3', 'male_cry.mp3', null],
-  grunts: ['female_grunt.mp3', 'male_grunt.mp3', null],
-  scoffs: ['female_scoff.mp3', 'male_scoff.mp3', 'scoff.mp3'],
-  moans: ['female_m_sound.mp3', 'male_moan.mp3', null],
+  laughs: ["female_laugh.mp3", "male_laugh.mp3", "soft_laugh.mp3"],
+  sighs: ["female-sigh.mp3", "male_sigh.mp3", "deep_sigh.mp3"],
+  breaths: ["female_deepbreath.mp3", "male_deepbreath.mp3", "inhale.mp3"],
+  cries: ["female_cry.mp3", "male_cry.mp3", null],
+  grunts: ["female_grunt.mp3", "male_grunt.mp3", null],
+  scoffs: ["female_scoff.mp3", "male_scoff.mp3", "scoff.mp3"],
+  moans: ["female_m_sound.mp3", "male_moan.mp3", null],
 };
 
 const audioClips: Record<string, HTMLAudioElement | null> = {
-  laughs: null, sighs: null, breaths: null, cries: null,
-  grunts: null, scoffs: null, moans: null,
+  laughs: null,
+  sighs: null,
+  breaths: null,
+  cries: null,
+  grunts: null,
+  scoffs: null,
+  moans: null,
 };
 
 let activeGender = "";
 
 const initAudioClips = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   const gender = localStorage.getItem("aura_voice_gender") || "female";
 
@@ -283,16 +410,16 @@ const initAudioClips = () => {
 /**
  * Thinking Intent Audio Table — maps each intent to:
  *   [0] female-specific filename
- *   [1] male-specific filename  
+ *   [1] male-specific filename
  *   [2] shared gender-neutral fallback
  */
 const THINKING_AUDIO_TABLE: Record<string, [string, string, string | null]> = {
-  analytical: ['female_hmm.mp3', 'male_hmm.mp3', null],
-  searching: ['female_inhale.mp3', 'male_inhale.mp3', 'inhale.mp3'],
-  uncertain: ['female_soft_uh.mp3', 'male_soft_uh.mp3', null],
-  emotional: ['female_soft_sigh.mp3', 'male_soft_sigh.mp3', 'deep_sigh.mp3'],
-  amused: ['female_soft_laugh.mp3', 'male_soft_laugh.mp3', 'soft_laugh.mp3'],
-  excited: ['female_excited_inhale.mp3', 'male_excited_inhale.mp3', 'inhale.mp3'],
+  analytical: ["female_hmm.mp3", "male_hmm.mp3", null],
+  searching: ["female_inhale.mp3", "male_inhale.mp3", "inhale.mp3"],
+  uncertain: ["female_soft_uh.mp3", "male_soft_uh.mp3", null],
+  emotional: ["female_soft_sigh.mp3", "male_soft_sigh.mp3", "deep_sigh.mp3"],
+  amused: ["female_soft_laugh.mp3", "male_soft_laugh.mp3", "soft_laugh.mp3"],
+  excited: ["female_excited_inhale.mp3", "male_excited_inhale.mp3", "inhale.mp3"],
 };
 
 /** Resolve a thinking intent to the best available audio file for the current gender */
@@ -314,17 +441,22 @@ function resolveThinkingCue(intent: string): string | null {
 
 // ─── Audio Style → Clip Key mapping ─────────────────────────────────
 const STYLE_TO_CLIP: Record<string, string> = {
-  laugh: "laughs", sigh: "sighs", breath: "breaths",
-  cry: "cries", grunt: "grunts", scoff: "scoffs", moan: "moans",
+  laugh: "laughs",
+  sigh: "sighs",
+  breath: "breaths",
+  cry: "cries",
+  grunt: "grunts",
+  scoff: "scoffs",
+  moan: "moans",
 };
 
 export function playAudioAsset(
   style: "laugh" | "sigh" | "breath" | "cry" | "grunt" | "scoff" | "moan",
-  onDone: () => void
+  onDone: () => void,
 ) {
   initAudioClips();
   const clipKey = STYLE_TO_CLIP[style];
-  let clip = clipKey ? audioClips[clipKey] : null;
+  const clip = clipKey ? audioClips[clipKey] : null;
 
   const cleanup = () => {
     if (clip) {
@@ -338,16 +470,30 @@ export function playAudioAsset(
     // Generate verbal equivalent for missing audio files
     let verbal = "";
     switch (style) {
-      case "laugh": verbal = "Haha"; break;
-      case "sigh": verbal = "Haaah"; break;
-      case "breath": verbal = "Huuuh"; break;
-      case "cry": verbal = "Sob"; break;
-      case "grunt": verbal = "Ugh"; break;
-      case "scoff": verbal = "Pfft"; break;
-      case "moan": verbal = "Ahhh"; break;
+      case "laugh":
+        verbal = "Haha";
+        break;
+      case "sigh":
+        verbal = "Haaah";
+        break;
+      case "breath":
+        verbal = "Huuuh";
+        break;
+      case "cry":
+        verbal = "Sob";
+        break;
+      case "grunt":
+        verbal = "Ugh";
+        break;
+      case "scoff":
+        verbal = "Pfft";
+        break;
+      case "moan":
+        verbal = "Ahhh";
+        break;
     }
 
-    if (!verbal || typeof window === 'undefined' || !window.speechSynthesis) {
+    if (!verbal || typeof window === "undefined" || !window.speechSynthesis) {
       cleanup();
       return;
     }
@@ -361,8 +507,15 @@ export function playAudioAsset(
     utterance.lang = lang;
 
     const voices = window.speechSynthesis.getVoices();
-    const matching = voices.filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]));
-    const premium = matching.find((v) => v.name.toLowerCase().includes("google") || v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("premium"));
+    const matching = voices.filter((v) =>
+      v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]),
+    );
+    const premium = matching.find(
+      (v) =>
+        v.name.toLowerCase().includes("google") ||
+        v.name.toLowerCase().includes("natural") ||
+        v.name.toLowerCase().includes("premium"),
+    );
     if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
 
     utterance.onend = cleanup;
@@ -400,12 +553,15 @@ export function playAudioAsset(
     clip.onended = null;
     clip.onerror = tryFallback;
 
-    clip.play().then(() => {
-      setTimeout(() => {
-        clip!.pause();
-        cleanup();
-      }, snippetLength * 1000);
-    }).catch(tryFallback);
+    clip
+      .play()
+      .then(() => {
+        setTimeout(() => {
+          clip!.pause();
+          cleanup();
+        }, snippetLength * 1000);
+      })
+      .catch(tryFallback);
     return;
   }
 
@@ -415,16 +571,44 @@ export function playAudioAsset(
 }
 // ───────────────────────────────────────────────────────────────────
 
-export type ThinkingIntent = "analytical" | "searching" | "uncertain" | "emotional" | "amused" | "excited";
+export type ThinkingIntent =
+  | "analytical"
+  | "searching"
+  | "uncertain"
+  | "emotional"
+  | "amused"
+  | "excited";
 
 export function inferThinkingIntent(text: string): ThinkingIntent {
   const lower = text.toLowerCase();
-  if (/\b(how|why|what is|code|math|error|bug|architecture|system|solve|fix|technical|explain|compare)\b/i.test(lower)) return "analytical";
-  if (/\b(sad|hurt|cry|frustrating|disappointing|sorry|feel|pain|empathy|miss|lonely|scared)\b/i.test(lower)) return "emotional";
+  if (
+    /\b(how|why|what is|code|math|error|bug|architecture|system|solve|fix|technical|explain|compare)\b/i.test(
+      lower,
+    )
+  )
+    return "analytical";
+  if (
+    /\b(sad|hurt|cry|frustrating|disappointing|sorry|feel|pain|empathy|miss|lonely|scared)\b/i.test(
+      lower,
+    )
+  )
+    return "emotional";
   if (/\b(haha|joke|funny|lol|lmao|hilarious|sarcasm|playful|rofl)\b/i.test(lower)) return "amused";
-  if (/\b(wow|amazing|awesome|finally|did it|yes|omg|breakthrough|celebrate|incredible|nailed)\b/i.test(lower)) return "excited";
-  if (/\b(remember|recall|think about|ideas|brainstorm|explore|search|imagine|wonder)\b/i.test(lower)) return "searching";
-  if (/\b(maybe|what if|depends|ambiguous|unclear|possibly|not sure|confused)\b/i.test(lower) || text.trim().endsWith("?")) return "uncertain";
+  if (
+    /\b(wow|amazing|awesome|finally|did it|yes|omg|breakthrough|celebrate|incredible|nailed)\b/i.test(
+      lower,
+    )
+  )
+    return "excited";
+  if (
+    /\b(remember|recall|think about|ideas|brainstorm|explore|search|imagine|wonder)\b/i.test(lower)
+  )
+    return "searching";
+  if (
+    /\b(maybe|what if|depends|ambiguous|unclear|possibly|not sure|confused)\b/i.test(lower) ||
+    text.trim().endsWith("?")
+  )
+    return "uncertain";
   return "searching"; // default
 }
 
@@ -497,6 +681,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // Identity
   const userIdRef = useRef("local-user");
   const sessionIdRef = useRef(`or_${crypto.randomUUID().slice(0, 8)}`);
+  const atmosphereRef = useRef<AtmosphereContext | null>(null);
 
   // Chat-format message buffer for OpenRouter API (capped at 50 to prevent memory growth)
   const MAX_MESSAGES = 50;
@@ -518,12 +703,15 @@ export function useOpenRouter(mode: string = "adaptive") {
   const spokenTextRef = useRef<string>("");
   const wasInterruptedRef = useRef<boolean>(false);
 
-  const micAnalyserRef = useMemo<React.MutableRefObject<AnalyserNode | null>>(() => ({
-    get current() {
-      return MicrophoneCoordinator.getInstance().getAnalyser();
-    },
-    set current(_) { }
-  }), []);
+  const micAnalyserRef = useMemo<React.MutableRefObject<AnalyserNode | null>>(
+    () => ({
+      get current() {
+        return MicrophoneCoordinator.getInstance().getAnalyser();
+      },
+      set current(_) {},
+    }),
+    [],
+  );
 
   // ── Real waveform: microphone AudioAnalyser ──────────────────────
   const setupMicAnalyser = useCallback(async () => {
@@ -566,7 +754,6 @@ export function useOpenRouter(mode: string = "adaptive") {
       stopRecognition();
       teardownMicAnalyser();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInactive]);
 
   // ── TTS helpers ──────────────────────────────────────────────────
@@ -588,139 +775,153 @@ export function useOpenRouter(mode: string = "adaptive") {
     thinkingTimeoutsRef.current = [];
   }, []);
 
-  const speakChunk = useCallback((text: string, lang: string, style: SegmentStyle, onDone?: () => void) => {
-    if (isInactiveRef.current) {
-      onDone?.();
-      return;
-    }
-    // SAFETY NET: Never speak JSON tool calls — silently execute and skip
-    if (/"tool"\s*:\s*"play_music"/.test(text) || /^\s*\{/.test(text.trim()) && /"user_query"/.test(text)) {
-      try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const data = JSON.parse(jsonMatch[0]);
-          if (data.user_query) {
-            import("@/music/MusicService").then(({ musicService }) => {
-              musicService.processIntent({ type: "play", query: data.user_query });
-            });
+  const speakChunk = useCallback(
+    (text: string, lang: string, style: SegmentStyle, onDone?: () => void) => {
+      if (isInactiveRef.current) {
+        onDone?.();
+        return;
+      }
+      // SAFETY NET: Never speak JSON tool calls — silently execute and skip
+      if (
+        /"tool"\s*:\s*"play_music"/.test(text) ||
+        (/^\s*\{/.test(text.trim()) && /"user_query"/.test(text))
+      ) {
+        try {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const data = JSON.parse(jsonMatch[0]);
+            if (data.user_query) {
+              import("@/music/MusicService").then(({ musicService }) => {
+                musicService.processIntent({ type: "play", query: data.user_query });
+              });
+            }
+          }
+        } catch {}
+        onDone?.();
+        return;
+      }
+      // Skip leftover JSON fragments
+      if (/^\s*[\{\}"\[\]]/.test(text.trim()) && text.trim().length < 20) {
+        onDone?.();
+        return;
+      }
+      // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay,
+      // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
+      const cleanText = text
+        .replace(/,\s*/g, "; ")
+        .replace(/[.!?।]$/, "")
+        .trim();
+
+      const utterance = new SpeechSynthesisUtterance(cleanText || text);
+      (utterance as any)._startTime = performance.now();
+      utterance.lang = lang;
+
+      if (style === "aside") {
+        utterance.pitch = 0.9;
+        utterance.rate = 0.95;
+        utterance.volume = 0.85;
+      } else if (style === "thinking") {
+        utterance.pitch = 0.95;
+        utterance.rate = 0.9;
+        utterance.volume = 0.9;
+      } else if (style === "whisper") {
+        utterance.pitch = 0.9;
+        utterance.rate = 0.92;
+        utterance.volume = 0.4;
+      } else if (style === "serious") {
+        utterance.pitch = 0.8;
+        utterance.rate = 0.95;
+        utterance.volume = 1.0;
+      } else if (style === "excited") {
+        utterance.pitch = 1.1;
+        utterance.rate = 1.05;
+        utterance.volume = 1.0;
+      } else if (style === "scoff") {
+        utterance.pitch = 1.05;
+        utterance.rate = 1.1;
+        utterance.volume = 0.9;
+      } else {
+        // Micro-jitter for "normal" style — prevents robotic monotone
+        // Each sentence gets a slightly different pitch/rate so the ear
+        // never detects a repetitive AI pattern.
+        const jitterPitch = 0.97 + Math.random() * 0.06; // 0.97 – 1.03
+        const jitterRate = 0.97 + Math.random() * 0.06; // 0.97 – 1.03
+        utterance.pitch = jitterPitch;
+        utterance.rate = jitterRate;
+        utterance.volume = 1.0;
+      }
+
+      const voices = window.speechSynthesis.getVoices();
+      const matching = voices.filter((v) =>
+        v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]),
+      );
+      const premium = matching.find(
+        (v) =>
+          v.name.toLowerCase().includes("google") ||
+          v.name.toLowerCase().includes("natural") ||
+          v.name.toLowerCase().includes("premium"),
+      );
+      if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
+
+      utterance.onstart = () => {
+        const startMs = performance.now();
+        const endMs = lastAudioEndRef.current;
+        if (endMs > 0) {
+          const gap = startMs - endMs;
+          if (gap >= 1500) {
+            console.error(
+              `🚨 [AURA Timing] FAILURE: Speech gap was ${Math.round(gap)}ms (exceeded 1500ms max)`,
+            );
+          } else if (gap >= 1200) {
+            console.warn(
+              `⚠️ [AURA Timing] WARNING: Speech gap was ${Math.round(gap)}ms (target: <600ms)`,
+            );
+          } else if (gap > 600) {
+            console.log(`[AURA Timing] Acceptable gap: ${Math.round(gap)}ms`);
           }
         }
-      } catch { }
-      onDone?.();
-      return;
-    }
-    // Skip leftover JSON fragments
-    if (/^\s*[\{\}"\[\]]/.test(text.trim()) && text.trim().length < 20) {
-      onDone?.();
-      return;
-    }
-    // Clean text to reduce punctuation pauses (strip trailing marks to prevent post-utterance delay, 
-    // and replace internal commas with spaces to prevent robotic mid-sentence breaks)
-    const cleanText = text
-      .replace(/,\s*/g, "; ")
-      .replace(/[.!?।]$/, "")
-      .trim();
-
-    const utterance = new SpeechSynthesisUtterance(cleanText || text);
-    (utterance as any)._startTime = performance.now();
-    utterance.lang = lang;
-
-    if (style === "aside") {
-      utterance.pitch = 0.9;
-      utterance.rate = 0.95;
-      utterance.volume = 0.85;
-    } else if (style === "thinking") {
-      utterance.pitch = 0.95;
-      utterance.rate = 0.9;
-      utterance.volume = 0.9;
-    } else if (style === "whisper") {
-      utterance.pitch = 0.9;
-      utterance.rate = 0.92;
-      utterance.volume = 0.4;
-    } else if (style === "serious") {
-      utterance.pitch = 0.8;
-      utterance.rate = 0.95;
-      utterance.volume = 1.0;
-    } else if (style === "excited") {
-      utterance.pitch = 1.1;
-      utterance.rate = 1.05;
-      utterance.volume = 1.0;
-    } else if (style === "scoff") {
-      utterance.pitch = 1.05;
-      utterance.rate = 1.1;
-      utterance.volume = 0.9;
-    } else {
-      // Micro-jitter for "normal" style — prevents robotic monotone
-      // Each sentence gets a slightly different pitch/rate so the ear
-      // never detects a repetitive AI pattern.
-      const jitterPitch = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
-      const jitterRate = 0.97 + Math.random() * 0.06;  // 0.97 – 1.03
-      utterance.pitch = jitterPitch;
-      utterance.rate = jitterRate;
-      utterance.volume = 1.0;
-    }
-
-    const voices = window.speechSynthesis.getVoices();
-    const matching = voices.filter((v) =>
-      v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase().split("-")[0]),
-    );
-    const premium = matching.find(
-      (v) =>
-        v.name.toLowerCase().includes("google") ||
-        v.name.toLowerCase().includes("natural") ||
-        v.name.toLowerCase().includes("premium"),
-    );
-    if (premium ?? matching[0]) utterance.voice = premium ?? matching[0];
-
-    utterance.onstart = () => {
-      const startMs = performance.now();
-      const endMs = lastAudioEndRef.current;
-      if (endMs > 0) {
-        const gap = startMs - endMs;
-        if (gap >= 1500) {
-          console.error(`🚨 [AURA Timing] FAILURE: Speech gap was ${Math.round(gap)}ms (exceeded 1500ms max)`);
-        } else if (gap >= 1200) {
-          console.warn(`⚠️ [AURA Timing] WARNING: Speech gap was ${Math.round(gap)}ms (target: <600ms)`);
-        } else if (gap > 600) {
-          console.log(`[AURA Timing] Acceptable gap: ${Math.round(gap)}ms`);
+        pushConversationTrace("PLAYBACK_START");
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.onAuraSpeechStart();
+          if (!isSpeakingRef.current) {
+            isSpeakingRef.current = true;
+            conversationState.requestStartSpeaking();
+            setStatus("speaking");
+          }
+        });
+        connectionState.updateState({ active_voice_out: "webspeech" });
+      };
+      utterance.onend = () => {
+        lastAudioEndRef.current = performance.now();
+        if (typeof window !== "undefined") {
+          (window as any)._utterances = ((window as any)._utterances || []).filter(
+            (u: any) => u !== utterance,
+          );
         }
-      }
-      pushConversationTrace("PLAYBACK_START");
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.onAuraSpeechStart();
-        if (!isSpeakingRef.current) {
-          isSpeakingRef.current = true;
-          conversationState.requestStartSpeaking();
-          setStatus("speaking");
+        pushConversationTrace("PLAYBACK_END");
+        const ttsLatency = performance.now() - (utterance as any)._startTime;
+        connectionState.updateLatency({ tts_ms: ttsLatency });
+        onDone?.();
+      };
+      utterance.onerror = () => {
+        if (typeof window !== "undefined") {
+          (window as any)._utterances = ((window as any)._utterances || []).filter(
+            (u: any) => u !== utterance,
+          );
         }
+        pushConversationTrace("PLAYBACK_ERROR");
+        console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
+        connectionState.updateState({ active_voice: "textonly" });
+        onDone?.();
+      };
+      pushConversationTrace("TTS_READY", { provider: "webspeech" });
+
+      import("@/audioRuntime/SpeechCoordinator").then(({ SpeechCoordinator }) => {
+        SpeechCoordinator.getInstance().registerWebSpeech(utterance);
       });
-      connectionState.updateState({ active_voice_out: "webspeech" });
-    };
-    utterance.onend = () => {
-      lastAudioEndRef.current = performance.now();
-      if (typeof window !== "undefined") {
-        (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
-      }
-      pushConversationTrace("PLAYBACK_END");
-      const ttsLatency = performance.now() - (utterance as any)._startTime;
-      connectionState.updateLatency({ tts_ms: ttsLatency });
-      onDone?.();
-    };
-    utterance.onerror = () => {
-      if (typeof window !== "undefined") {
-        (window as any)._utterances = ((window as any)._utterances || []).filter((u: any) => u !== utterance);
-      }
-      pushConversationTrace("PLAYBACK_ERROR");
-      console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
-      connectionState.updateState({ active_voice: "textonly" });
-      onDone?.();
-    };
-    pushConversationTrace("TTS_READY", { provider: "webspeech" });
-
-    import("@/audioRuntime/SpeechCoordinator").then(({ SpeechCoordinator }) => {
-      SpeechCoordinator.getInstance().registerWebSpeech(utterance);
-    });
-  }, [setStatus]);
+    },
+    [setStatus],
+  );
 
   // NOTE: Sentence queue is drained inline inside processTurn's tryStartTTS.
   // The speakQueue helper was removed as dead code during production hardening.
@@ -752,7 +953,13 @@ export function useOpenRouter(mode: string = "adaptive") {
     }
   }, [setStatus, adaptiveTurn, conversationalPauses, addMessages, transcript_]);
 
-  useBargeIn(micAnalyserRef, isSpeakingRef, handleInterruption, sentenceQueueRef, conversationalPauses.isInInterjectionWindow);
+  useBargeIn(
+    micAnalyserRef,
+    isSpeakingRef,
+    handleInterruption,
+    sentenceQueueRef,
+    conversationalPauses.isInInterjectionWindow,
+  );
 
   // ── STT helpers ──────────────────────────────────────────────────
   const stopRecognition = () => {
@@ -763,7 +970,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         recognitionRef.current.onresult = null;
         recognitionRef.current.stop();
         orchestrator.sttWatchdog.reportStopped();
-      } catch { }
+      } catch {}
       recognitionRef.current = null;
     }
   };
@@ -790,12 +997,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
-    async (
-      userText: string,
-      apiKey: string,
-      lang: string,
-      isHiddenPrompt: boolean = false,
-    ) => {
+    async (userText: string, apiKey: string, lang: string, isHiddenPrompt: boolean = false) => {
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
@@ -815,7 +1017,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       const intent = inferThinkingIntent(userText);
       const cueFile = resolveThinkingCue(intent);
 
-      if (typeof window !== 'undefined' && cueFile) {
+      if (typeof window !== "undefined" && cueFile) {
         const audio = new Audio(`/emotion_sounds/${cueFile}`);
         activeThinkingAudioRef.current = audio;
         audio.play().catch(() => {
@@ -824,7 +1026,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           if (entry && entry[2]) {
             const fallback = new Audio(`/emotion_sounds/${entry[2]}`);
             activeThinkingAudioRef.current = fallback;
-            fallback.play().catch(() => { });
+            fallback.play().catch(() => {});
           }
         });
       }
@@ -847,7 +1049,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         0,
         modeRef.current,
         userIdRef.current,
-        wasInterrupted
+        wasInterrupted,
       );
       if (behaviorResult) {
         prompts.processAnalysisForL2(behaviorResult);
@@ -859,8 +1061,15 @@ export function useOpenRouter(mode: string = "adaptive") {
         userText,
         behaviorResult,
         modeRef.current,
+        atmosphereRef.current,
+        { wasInterruption: wasInterrupted },
       );
 
+      // Atmosphere relevance gate: only request backend grounding this turn when
+      // AdaptiveAttention deemed the surrounding world relevant. Prevents prompt
+      // pollution on unrelated turns.
+      const includeAtmosphere =
+        RuntimeManager.getInstance().getLastAtmosphereDecision()?.includeAtmosphere ?? false;
 
       // Extract emotional state for memory retrieval
       const currentEmotionalState: Record<string, number> = {
@@ -868,12 +1077,12 @@ export function useOpenRouter(mode: string = "adaptive") {
         playfulness: behaviorResult?.playfulness || 0,
         vulnerability: behaviorResult?.vulnerability || 0,
         trust: behaviorResult?.trust || 0,
-        anxiety: behaviorResult?.anxiety || 0
+        anxiety: behaviorResult?.anxiety || 0,
       };
 
       // ── Music Context Injection ──
       // If music is active, inject song context into the conversation
-      let musicContextXML = "";
+      const musicContextXML = buildMusicContext();
 
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
@@ -894,17 +1103,25 @@ export function useOpenRouter(mode: string = "adaptive") {
           headers: {
             "Content-Type": "application/json",
             "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
-            "X-Gemini-Key": getCredential("aura_gemini_api_key") || ""
+            "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
           },
           body: JSON.stringify({
             text: userText,
             user_id: userIdRef.current,
             session_id: sessionIdRef.current,
-            conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
+            conversation_history: messagesRef.current.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
             client_memories: [], // Delegated to Centralized Cognitive Architecture
             memory_mode: "supabase",
-            cognitive_block: cognitiveBlock
-          })
+            cognitive_block: boundCognitiveBlock(cognitiveBlock),
+            executive_plan: RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            music_context_text: playbackState.getState().currentTrack
+              ? boundMusicContextText(buildMusicContext(userText))
+              : undefined,
+            include_atmosphere: includeAtmosphere,
+          }),
         });
 
         if (!response.ok || !response.body) {
@@ -936,7 +1153,9 @@ export function useOpenRouter(mode: string = "adaptive") {
               if (AUDIO_ASSET_STYLES.has(seg.style)) {
                 // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
                 if (seg.style === "moan" && !boundlessModeActiveRef.current) {
-                  console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
+                  console.warn(
+                    "⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.",
+                  );
                   seg.style = "sigh";
                 }
                 playAudioAsset(seg.style as any, drainQueue);
@@ -976,12 +1195,14 @@ export function useOpenRouter(mode: string = "adaptive") {
                 totalSentences: streamDone ? sentenceIndex + 1 : undefined,
                 isStreamingDone: streamDone,
                 queueSize: sentenceQueueRef.current.length,
-                emotionalState: lastAnalysis ? {
-                  tension: lastAnalysis.tension || 0,
-                  trust: lastAnalysis.trust || 0.5,
-                  energy: lastAnalysis.energy || 0.5,
-                  mode: lastAnalysis.mode || "calm"
-                } : undefined
+                emotionalState: lastAnalysis
+                  ? {
+                      tension: lastAnalysis.tension || 0,
+                      trust: lastAnalysis.trust || 0.5,
+                      energy: lastAnalysis.energy || 0.5,
+                      mode: lastAnalysis.mode || "calm",
+                    }
+                  : undefined,
               };
               const pause = conversationalPauses.getPause(ctx);
 
@@ -989,7 +1210,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                 rawNext,
                 lastSpokenSentence,
                 0, // TTFT is not explicitly computed per-sentence here
-                pause.durationMs
+                pause.durationMs,
               );
 
               if (execution) {
@@ -1006,7 +1227,9 @@ export function useOpenRouter(mode: string = "adaptive") {
                   setTimeout(doNext, 10);
                   return;
                 } else if (execution.action === "BACKCHANNEL") {
-                  console.log(`[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`);
+                  console.log(
+                    `[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`,
+                  );
                 }
               }
 
@@ -1054,18 +1277,21 @@ export function useOpenRouter(mode: string = "adaptive") {
           }
 
           sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split('\n\n');
+          const lines = sseBuffer.split("\n\n");
           sseBuffer = lines.pop() ?? ""; // Keep the last incomplete chunk
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
+            if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.slice(6));
 
                 if (data.event === "metadata") {
                   // Metadata received instantly - can update UI state here if needed
-                }
-                else if (data.event === "text_chunk") {
+                  // Capture structured atmosphere for the NEXT turn's cognitive wiring.
+                  if (data.atmosphere) {
+                    atmosphereRef.current = atmosphereFromComposer(data.atmosphere);
+                  }
+                } else if (data.event === "text_chunk") {
                   lastTokenTimeRef.current = performance.now();
                   if (!firstTokenReceived) {
                     firstTokenReceived = true;
@@ -1079,35 +1305,45 @@ export function useOpenRouter(mode: string = "adaptive") {
                   // Do not overwrite words to preserve user transcript
 
                   // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
-                  if (textBuffer.includes('{') && !textBuffer.includes('}')) {
+                  if (textBuffer.includes("{") && !textBuffer.includes("}")) {
                     continue; // Wait for the chunk with the closing brace
                   }
 
                   const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
                   if (toolMatch) {
-                    if (!textBuffer.includes('}')) {
+                    if (!textBuffer.includes("}")) {
                       continue; // Wait for the chunk with the closing brace
                     } else {
                       // Execute and strip the full JSON block
-                      textBuffer = textBuffer.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
-                        try {
-                          const data = JSON.parse(match);
-                          if (data.query || data.mood || data.activity || data.genre || data.intent === 'similar' || data.user_query) {
-                            import("@/music/MusicService").then(({ musicService }) => {
-                              musicService.processIntent({ 
-                                type: "play", 
-                                query: data.query || data.user_query,
-                                mood: data.mood,
-                                energy: data.energy,
-                                genre: data.genre,
-                                activity: data.activity,
-                                intent: data.intent
+                      textBuffer = textBuffer.replace(
+                        /\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g,
+                        (match) => {
+                          try {
+                            const data = JSON.parse(match);
+                            if (
+                              data.query ||
+                              data.mood ||
+                              data.activity ||
+                              data.genre ||
+                              data.intent === "similar" ||
+                              data.user_query
+                            ) {
+                              import("@/music/MusicService").then(({ musicService }) => {
+                                musicService.processIntent({
+                                  type: "play",
+                                  query: data.query || data.user_query,
+                                  mood: data.mood,
+                                  energy: data.energy,
+                                  genre: data.genre,
+                                  activity: data.activity,
+                                  intent: data.intent,
+                                });
                               });
-                            });
-                          }
-                        } catch (e) { }
-                        return "";
-                      });
+                            }
+                          } catch (e) {}
+                          return "";
+                        },
+                      );
                       // Clean up lingering markdown ticks
                       textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
                     }
@@ -1122,8 +1358,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                     orchestrator.queueProtection.reportChunkAdded(sentence);
                     tryStartTTS();
                   }
-                }
-                else if (data.event === "error") {
+                } else if (data.event === "error") {
                   throw new Error(data.error);
                 }
               } catch (e) {
@@ -1141,11 +1376,14 @@ export function useOpenRouter(mode: string = "adaptive") {
           throw new Error("Empty response from stream");
         }
       } catch (backendError: any) {
-        if (backendError.name === 'AbortError') {
+        if (backendError.name === "AbortError") {
           console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
           return;
         }
-        console.warn("[Voice Pipeline] Backend /analyze/stream endpoint failed. Falling back to frontend direct LLM.", backendError);
+        console.warn(
+          "[Voice Pipeline] Backend /analyze/stream endpoint failed. Falling back to frontend direct LLM.",
+          backendError,
+        );
       }
 
       // Behavioral analysis is now performed earlier in the canonical pipeline.
@@ -1161,7 +1399,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           behavior.lastPresentationRef.current,
         );
         modulationDirective = directive;
-      } catch { }
+      } catch {}
 
       // L3 live context
       const liveContext = prompts.buildContext(modeRef.current);
@@ -1216,7 +1454,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       // ── System prompt: personality-aware identity + live context ──
       const langState = languageManager.getState();
-      
+
       const ssplBlock = `
 [SPEECH STYLE PRESERVATION LAYER]
 The user is speaking in the following natural style:
@@ -1235,7 +1473,11 @@ CRITICAL RULES:
         basePrompt,
         liveContext,
         ssplBlock,
-        ...(wasInterrupted ? ["[SYSTEM NOTE]: The user just interrupted you mid-sentence. Acknowledge the interruption gracefully, listen to what they just said, and adapt your response."] : []),
+        ...(wasInterrupted
+          ? [
+              "[SYSTEM NOTE]: The user just interrupted you mid-sentence. Acknowledge the interruption gracefully, listen to what they just said, and adapt your response.",
+            ]
+          : []),
         cognitiveBlock,
         ...(modulationDirective ? [modulationDirective] : []),
       ].join("\n");
@@ -1257,10 +1499,23 @@ CRITICAL RULES:
       let lastApiError: any = null;
       const attempted: string[] = [];
 
+      // Begin a logical telemetry request for this LLM call (groups the
+      // physical model attempts together for the panel).
+      const openrouterRequestId = auraTelemetry.beginRequest();
+
       for (const modelToTry of modelQueue) {
         attempted.push(modelToTry);
         setActiveModel(modelToTry);
         if (attempted.length > 1) await new Promise((r) => setTimeout(r, 800));
+
+        // Begin a physical provider call for this attempt. Attempt index > 0
+        // is labeled FALLBACK to reflect the failover nature.
+        const callId = auraTelemetry.beginProviderCall({
+          provider: "openrouter",
+          model: modelToTry,
+          kind: attempted.length === 1 ? "PRIMARY" : "FALLBACK",
+        });
+        let firstTokenAt: number | null = null;
 
         fetchAbortRef.current = new AbortController();
         // 15s timeout prevents infinite hang on network issues
@@ -1330,7 +1585,9 @@ CRITICAL RULES:
                 if (AUDIO_ASSET_STYLES.has(seg.style)) {
                   // Safety Guard: NEVER allow moaning outside of Joyful Passion mode
                   if (seg.style === "moan" && !boundlessModeActiveRef.current) {
-                    console.warn("⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.");
+                    console.warn(
+                      "⚠️ Blocked illicit 'moan' audio outside of Joyful Passion mode. Downgrading to sigh.",
+                    );
                     seg.style = "sigh";
                   }
                   playAudioAsset(seg.style as any, drainQueue);
@@ -1374,19 +1631,21 @@ CRITICAL RULES:
                   totalSentences: streamDone ? sentenceIndex + 1 : undefined,
                   isStreamingDone: streamDone,
                   queueSize: sentenceQueueRef.current.length,
-                  emotionalState: lastAnalysis ? {
-                    tension: lastAnalysis.tension || 0,
-                    trust: lastAnalysis.trust || 0.5,
-                    energy: lastAnalysis.energy || 0.5,
-                    mode: lastAnalysis.mode || "calm"
-                  } : undefined
+                  emotionalState: lastAnalysis
+                    ? {
+                        tension: lastAnalysis.tension || 0,
+                        trust: lastAnalysis.trust || 0.5,
+                        energy: lastAnalysis.energy || 0.5,
+                        mode: lastAnalysis.mode || "calm",
+                      }
+                    : undefined,
                 };
                 const pause = conversationalPauses.getPause(ctx);
                 const execution = RuntimeManager.getInstance().evaluateDecision(
                   rawNext,
                   lastSpokenSentence,
                   0,
-                  pause.durationMs
+                  pause.durationMs,
                 );
 
                 if (execution) {
@@ -1403,7 +1662,9 @@ CRITICAL RULES:
                     setTimeout(doNext, 10);
                     return;
                   } else if (execution.action === "BACKCHANNEL") {
-                    console.log(`[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`);
+                    console.log(
+                      `[AURA] Decision layer routed to BACKCHANNEL. (${pause.durationMs}ms delay)`,
+                    );
                   }
                 }
 
@@ -1451,7 +1712,11 @@ CRITICAL RULES:
                 if (!token) continue;
                 if (!firstTokenReceived) {
                   firstTokenReceived = true;
-                  pushConversationTrace("LLM_FIRST_TOKEN", { provider: "openrouter", latencyMs: performance.now() - l4_start });
+                  firstTokenAt = performance.now();
+                  pushConversationTrace("LLM_FIRST_TOKEN", {
+                    provider: "openrouter",
+                    latencyMs: performance.now() - l4_start,
+                  });
                   stopThinkingAudio();
                   connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                 }
@@ -1460,7 +1725,10 @@ CRITICAL RULES:
                 // Dynamically strip internal system blocks (even while they are partially streaming)
                 let displayString = rawCompleteResponse;
                 displayString = displayString.replace(/\[SYSTEM DIRECTIVE[\s\S]*?(?:\]|$)/gi, "");
-                displayString = displayString.replace(/\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi, "");
+                displayString = displayString.replace(
+                  /\[ADAPTIVE MODULATION[\s\S]*?(?:\[END MODULATION\]|$)/gi,
+                  "",
+                );
                 displayString = displayString.replace(/\[CRITICAL:[\s\S]*?(?:\]|$)/gi, "");
                 displayString = displayString.replace(/\[SEED[\s\S]*?(?:\]|$)/gi, "");
                 displayString = displayString.replace(/\[NEW USER[\s\S]*?(?:\]|$)/gi, "");
@@ -1482,7 +1750,7 @@ CRITICAL RULES:
                 }
                 if (lastIndex > 0) currentBuffer = currentBuffer.slice(lastIndex);
                 tryStartTTS();
-              } catch { }
+              } catch {}
             }
           }
 
@@ -1495,6 +1763,14 @@ CRITICAL RULES:
           pushConversationTrace("LLM_RESPONSE_COMPLETE");
           tryStartTTS();
           success = true;
+          // Close out the physical provider call and the logical request.
+          endProviderCall(auraTelemetry, callId, {
+            status: "success",
+            ttftMs: firstTokenAt != null ? firstTokenAt - l4_start : undefined,
+            inputText: userText,
+            outputText: rawCompleteResponse,
+          });
+          auraTelemetry.endRequest(openrouterRequestId, { status: "success" });
           break;
         } catch (e: any) {
           clearTimeout(fetchTimeout);
@@ -1502,12 +1778,20 @@ CRITICAL RULES:
             // Barge-in or timeout aborted this fetch — treat as handled
             success = true;
             pushConversationTrace("LLM_ERROR", { error: "AbortError" });
+            endProviderCall(auraTelemetry, callId, { status: "aborted" });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
           pushConversationTrace("LLM_ERROR", { error: e.message });
           lastApiError = e;
-          
+          endProviderCall(auraTelemetry, callId, {
+            status: "error",
+            failureCode: String(e?.status || 500),
+            failureDetail: String(e?.message || ""),
+            inputText: userText,
+            outputText: rawCompleteResponse,
+          });
+
           if (e.status === 401 || e.status === 402 || e.status === 403) {
             break; // Short-circuit fallback loop on fatal account errors
           }
@@ -1515,11 +1799,14 @@ CRITICAL RULES:
       }
 
       if (!success) {
+        auraTelemetry.endRequest(openrouterRequestId, {
+          status: "error",
+        });
         let errorMsg = `All models failed. Attempted: ${attempted.join(", ")}`;
         if (lastApiError) {
           const status = lastApiError.status;
           const rawMsg = lastApiError.message || "Unknown error";
-          
+
           if (status === 401) {
             errorMsg = `OpenRouter couldn't authenticate the request.\n\n401 — ${rawMsg}`;
           } else if (status === 402) {
@@ -1556,251 +1843,284 @@ CRITICAL RULES:
   );
 
   // ── Start session ─────────────────────────────────────────────────
-  const startSession = useCallback(async (isUserInitiated = false) => {
-    pushConversationTrace("SESSION_STARTED");
-    const key = getOpenRouterKey();
-    if (!key || isInactive) {
-      if (!isInactive) setLastError("OpenRouter API Key is missing. Add it in Settings.");
-      if (!isInactive) setStatus("error");
-      return;
-    }
-
-    isSessionActiveRef.current = true;
-    setLastError(null);
-    stopSpeech();
-    stopRecognition();
-
-    // Resolve identity once
-    if (userIdRef.current === "local-user") {
-      userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
-    }
-
-    const storageManager = getStorageManager(userIdRef.current);
-
-    // Warm L2 cache, open mic, and fetch Memory Core in parallel
-    const [, , seedData] = await Promise.all([
-      prompts.warmL2Cache(),
-      setupMicAnalyser(),
-      storageManager.loadSeed(),
-    ]);
-    seedRef.current = seedData ? seedData.seed : undefined;
-    const lang = localStorage.getItem("aura_voice_language") || "hi-IN";
-
-    if (isUserInitiated) {
-      if (messagesRef.current.length === 0) {
-        console.log("[AURA] Cold start greeting triggered.");
-        const greetingText = "Hey, I'm AURA. What's your mind wandering through today?";
-        addMessages([{ role: "assistant", content: greetingText }]);
-        transcript_.addTurn(greetingText, false);
-        speakChunk(greetingText, lang, "normal", () => {
-          if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
-        });
-        return;
-      } else {
-        console.log("[AURA] Warm start greeting triggered.");
-        const warmPrompt = "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
-        processTurn(warmPrompt, key, lang, true);
+  const startSession = useCallback(
+    async (isUserInitiated = false) => {
+      pushConversationTrace("SESSION_STARTED");
+      const key = getOpenRouterKey();
+      if (!key || isInactive) {
+        if (!isInactive) setLastError("OpenRouter API Key is missing. Add it in Settings.");
+        if (!isInactive) setStatus("error");
         return;
       }
-    }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      isSessionActiveRef.current = true;
+      setLastError(null);
+      stopSpeech();
+      stopRecognition();
 
-    if (!SpeechRecognition) {
-      setLastError("Speech recognition not supported. Use Chrome.");
-      setStatus("error");
-      return;
-    }
+      // Resolve identity once
+      if (userIdRef.current === "local-user") {
+        userIdRef.current = await resolveUserId(getCredential("supabase_user_email") || undefined);
+      }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = languageManager.getState().responseLanguage || "hi-IN";
+      const storageManager = getStorageManager(userIdRef.current);
 
-    recognition.onstart = () => {
-      pushConversationTrace("STT_STARTED");
-      setStatus("listening");
-      setWords("Listening...");
-      errorRetryCountRef.current = 0;
-      startTracking();
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.onMicActive();
-      });
-    };
+      // Warm L2 cache, open mic, and fetch Memory Core in parallel
+      const [, , seedData] = await Promise.all([
+        prompts.warmL2Cache(),
+        setupMicAnalyser(),
+        storageManager.loadSeed(),
+      ]);
+      seedRef.current = seedData ? seedData.seed : undefined;
+      const lang = localStorage.getItem("aura_voice_language") || "hi-IN";
 
-    recognition.onspeechstart = () => {
-      turnNonceRef.current++;
-      conversationState.reportUserSpeaking();
-      import("@/music/MusicService").then(({ musicService }) => {
-        musicService.onUserSpeechStart();
-      });
-    };
-
-    recognition.onresult = async (event: any) => {
-      if (isSpeakingRef.current) return; // Ignore STT while TTS is playing to prevent echo
-
-      let interim = "";
-      let isFinal = false;
-      let finalText = "";
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          isFinal = true;
-          finalText += event.results[i][0].transcript;
+      if (isUserInitiated) {
+        if (messagesRef.current.length === 0) {
+          console.log("[AURA] Cold start greeting triggered.");
+          const greetingText = "Hey, I'm AURA. What's your mind wandering through today?";
+          addMessages([{ role: "assistant", content: greetingText }]);
+          transcript_.addTurn(greetingText, false);
+          speakChunk(greetingText, lang, "normal", () => {
+            if (isSessionActiveRef.current && startSessionRef.current) startSessionRef.current();
+          });
+          return;
         } else {
-          interim += event.results[i][0].transcript;
+          console.log("[AURA] Warm start greeting triggered.");
+          const warmPrompt =
+            "[SYSTEM NOTE]: The user just returned to the app and activated the microphone. Acknowledge them returning based on the previous conversation history (which you can see above), and ask if they are ready to continue. Do NOT wait for them to speak first.";
+          processTurn(warmPrompt, key, lang, true);
+          return;
         }
       }
 
-      pushConversationTrace(isFinal ? "TRANSCRIPT_FINAL" : "TRANSCRIPT_PARTIAL", { length: (isFinal ? finalText : interim).length });
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      if (!isFinal) {
-        if (interim) setWords((accumulatedTranscriptRef.current ? accumulatedTranscriptRef.current + " " : "") + interim);
+      if (!SpeechRecognition) {
+        setLastError("Speech recognition not supported. Use Chrome.");
+        setStatus("error");
         return;
       }
 
-      turnNonceRef.current++;
-      const localNonce = turnNonceRef.current;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = languageManager.getState().responseLanguage || "hi-IN";
 
-      const newText = finalText.trim();
-      if (!newText) return;
+      recognition.onstart = () => {
+        pushConversationTrace("STT_STARTED");
+        setStatus("listening");
+        setWords("Listening...");
+        errorRetryCountRef.current = 0;
+        startTracking();
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.onMicActive();
+        });
+      };
 
-      accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? " " : "") + newText;
-      const text = accumulatedTranscriptRef.current;
+      recognition.onspeechstart = () => {
+        turnNonceRef.current++;
+        conversationState.reportUserSpeaking();
+        import("@/music/MusicService").then(({ musicService }) => {
+          musicService.onUserSpeechStart();
+        });
+      };
 
-      const l1_start = performance.now();
-      stopTrackingAndAnalyze(text);
-      connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
-      console.log(
-        "%c🗣️ USER SAID (OpenRouter WebSpeech): " + text,
-        "color: #10b981; font-weight: bold; font-size: 13px;",
-      );
+      recognition.onresult = async (event: any) => {
+        if (isSpeakingRef.current) return; // Ignore STT while TTS is playing to prevent echo
 
-      setStatus("thinking");
-      setWords(text);
-      
-      const lastFewTurns = transcript_.transcriptRef.current.slice(-3).map(t => t.text).join(" ");
-      const wordsContext = lastFewTurns.split(/\s+/).filter(w => w.length > 2);
-      languageManager.setRecentContext(wordsContext);
-      
-      languageManager.observe({
-        text,
-        source: "transcription",
-        timestamp: Date.now()
-      });
-      
-      behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
+        let interim = "";
+        let isFinal = false;
+        let finalText = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            isFinal = true;
+            finalText += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
 
-      // Adaptive turn detection: compute personalized response delay
-      const lastAnalysis = behavior.lastAnalysisRef.current;
-      const emotionalIntensity = lastAnalysis?.intensity || 0;
-      const turnResult = adaptiveTurn.calculateTurnConfidence(
-        400, // Initial silence from STT onresult
-        text,
-        emotionalIntensity,
-        { tension: lastAnalysis?.tension || 0, trust: lastAnalysis?.trust || 0.3 },
-      );
-      const adaptiveDelay = turnResult.responseDelay;
-      console.log(
-        `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence})`,
-        "color: #8b5cf6; font-weight: bold;",
-      );
-      adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
-      await new Promise((r) => setTimeout(r, adaptiveDelay));
+        pushConversationTrace(isFinal ? "TRANSCRIPT_FINAL" : "TRANSCRIPT_PARTIAL", {
+          length: (isFinal ? finalText : interim).length,
+        });
 
-      if (turnNonceRef.current !== localNonce) {
-        console.log("%c⏸️ Turn cancelled because user resumed speaking.", "color: #f59e0b;");
-        return; // User interrupted / continued speaking
-      }
+        if (!isFinal) {
+          if (interim)
+            setWords(
+              (accumulatedTranscriptRef.current ? accumulatedTranscriptRef.current + " " : "") +
+                interim,
+            );
+          return;
+        }
 
-      accumulatedTranscriptRef.current = ""; // Reset for next fully completed turn
-      languageManager.resetBuffer();
-      adaptiveTurn.markAuraSpeaking();
-      conversationState.reportUserFinished();
-      await processTurn(text, key, lang);
-    };
+        turnNonceRef.current++;
+        const localNonce = turnNonceRef.current;
 
-    recognition.onerror = (event: any) => {
-      const errorType = event.error;
-      pushConversationTrace("STT_ERROR", { error: errorType });
-      if (errorType !== "no-speech") {
-        // MOBILE FIX: Retry on transient mobile errors (network, aborted)
-        if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
-          errorRetryCountRef.current += 1;
-          if (errorRetryCountRef.current > 3) {
-            console.error(`[OpenRouter STT] Max retries (3) reached for error "${errorType}". Forcing stop.`);
-            setLastError(`Listening failed: ${errorType}`);
-            setStatus("error");
+        const newText = finalText.trim();
+        if (!newText) return;
+
+        accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? " " : "") + newText;
+        const text = accumulatedTranscriptRef.current;
+
+        const l1_start = performance.now();
+        stopTrackingAndAnalyze(text);
+        connectionState.updateLatency({ l1_sensing_ms: performance.now() - l1_start });
+        console.log(
+          "%c🗣️ USER SAID (OpenRouter WebSpeech): " + text,
+          "color: #10b981; font-weight: bold; font-size: 13px;",
+        );
+
+        setStatus("thinking");
+        setWords(text);
+
+        const lastFewTurns = transcript_.transcriptRef.current
+          .slice(-3)
+          .map((t) => t.text)
+          .join(" ");
+        const wordsContext = lastFewTurns.split(/\s+/).filter((w) => w.length > 2);
+        languageManager.setRecentContext(wordsContext);
+
+        languageManager.observe({
+          text,
+          source: "transcription",
+          timestamp: Date.now(),
+        });
+
+        behavior.fireSpeculative(text, sessionIdRef.current, userIdRef.current);
+
+        // Adaptive turn detection: compute personalized response delay
+        const lastAnalysis = behavior.lastAnalysisRef.current;
+        const emotionalIntensity = lastAnalysis?.intensity || 0;
+        const turnResult = adaptiveTurn.calculateTurnConfidence(
+          400, // Initial silence from STT onresult
+          text,
+          emotionalIntensity,
+          { tension: lastAnalysis?.tension || 0, trust: lastAnalysis?.trust || 0.3 },
+        );
+        const adaptiveDelay = turnResult.responseDelay;
+        console.log(
+          `%c⏱️ ADAPTIVE DELAY: ${adaptiveDelay}ms (mode=${turnResult.conversationMode}, conf=${turnResult.confidence})`,
+          "color: #8b5cf6; font-weight: bold;",
+        );
+        adaptiveTurn.updateProfile({ wpm: liveStats.tone === "Normal" ? 140 : 160 });
+        await new Promise((r) => setTimeout(r, adaptiveDelay));
+
+        if (turnNonceRef.current !== localNonce) {
+          console.log("%c⏸️ Turn cancelled because user resumed speaking.", "color: #f59e0b;");
+          return; // User interrupted / continued speaking
+        }
+
+        accumulatedTranscriptRef.current = ""; // Reset for next fully completed turn
+        languageManager.resetBuffer();
+        adaptiveTurn.markAuraSpeaking();
+        conversationState.reportUserFinished();
+        await processTurn(text, key, lang);
+      };
+
+      recognition.onerror = (event: any) => {
+        const errorType = event.error;
+        pushConversationTrace("STT_ERROR", { error: errorType });
+        if (errorType !== "no-speech") {
+          // MOBILE FIX: Retry on transient mobile errors (network, aborted)
+          if ((errorType === "network" || errorType === "aborted") && isSessionActiveRef.current) {
+            errorRetryCountRef.current += 1;
+            if (errorRetryCountRef.current > 3) {
+              console.error(
+                `[OpenRouter STT] Max retries (3) reached for error "${errorType}". Forcing stop.`,
+              );
+              setLastError(`Listening failed: ${errorType}`);
+              setStatus("error");
+              return;
+            }
+
+            const backoff = Math.min(200 * Math.pow(2, errorRetryCountRef.current - 1), 2000);
+            console.warn(
+              `[OpenRouter STT] Transient error "${errorType}", retrying in ${backoff}ms (attempt ${errorRetryCountRef.current})...`,
+            );
+
+            setTimeout(() => {
+              if (isSessionActiveRef.current && recognitionRef.current) {
+                // MOBILE FIX: Resume AudioContext before restarting recognition
+                if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+                  MicrophoneCoordinator.getInstance()
+                    .resumeAudioContext()
+                    .catch(() => {});
+                }
+                safeRecognitionStart(recognitionRef.current, true);
+              }
+            }, backoff);
+            return;
+          }
+          setLastError(`Listening failed: ${errorType}`);
+          setStatus("error");
+        } else if (isSessionActiveRef.current) {
+          errorRetryCountRef.current = 0;
+          safeRecognitionStart(recognition, true);
+        } else {
+          setStatus("idle");
+        }
+      };
+
+      recognition.onend = () => {
+        pushConversationTrace("STT_ENDED");
+        // MOBILE FIX: Resume AudioContext if it got suspended during recognition
+        if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+          MicrophoneCoordinator.getInstance()
+            .resumeAudioContext()
+            .catch(() => {});
+        }
+        if (isSessionActiveRef.current && statusRef.current === "listening") {
+          safeRecognitionStart(recognition, true);
+        } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
+          setStatus("idle");
+        }
+      };
+
+      recognitionRef.current = recognition;
+      safeRecognitionStart(recognition);
+
+      // MOBILE FIX: Recover from tab suspension / screen lock
+      const handleVisibility = () => {
+        if (document.visibilityState === "visible" && isSessionActiveRef.current) {
+          const track = MicrophoneCoordinator.getInstance().getStream()?.getTracks()[0];
+          if (track && track.readyState === "ended") {
+            console.warn(
+              "[Voice] Hardware mic track ended (likely revoked in background). Restarting audio pipeline.",
+            );
+            teardownMicAnalyser();
+            setupMicAnalyser().then(() => {
+              if (statusRef.current === "listening" && recognitionRef.current) {
+                safeRecognitionStart(recognitionRef.current, true);
+              }
+            });
             return;
           }
 
-          const backoff = Math.min(200 * Math.pow(2, errorRetryCountRef.current - 1), 2000);
-          console.warn(`[OpenRouter STT] Transient error "${errorType}", retrying in ${backoff}ms (attempt ${errorRetryCountRef.current})...`);
-
-          setTimeout(() => {
-            if (isSessionActiveRef.current && recognitionRef.current) {
-              // MOBILE FIX: Resume AudioContext before restarting recognition
-              if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
-                MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
-              }
-              safeRecognitionStart(recognitionRef.current, true);
-            }
-          }, backoff);
-          return;
+          if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
+            MicrophoneCoordinator.getInstance()
+              .resumeAudioContext()
+              .catch(() => {});
+          }
+          if (statusRef.current === "listening" && recognitionRef.current) {
+            safeRecognitionStart(recognitionRef.current, true);
+          }
         }
-        setLastError(`Listening failed: ${errorType}`);
-        setStatus("error");
-      } else if (isSessionActiveRef.current) {
-        errorRetryCountRef.current = 0;
-        safeRecognitionStart(recognition, true);
-      } else {
-        setStatus("idle");
-      }
-    };
-
-    recognition.onend = () => {
-      pushConversationTrace("STT_ENDED");
-      // MOBILE FIX: Resume AudioContext if it got suspended during recognition
-      if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
-        MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
-      }
-      if (isSessionActiveRef.current && statusRef.current === "listening") {
-        safeRecognitionStart(recognition, true);
-      } else if (!isSessionActiveRef.current && statusRef.current === "listening") {
-        setStatus("idle");
-      }
-    };
-
-    recognitionRef.current = recognition;
-    safeRecognitionStart(recognition);
-
-    // MOBILE FIX: Recover from tab suspension / screen lock
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible" && isSessionActiveRef.current) {
-        const track = MicrophoneCoordinator.getInstance().getStream()?.getTracks()[0];
-        if (track && track.readyState === "ended") {
-          console.warn("[Voice] Hardware mic track ended (likely revoked in background). Restarting audio pipeline.");
-          teardownMicAnalyser();
-          setupMicAnalyser().then(() => {
-            if (statusRef.current === "listening" && recognitionRef.current) {
-              safeRecognitionStart(recognitionRef.current, true);
-            }
-          });
-          return;
-        }
-
-        if (!MicrophoneCoordinator.getInstance().isAudioContextAlive()) {
-          MicrophoneCoordinator.getInstance().resumeAudioContext().catch(() => { });
-        }
-        if (statusRef.current === "listening" && recognitionRef.current) {
-          safeRecognitionStart(recognitionRef.current, true);
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    (recognitionRef as any).__visCleanup = () =>
-      document.removeEventListener("visibilitychange", handleVisibility);
-  }, [behavior, prompts, processTurn, setupMicAnalyser, teardownMicAnalyser, adaptiveTurn, liveStats]);
+      };
+      document.addEventListener("visibilitychange", handleVisibility);
+      (recognitionRef as any).__visCleanup = () =>
+        document.removeEventListener("visibilitychange", handleVisibility);
+    },
+    [
+      behavior,
+      prompts,
+      processTurn,
+      setupMicAnalyser,
+      teardownMicAnalyser,
+      adaptiveTurn,
+      liveStats,
+    ],
+  );
 
   // ── End session ───────────────────────────────────────────────────
   const endSession = useCallback(async () => {
@@ -1840,7 +2160,7 @@ CRITICAL RULES:
             storageManager.initializeRemoteAdapter();
             await storageManager.save(sessionData);
             await storageManager.saveSeed(newSeed);
-          } catch { }
+          } catch {}
         }
 
         saveSyncMeta(userIdRef.current, {
@@ -1898,7 +2218,7 @@ CRITICAL RULES:
       },
       onRequestNextChunk: () => {
         // Triggered if queue is empty during playback
-      }
+      },
     });
   }, [isInactive, orchestrator, setupMicAnalyser]);
 
@@ -1917,7 +2237,7 @@ CRITICAL RULES:
       },
       triggerAudioRecovery: () => {
         setupMicAnalyser();
-      }
+      },
     });
   }, [isInactive, orchestrator, setupMicAnalyser, speakChunk, stopRecognition]);
 

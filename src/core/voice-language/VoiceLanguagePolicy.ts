@@ -11,17 +11,25 @@ export class VoiceLanguagePolicy {
    */
   public determineResponseLanguage(
     resolvedState: Omit<ResolvedVoiceLanguage, "responseLanguage">,
-    previousResponseLanguage: string
+    previousResponseLanguage: string,
   ): string {
     if (resolvedState.classification === "UNCERTAIN") {
       return previousResponseLanguage || resolvedState.preferredLanguage;
     }
 
-    if (resolvedState.classification === "MIXED_LANGUAGE" && resolvedState.stable && resolvedState.dominantLanguage) {
+    if (
+      resolvedState.classification === "MIXED_LANGUAGE" &&
+      resolvedState.stable &&
+      resolvedState.dominantLanguage
+    ) {
       return resolvedState.dominantLanguage;
     }
 
-    if (resolvedState.classification === "SINGLE_LANGUAGE" && resolvedState.stable && resolvedState.detectedLanguage) {
+    if (
+      resolvedState.classification === "SINGLE_LANGUAGE" &&
+      resolvedState.stable &&
+      resolvedState.detectedLanguage
+    ) {
       return resolvedState.detectedLanguage;
     }
 
