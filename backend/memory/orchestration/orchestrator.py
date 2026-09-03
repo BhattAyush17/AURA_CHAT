@@ -51,6 +51,7 @@ class MemoryOrchestrator:
         self.retriever = MemoryRetriever(self.store, cache=cache)
         self._cache = cache
         self._degradation = degradation
+        self._user_locks = {}
 
     # ── circuit helpers ──────────────────────────────────────────────
     def _circuit_open(self) -> bool:
@@ -125,9 +126,11 @@ class MemoryOrchestrator:
             records[0].embedding = embed.vector
         provider = embed.provider
 
-        result = await self._with_retry(
-            lambda: self.store.upsert(records), stage="memory.write", cid=cid
-        )
+        lock = self._user_locks.setdefault(user_id, asyncio.Lock())
+        async with lock:
+            result = await self._with_retry(
+                lambda: self.store.upsert(records), stage="memory.write", cid=cid
+            )
         if isinstance(result, StoreError):
             self._record(False)
             memory_telemetry.emit(
