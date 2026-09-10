@@ -14,7 +14,9 @@ export class ContinuitySignals {
     const now = Date.now();
 
     // Topic recurrence: user revisits a topic mentioned in earlier turns
-    const topicKeywords = lower.split(/\s+/).filter((w) => w.length > 4 && !["about", "there", "their", "which", "where"].includes(w));
+    const topicKeywords = lower
+      .split(/\s+/)
+      .filter((w) => w.length > 4 && !["about", "there", "their", "which", "where"].includes(w));
     const earlierTexts = recentHistory
       .filter((t) => t.isUser && t.text.toLowerCase() !== lower)
       .map((t) => t.text.toLowerCase());

@@ -11,6 +11,7 @@ import { useBehaviorInjection } from "./useBehaviorInjection";
 import { conversationState } from "@/runtime/ConversationStateManager";
 import { ConversationRuntime } from "@/runtime/conversationRuntime/ConversationRuntime";
 import { RuntimeManager } from "@/runtime/RuntimeManager";
+import { memoryGateway } from "@/lib/memory-gateway";
 import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
 import { GeminiVoiceLanguageAdapter } from "@/providers/gemini-next/GeminiVoiceLanguageAdapter";
@@ -98,6 +99,8 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   const prompts = usePromptOrchestrator();
   const behavior = useBehaviorInjection();
 
+  const sendTextRef = useRef<((text: string) => void) | null>(null);
+
   const handleToolCall = useCallback(async (toolCall: any) => {
     try {
       console.log(`[AURA] 🛠️ Executing Action: ${toolCall.name}`, toolCall.args);
@@ -113,7 +116,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   }, []);
 
   const handleTurnComplete = useCallback(
-    (userText: string, modelText: string) => {
+    async (userText: string, modelText: string) => {
       // Begin a per-turn request and link the running Gemini call to it.
       const turnId = transcript_.transcriptRef.current.length
         ? `t_${transcript_.transcriptRef.current.length}`
@@ -132,24 +135,54 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         ConversationRuntime.getInstance().registerUserTurn(finalUserText);
         conversationState.reportUserFinished();
 
-        // Async Cognitive Sync: Let RuntimeManager process the turn in the background
-        // This saves memories and updates the AdaptiveCommunicationProfile without blocking TTFB
-        setTimeout(() => {
-          RuntimeManager.getInstance()
-            .processCognitiveTurn(
-              finalUserText,
-              behavior.lastAnalysisRef.current,
-              modeRef.current,
-              browserTemporalAtmosphere(),
-            )
-            .catch((e) => {
-              console.warn("[AURA] Async cognitive turn processing failed:", e);
-            });
-        }, 0);
+        // Synchronous Cognitive Sync: Let RuntimeManager process the turn deterministically
+        // This saves memories and updates the AdaptiveCommunicationProfile within the turn lifecycle
+        try {
+          const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
+            finalUserText,
+            behavior.lastAnalysisRef.current,
+            modeRef.current,
+            browserTemporalAtmosphere(),
+          );
+
+          const executivePlan = RuntimeManager.getInstance().getLastExecutivePrompt();
+          if (sendTextRef.current) {
+            const systemDirectives = [];
+            if (cognitiveBlock)
+              systemDirectives.push(`[SYSTEM: COGNITIVE BLOCK]\n${cognitiveBlock}`);
+            if (executivePlan)
+              systemDirectives.push(`[SYSTEM: EXECUTIVE DIRECTIVE]\n${executivePlan}`);
+            if (systemDirectives.length > 0) {
+              sendTextRef.current(systemDirectives.join("\n\n"));
+            }
+          }
+        } catch (e) {
+          console.warn("[AURA] Cognitive turn processing failed:", e);
+        }
       }
       if (modelText) {
         transcript_.addTurn(modelText, false);
         conversationState.reportSpeakingFinished();
+
+        // ── Memory Return Path (Bug A) ──
+        if (userText) {
+          const lastAnalysis = behavior.lastAnalysisRef.current;
+          const currentEmotionalState: Record<string, number> = {
+            frustration: lastAnalysis?.frustration || 0,
+            playfulness: lastAnalysis?.playfulness || 0,
+            vulnerability: lastAnalysis?.vulnerability || 0,
+            trust: lastAnalysis?.trust || 0,
+            anxiety: lastAnalysis?.anxiety || 0,
+          };
+          const turnContext = `User: ${userText}\nAURA: ${modelText}`;
+          memoryGateway.storeMemory(
+            turnContext,
+            userIdRef.current,
+            currentEmotionalState,
+            undefined,
+            sessionIdRef.current ?? undefined,
+          );
+        }
       }
       musicService.onAuraSpeechEnd();
       languageManager.resetBuffer();
@@ -216,6 +249,10 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       }
     },
   });
+
+  useEffect(() => {
+    sendTextRef.current = adapter.sendText;
+  }, [adapter.sendText]);
 
   // Start Session
   const startSession = useCallback(async () => {

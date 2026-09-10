@@ -255,7 +255,7 @@ export class WebAudioPerceptionProvider implements MusicPerceptionProvider {
     if (this.audioContext.state === "suspended") {
       perceptionTelemetry.updateMobileMusicAudioContext((prev) => ({
         ...prev,
-        resumeRequested: prev.resumeRequested + 1,
+        resumeRequested: (prev.resumeRequested ?? 0) + 1,
         lastResumeReason: "playback_started",
       }));
       recordTimeline("audio_context_resume_requested", "auto from DSP loop");
@@ -264,7 +264,7 @@ export class WebAudioPerceptionProvider implements MusicPerceptionProvider {
         .then(() => {
           perceptionTelemetry.updateMobileMusicAudioContext((prev) => ({
             ...prev,
-            resumeResolved: prev.resumeResolved + 1,
+            resumeResolved: (prev.resumeResolved ?? 0) + 1,
           }));
           recordTimeline("audio_context_resume_resolved");
           recordTimeline("audio_context_state_running");
@@ -280,7 +280,7 @@ export class WebAudioPerceptionProvider implements MusicPerceptionProvider {
         .catch((err) => {
           perceptionTelemetry.updateMobileMusicAudioContext((prev) => ({
             ...prev,
-            resumeRejected: prev.resumeRejected + 1,
+            resumeRejected: (prev.resumeRejected ?? 0) + 1,
           }));
           recordTimeline(
             "audio_context_resume_rejected",
@@ -462,7 +462,7 @@ export class WebAudioPerceptionProvider implements MusicPerceptionProvider {
       const sig = this.pendingSignals.shift() || null;
       if (sig) {
         perceptionTelemetry.updateMobileMusicPerception({
-          signalsOut: perceptionTelemetry.getMobileMusicPipeline().perception.signalsOut + 1,
+          signalsOut: (perceptionTelemetry.getMobileMusicPipeline().perception.signalsOut ?? 0) + 1,
           lastSignalAt: Date.now(),
           lastSignalType: sig.type,
         });

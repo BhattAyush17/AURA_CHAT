@@ -1,7 +1,4 @@
-import {
-  boundCognitiveBlock,
-  COGNITIVE_BLOCK_BUDGET,
-} from "../src/lib/cognitive-budget";
+import { boundCognitiveBlock, COGNITIVE_BLOCK_BUDGET } from "../src/lib/cognitive-budget";
 
 let pass = 0;
 let fail = 0;
@@ -18,8 +15,10 @@ function check(name: string, cond: boolean, detail = "") {
 // Build a realistic cognitive block with sections in assembly order.
 function buildBlock(opts: { bigMemory?: boolean } = {}) {
   const memory = opts.bigMemory
-    ? Array.from({ length: 60 }, (_, i) => `- memory line number ${i} with some realistic detail content here`)
-        .join("\n")
+    ? Array.from(
+        { length: 60 },
+        (_, i) => `- memory line number ${i} with some realistic detail content here`,
+      ).join("\n")
     : "- User loves lo-fi hip hop";
   return [
     "[COGNITIVE ORCHESTRATION]\nstate: Neutral\nintent: Answer\n[/COGNITIVE ORCHESTRATION]",
@@ -77,8 +76,7 @@ check("under-budget returns byte-identical", boundCognitiveBlock(small) === smal
 //    Build starting from `base` and append ONLY the expression block; budget is
 //    set just above base length so removing the one appended block brings it under.
 const base = buildBlock();
-const exprAppend =
-  "\n[HUMAN EXPRESSION ARCHITECTURE]\nxxx\n[/HUMAN EXPRESSION ARCHITECTURE]";
+const exprAppend = "\n[HUMAN EXPRESSION ARCHITECTURE]\nxxx\n[/HUMAN EXPRESSION ARCHITECTURE]";
 const over1 = base + exprAppend;
 const exprLen = exprAppend.length;
 const budgetSmall = base.length + 5; // > base, < over1; one removal suffices
@@ -109,25 +107,29 @@ check(
 );
 check(
   "heavily-oversized preserves critical sections",
-  trimmedBig.includes("[COGNITIVE ORCHESTRATION]") &&
-    trimmedBig.includes("[ADAPTIVE ATTENTION]"),
+  trimmedBig.includes("[COGNITIVE ORCHESTRATION]") && trimmedBig.includes("[ADAPTIVE ATTENTION]"),
 );
 check(
   "heavily-oversized retained memory or dropped it cleanly",
-  !trimmedBig.includes("[/RELEVANT MEMORY]") ||
-    trimmedBig.includes("[RELEVANT MEMORY]"),
+  !trimmedBig.includes("[/RELEVANT MEMORY]") || trimmedBig.includes("[RELEVANT MEMORY]"),
 );
 check("heavily-oversized no malformed tags", tagCheck(trimmedBig, "big"));
 
 // 4. No malformed closing/opening tags on the canonical block after binding.
-check("canonical bound result has no malformed tags", tagCheck(boundCognitiveBlock(big), "canonical"));
+check(
+  "canonical bound result has no malformed tags",
+  tagCheck(boundCognitiveBlock(big), "canonical"),
+);
 
 // 5. Empty/null handling.
 check("null returns empty", boundCognitiveBlock(null) === "");
 check("undefined returns empty", boundCognitiveBlock(undefined) === "");
 
 // 6. Critical-only oversized (pathological) still yields a <budget result with clean tags.
-const critOnly = Array.from({ length: 500 }, (_, i) => `[COGNITIVE ORCHESTRATION]\n${i}\n[/COGNITIVE ORCHESTRATION]`).join("\n");
+const critOnly = Array.from(
+  { length: 500 },
+  (_, i) => `[COGNITIVE ORCHESTRATION]\n${i}\n[/COGNITIVE ORCHESTRATION]`,
+).join("\n");
 const trimmedCrit = boundCognitiveBlock(critOnly, 600);
 check("pathological critical-only trims under budget", trimmedCrit.length < 600);
 

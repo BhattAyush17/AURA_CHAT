@@ -25,11 +25,21 @@ export class SpeechCoordinator {
     this.scheduler.setContext(ctx, destination);
     this.audioSupervisor.monitor(ctx);
     this.isContextInitialized = true;
+
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+      navigator.mediaSession.setActionHandler("pause", () => this.stopPlaying());
+      navigator.mediaSession.setActionHandler("stop", () => this.flush());
+    }
   }
 
   public registerWebSpeech(utterance: SpeechSynthesisUtterance) {
     this.stopPlaying(); // Cancel in-flight audio only; keep pending sentence buffers
     this.activeUtterance = utterance;
+
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: "AURA", artist: "AURA Voice" });
+    }
+
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.speak(utterance);
     }
@@ -68,6 +78,12 @@ export class SpeechCoordinator {
     try {
       const audioBuffer = await this.decoder.decodeRawBytes(rawBytes);
       if (audioBuffer) {
+        if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: "AURA",
+            artist: "AURA Voice",
+          });
+        }
         this.scheduler.scheduleBuffer(audioBuffer, onEnded);
       } else {
         onEnded?.();

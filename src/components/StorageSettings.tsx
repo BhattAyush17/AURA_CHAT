@@ -892,107 +892,118 @@ export function StorageSettings({ onClose }: { onClose?: () => void }) {
               <p className="text-xs text-muted-foreground text-center py-4">
                 No conversations match your search.
               </p>
-            ) : (() => {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const yesterday = new Date(today);
-              yesterday.setDate(yesterday.getDate() - 1);
+            ) : (
+              (() => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
 
-              const groups: Record<string, ConversationArchive[]> = {};
-              for (const conv of archiveConversations) {
-                const date = new Date(conv.updatedAt);
-                date.setHours(0, 0, 0, 0);
-                const key = date.getTime();
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(conv);
-              }
+                const groups: Record<string, ConversationArchive[]> = {};
+                for (const conv of archiveConversations) {
+                  const date = new Date(conv.updatedAt);
+                  date.setHours(0, 0, 0, 0);
+                  const key = date.getTime();
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(conv);
+                }
 
-              const formatGroupHeader = (date: Date) => {
-                if (date.getTime() === today.getTime()) return "TODAY";
-                if (date.getTime() === yesterday.getTime()) return "YESTERDAY";
-                return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }).toUpperCase();
-              };
+                const formatGroupHeader = (date: Date) => {
+                  if (date.getTime() === today.getTime()) return "TODAY";
+                  if (date.getTime() === yesterday.getTime()) return "YESTERDAY";
+                  return date
+                    .toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                    .toUpperCase();
+                };
 
-              return (
-                <div className="mt-2 space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
-                  {Object.entries(groups)
-                    .sort(([a], [b]) => Number(b) - Number(a))
-                    .map(([dateKey, convs]) => (
-                      <div key={dateKey}>
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                          {formatGroupHeader(new Date(Number(dateKey)))}
-                        </p>
-                        <div className="space-y-1">
-                          {convs.map((conv) => (
-                            <div
-                              key={conv.conversationId}
-                              className="flex items-center justify-between p-2 border border-border/50 rounded bg-background hover:bg-muted/30 transition-colors"
-                            >
-                              <button
-                                onClick={() => handleOpenConversation(conv)}
-                                className="flex-1 min-w-0 text-left"
+                return (
+                  <div className="mt-2 space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
+                    {Object.entries(groups)
+                      .sort(([a], [b]) => Number(b) - Number(a))
+                      .map(([dateKey, convs]) => (
+                        <div key={dateKey}>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                            {formatGroupHeader(new Date(Number(dateKey)))}
+                          </p>
+                          <div className="space-y-1">
+                            {convs.map((conv) => (
+                              <div
+                                key={conv.conversationId}
+                                className="flex items-center justify-between p-2 border border-border/50 rounded bg-background hover:bg-muted/30 transition-colors"
                               >
-                                <p className="text-xs font-medium text-foreground truncate">{conv.title}</p>
-                                <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {new Date(conv.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  </span>
-                                  <span>{conv.messages.length} messages</span>
-                                </div>
-                              </button>
-                              <div className="flex items-center gap-1 shrink-0 ml-2">
                                 <button
                                   onClick={() => handleOpenConversation(conv)}
-                                  className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
-                                  title="Open"
+                                  className="flex-1 min-w-0 text-left"
                                 >
-                                  <FolderOpen className="w-4 h-4" />
-                                </button>
-                                <div className="relative group">
-                                  <button
-                                    className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
-                                    title="Export"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <div className="absolute right-0 top-full mt-1 bg-background border border-border rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[100px]">
-                                    <button
-                                      onClick={() => handleExportConversation(conv, "json")}
-                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
-                                    >
-                                      <FileText className="w-3 h-3" /> JSON
-                                    </button>
-                                    <button
-                                      onClick={() => handleExportConversation(conv, "markdown")}
-                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
-                                    >
-                                      <FileText className="w-3 h-3" /> Markdown
-                                    </button>
-                                    <button
-                                      onClick={() => handleExportConversation(conv, "txt")}
-                                      className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
-                                    >
-                                      <FileText className="w-3 h-3" /> TXT
-                                    </button>
+                                  <p className="text-xs font-medium text-foreground truncate">
+                                    {conv.title}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {new Date(conv.updatedAt).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                    <span>{conv.messages.length} messages</span>
                                   </div>
-                                </div>
-                                <button
-                                  onClick={() => handleDeleteArchiveConversation(conv.conversationId)}
-                                  className="p-1.5 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-4 h-4" />
                                 </button>
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  <button
+                                    onClick={() => handleOpenConversation(conv)}
+                                    className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                                    title="Open"
+                                  >
+                                    <FolderOpen className="w-4 h-4" />
+                                  </button>
+                                  <div className="relative group">
+                                    <button
+                                      className="p-1.5 text-foreground/70 hover:text-foreground hover:bg-foreground/10 rounded transition-colors"
+                                      title="Export"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <div className="absolute right-0 top-full mt-1 bg-background border border-border rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[100px]">
+                                      <button
+                                        onClick={() => handleExportConversation(conv, "json")}
+                                        className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                      >
+                                        <FileText className="w-3 h-3" /> JSON
+                                      </button>
+                                      <button
+                                        onClick={() => handleExportConversation(conv, "markdown")}
+                                        className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                      >
+                                        <FileText className="w-3 h-3" /> Markdown
+                                      </button>
+                                      <button
+                                        onClick={() => handleExportConversation(conv, "txt")}
+                                        className="w-full px-3 py-1.5 text-xs text-foreground hover:bg-muted flex items-center gap-2 text-left"
+                                      >
+                                        <FileText className="w-3 h-3" /> TXT
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      handleDeleteArchiveConversation(conv.conversationId)
+                                    }
+                                    className="p-1.5 text-red-500/70 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                </div>
-              );
-            })()}
+                      ))}
+                  </div>
+                );
+              })()
+            )}
           </>
         )}
       </div>

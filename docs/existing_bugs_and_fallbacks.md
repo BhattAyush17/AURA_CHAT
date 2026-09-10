@@ -2,9 +2,19 @@
 
 ## Current Status: ✅ All Regressions + Hardening Complete
 
-As of the 2026-05-19 production hardening pass. All 8 regressions + 12 hardening items resolved.
+As of the 2026-09-10 production hardening pass. All regressions, provider parity, and perceptual wiring items resolved.
 
-### Regression Audit Log (2026-05-19 — All Resolved)
+### Regression Audit Log (2026-09-10 — All Resolved)
+
+---
+
+### [BUG-R09] | RESOLVED ✅
+
+- **Target:** `src/core/useVoiceOrchestrator.ts -> useEffect mounting hook`
+- **Pipeline Affected:** Perception Layer / SenseManager
+- **Severity:** High (`SenseManager.collectAllContext()` returned empty array)
+- **Core Issue:** `SenseManager.getInstance().initialize()` was missing from the canonical frontend boot sequence, leaving senses in a dormant state.
+- **Fix Applied:** Bound `await SenseManager.getInstance().initialize()` asynchronously within the root mounting `useEffect` of `useVoiceOrchestrator.ts`.
 
 ---
 

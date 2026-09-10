@@ -31,6 +31,22 @@ export class RuntimeTelemetry {
     else console.log(`[Telemetry] ${e.subsystem}:`, e.data);
   }
 
+  public trackAudioSuspended(reason: string) {
+    this.logEvent({
+      subsystem: "AudioRuntime",
+      severity: "warning",
+      data: { event: "AudioSuspended", reason },
+    });
+  }
+
+  public trackWakeLockAcquired(status: boolean) {
+    this.logEvent({
+      subsystem: "AudioRuntime",
+      severity: "info",
+      data: { event: "WakeLockAcquired", status },
+    });
+  }
+
   public generateDashboard() {
     console.groupCollapsed("[Unified Runtime Dashboard]");
     console.table(this.events);

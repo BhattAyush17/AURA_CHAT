@@ -24,6 +24,8 @@ import { memoryGateway } from "@/lib/memory-gateway";
 import { getCurrentUserId } from "@/lib/user-identity";
 import { ConversationExecutive } from "@/executive/ConversationExecutive";
 import { buildConversationContext } from "@/executive/ConversationContext";
+import { getSocialCognitionEngine } from "./socialCognition/SocialCognitionEngine";
+import type { SocialDecisionObject } from "./socialCognition/SocialDecision";
 import { playbackState } from "@/music/PlaybackState";
 import {
   evaluateSocialContext,
@@ -157,6 +159,7 @@ export class RuntimeManager {
     mode: string = "adaptive",
     atmosphere: AtmosphereContext | null = null,
     turnSignals: { wasInterruption?: boolean; silenceDurationMs?: number } = {},
+    sessionId?: string,
   ): Promise<string> {
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
@@ -179,10 +182,12 @@ export class RuntimeManager {
     const userId = getCurrentUserId();
     const emotionalState = this.emotionalStateOf(backendBehavior);
     const retrievedMemories = await memoryGateway.retrieveMemories(text, userId, emotionalState);
-    
-    const stableFacts = retrievedMemories.filter(m => m.metadata?.tier === "stable").map(m => m.content);
-    const recentAndCurrent = retrievedMemories.filter(m => m.metadata?.tier !== "stable");
-    
+
+    const stableFacts = retrievedMemories
+      .filter((m) => m.metadata?.tier === "stable")
+      .map((m) => m.content);
+    const recentAndCurrent = retrievedMemories.filter((m) => m.metadata?.tier !== "stable");
+
     const ctx = buildConversationContext({
       input: {
         text,
@@ -192,13 +197,13 @@ export class RuntimeManager {
         languageMode: "unknown",
       },
       memory: {
-        retrieved: recentAndCurrent.map(m => m.content),
-        relevanceScores: recentAndCurrent.map(m => m.similarity ?? 1),
+        retrieved: recentAndCurrent.map((m) => m.content),
+        relevanceScores: recentAndCurrent.map((m) => m.similarity ?? 1),
         hasPersonalHistory: retrievedMemories.length > 0,
         sessionTurn: this.conversationRuntime.getState().turnCount,
       },
       userIdentity: {
-        stableFacts: stableFacts
+        stableFacts: stableFacts,
       },
       timing: {
         turnCount: this.conversationRuntime.getState().turnCount,
@@ -207,7 +212,7 @@ export class RuntimeManager {
           : {}),
       },
       atmosphere,
-      behaviorAnalysis: backendBehavior
+      behaviorAnalysis: backendBehavior,
     });
 
     // Generate Execution Plan
@@ -220,6 +225,34 @@ export class RuntimeManager {
     this.lastAtmosphereDecision = getAdaptiveAttentionLayer().assessAtmosphere(text, atmosphere);
     this.lastExecutivePrompt = this.conversationExecutive.translatePlanToPrompt(plan);
 
+    // 3.75 Social Cognition — the "how to be present" layer. Runs BEFORE the
+    // interpreter so its decision can be threaded into the cognitive block.
+    // No user-turn history is tracked yet, so recentHistory is empty (safe —
+    // topic/position continuity simply reports nothing on the first turns).
+    let socialDecision: SocialDecisionObject | null = null;
+    try {
+      const trimmed = text.trim();
+      socialDecision = getSocialCognitionEngine().processTurn({
+        text,
+        userId,
+        wordCount: trimmed ? trimmed.split(/\s+/).length : 0,
+        isQuestion: trimmed.endsWith("?"),
+        userInitiated: true,
+        backendVulnerability: backendBehavior?.vulnerability ?? 0,
+        backendTension: backendBehavior?.tension ?? 0,
+        backendEnergy: backendBehavior?.energy ?? 0,
+        backendPlayfulness: backendBehavior?.playfulness ?? 0,
+        clarificationRequired: false,
+        auraAskedQuestionThisTurn: false,
+        isAuraInterrupted: turnSignals.wasInterruption ?? false,
+        silenceMs: turnSignals.silenceDurationMs ?? 0,
+        recentHistory: [],
+      });
+    } catch (e) {
+      console.warn("[RuntimeManager] Social cognition evaluation failed:", e);
+      socialDecision = null;
+    }
+
     // 4. Interpret Backend Intelligence for Frontend Execution
     // The interpreter already accepts atmosphere + the relevance decision; it
     // renders only the dimensions marked relevant, so an irrelevant or absent
@@ -230,7 +263,7 @@ export class RuntimeManager {
       evidence,
       plan,
       mode,
-      null,
+      socialDecision,
       atmosphere,
       this.lastAtmosphereDecision,
     );
@@ -291,7 +324,6 @@ export class RuntimeManager {
       socialPresenceBlock = "";
     }
 
-
     // 4. Asynchronously update Adaptive Communication Profile (Does not block TTFB)
     setTimeout(() => {
       try {
@@ -304,10 +336,10 @@ export class RuntimeManager {
       }
     }, 0);
 
-    // 6. Asynchronously persist memory
+    // 6. Asynchronously persist memory (fire-and-forget — never blocks TTFB)
     setTimeout(() => {
       try {
-        memoryGateway.storeMemory(text, userId, emotionalState);
+        memoryGateway.storeMemory(text, userId, emotionalState, undefined, sessionId);
       } catch (e) {
         console.error("[RuntimeManager] Error storing memory:", e);
       }
@@ -318,7 +350,7 @@ export class RuntimeManager {
 
   /**
    * Generates a pre-formatted Cognitive Context string for Gemini session initialization.
-   * This retrieves the latest UserIdentity and AdaptiveCommunication profile without 
+   * This retrieves the latest UserIdentity and AdaptiveCommunication profile without
    * blocking or triggering an active conversation turn.
    *
    * `atmosphere` is already supplied by useLiveNext (browser temporal context)
@@ -330,12 +362,14 @@ export class RuntimeManager {
     atmosphere: AtmosphereContext | null = null,
   ): Promise<string> {
     // 1. Fetch any generic/top-level relevant memories
-    // Now supported by passing an empty query to the backend which returns 
+    // Now supported by passing an empty query to the backend which returns
     // relevance-ranked stable facts and current state within context limits.
     const retrievedMemories = await memoryGateway.retrieveMemories("", userId, {});
-    const stableFacts = retrievedMemories.filter(m => m.metadata?.tier === "stable").map(m => m.content);
-    const recentAndCurrent = retrievedMemories.filter(m => m.metadata?.tier !== "stable");
-    
+    const stableFacts = retrievedMemories
+      .filter((m) => m.metadata?.tier === "stable")
+      .map((m) => m.content);
+    const recentAndCurrent = retrievedMemories.filter((m) => m.metadata?.tier !== "stable");
+
     // 2. Build a baseline conversation context
     const ctx = buildConversationContext({
       input: {
@@ -346,19 +380,19 @@ export class RuntimeManager {
         languageMode: "unknown",
       },
       memory: {
-        retrieved: recentAndCurrent.map(m => m.content),
-        relevanceScores: recentAndCurrent.map(m => m.similarity ?? 1),
+        retrieved: recentAndCurrent.map((m) => m.content),
+        relevanceScores: recentAndCurrent.map((m) => m.similarity ?? 1),
         hasPersonalHistory: retrievedMemories.length > 0,
         sessionTurn: 0,
       },
       userIdentity: {
-        stableFacts: stableFacts
+        stableFacts: stableFacts,
       },
       timing: {
         turnCount: 0,
       },
       atmosphere,
-      behaviorAnalysis: null
+      behaviorAnalysis: null,
     });
 
     // 3. Generate a plan
@@ -379,35 +413,34 @@ export class RuntimeManager {
       null,
     );
 
-    
     return snapshot;
   }
 
   public routeDecision(decision: RuntimeDecision): ProviderExecutionDirective {
     this.decisionTelemetry.record(decision);
-    
+
     // Determine Execution Behavior based on decision policies
     let action: ExecutionAction = "SPEAK";
-    
+
     if (decision.dispatchPolicy === "Hold") {
       action = "WAIT";
     } else if (decision.dispatchPolicy === "Anticipatory") {
       action = "BACKCHANNEL";
     }
-    
+
     this.telemetry.logEvent({
       subsystem: "RuntimeManager",
       severity: "info",
       data: {
         event: "DECISION_ROUTED",
         action,
-        timingIntent: decision.timingIntent
-      }
+        timingIntent: decision.timingIntent,
+      },
     });
 
     return {
       action,
-      delayMs: decision.timingIntent
+      delayMs: decision.timingIntent,
     };
   }
 
@@ -442,7 +475,7 @@ export class RuntimeManager {
 
     const decision = new RuntimeDecisionBuilder()
       .setConversationType(streamDecision.intent)
-      .setConversationState(this.conversationRuntime.getState() as any || "Speaking")
+      .setConversationState((this.conversationRuntime.getState() as any) || "Speaking")
       .setEndpointConfidence(streamDecision.confidence)
       .setTimingIntent(hrtePauseMs)
       .setDispatchPolicy(dispatchPolicy)

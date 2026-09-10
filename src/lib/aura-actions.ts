@@ -206,16 +206,16 @@ Only minimal music state is supplied because the current user request is unrelat
     const structural = latestMoment.evidence.filter((e) => e.type === "structural_boundary");
     const acoustic = latestMoment.evidence.filter((e) => e.type !== "structural_boundary");
 
-    let observedStr = `[OBSERVED] at ${formatMediaTime(latestMoment.startMs / 1000)}`;
-    let structuralStr =
+    const observedStr = `[OBSERVED] at ${formatMediaTime(latestMoment.startMs / 1000)}`;
+    const structuralStr =
       structural.length > 0
         ? `[STRUCTURAL] Section: ${latestMoment.section || "Unknown"}`
         : `[STRUCTURAL] None`;
-    let acousticStr =
+    const acousticStr =
       acoustic.length > 0
         ? `[ACOUSTIC] ${acoustic.map((e) => `${e.type} (${e.source})`).join(", ")}`
         : `[ACOUSTIC] None`;
-    let inferenceStr = `[INFERENCE] Transition: ${latestMoment.transition || "none"} | Salience: ${(latestMoment.salience * 100).toFixed(0)}%`;
+    const inferenceStr = `[INFERENCE] Transition: ${latestMoment.transition || "none"} | Salience: ${(latestMoment.salience * 100).toFixed(0)}%`;
 
     momentStr = `${observedStr}\n${structuralStr}\n${acousticStr}\n${inferenceStr}`;
   } else if (perception && perception.structure?.section) {

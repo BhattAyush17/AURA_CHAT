@@ -8,7 +8,12 @@
  */
 
 import assert from "node:assert";
-import { evaluateSocialContext, formatSocialContextBlock, MUSIC_KEYWORDS, ENVIRONMENT_KEYWORDS } from "@/runtime/socialPresence/ContextualRelevanceEngine";
+import {
+  evaluateSocialContext,
+  formatSocialContextBlock,
+  MUSIC_KEYWORDS,
+  ENVIRONMENT_KEYWORDS,
+} from "@/runtime/socialPresence/ContextualRelevanceEngine";
 import { formatSocialContextBlock as formatBlock } from "@/runtime/socialPresence/formatSocialContextBlock";
 import type { SocialPresenceInput, SocialContext } from "@/runtime/socialPresence/types";
 
@@ -42,14 +47,29 @@ check("evaluateSocialContext is a pure function that returns SocialContext", () 
 
 check("formatSocialContextBlock returns empty string when no relevant signals", () => {
   const input = makeInput({
-    emotion: { tension: 0, energy: 0.1, warmth: 0.1, engagement: 0.1, frustration: 0, vulnerability: 0 },
+    emotion: {
+      tension: 0,
+      energy: 0.1,
+      warmth: 0.1,
+      engagement: 0.1,
+      frustration: 0,
+      vulnerability: 0,
+    },
     music: { hasActiveTrack: false, isPlaying: false, title: null, artist: null },
     atmospherePresent: false,
     memory: { hasPersonalHistory: false, retrievedCount: 0, maxRelevanceScore: 0 },
     timing: { silenceDurationMs: 0, turnCount: 1 },
     userInterrupted: false,
     auraJustSpoke: false,
-    socialMomentum: { user_elaborating: false, unfinished_thought: false, user_wants_space: false, topic_depth: 0, exploratory: false, storytelling: false, argumentative: false },
+    socialMomentum: {
+      user_elaborating: false,
+      unfinished_thought: false,
+      user_wants_space: false,
+      topic_depth: 0,
+      exploratory: false,
+      storytelling: false,
+      argumentative: false,
+    },
     userMentionsMusic: false,
     userMentionsEnvironment: false,
   });
@@ -60,7 +80,14 @@ check("formatSocialContextBlock returns empty string when no relevant signals", 
 
 check("formatSocialContextBlock returns [CURRENT SOCIAL CONTEXT] block with relevant items", () => {
   const input = makeInput({
-    emotion: { tension: 0, energy: 0.8, warmth: 0.8, engagement: 0.7, frustration: 0, vulnerability: 0 },
+    emotion: {
+      tension: 0,
+      energy: 0.8,
+      warmth: 0.8,
+      engagement: 0.7,
+      frustration: 0,
+      vulnerability: 0,
+    },
   });
   const ctx = evaluateSocialContext(input);
   const block = formatBlock(ctx);
@@ -70,7 +97,14 @@ check("formatSocialContextBlock returns [CURRENT SOCIAL CONTEXT] block with rele
 
 check("formatSocialContextBlock caps at 3 items", () => {
   const input = makeInput({
-    emotion: { tension: 0.7, energy: 0.8, warmth: 0.7, engagement: 0.8, frustration: 0.7, vulnerability: 0.7 },
+    emotion: {
+      tension: 0.7,
+      energy: 0.8,
+      warmth: 0.7,
+      engagement: 0.8,
+      frustration: 0.7,
+      vulnerability: 0.7,
+    },
     userInterrupted: true,
     music: { hasActiveTrack: true, isPlaying: true, title: "Test", artist: "Artist" },
     atmospherePresent: true,
@@ -85,7 +119,16 @@ check("formatSocialContextBlock caps at 3 items", () => {
 // ─── B. Eight signal paths ─────────────────────────────────────────────
 
 check("1. EMOTION: high frustration produces USER_FRUSTRATION relevance", () => {
-  const input = makeInput({ emotion: { tension: 0, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0.7, vulnerability: 0 } });
+  const input = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0.7,
+      vulnerability: 0,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const frustration = ctx.items.find((i) => i.category === "USER_FRUSTRATION");
   assert(frustration, `should have USER_FRUSTRATION item, got: ${JSON.stringify(ctx.items)}`);
@@ -93,22 +136,53 @@ check("1. EMOTION: high frustration produces USER_FRUSTRATION relevance", () => 
 });
 
 check("1. EMOTION: high vulnerability produces USER_VULNERABILITY relevance", () => {
-  const input = makeInput({ emotion: { tension: 0, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0, vulnerability: 0.7 } });
+  const input = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0.7,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const vuln = ctx.items.find((i) => i.category === "USER_VULNERABILITY");
   assert(vuln, `should have USER_VULNERABILITY item, got: ${JSON.stringify(ctx.items)}`);
-  assert(vuln!.reason.includes("emotionally"), "reason should mention emotionally vulnerable state");
+  assert(
+    vuln!.reason.includes("emotionally"),
+    "reason should mention emotionally vulnerable state",
+  );
 });
 
 check("1. EMOTION: high energy+warmth produces USER_EMOTION relevance", () => {
-  const input = makeInput({ emotion: { tension: 0, energy: 0.8, warmth: 0.8, engagement: 0.5, frustration: 0, vulnerability: 0 } });
+  const input = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.8,
+      warmth: 0.8,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const emotion = ctx.items.find((i) => i.category === "USER_EMOTION");
   assert(emotion, `should have USER_EMOTION item, got: ${JSON.stringify(ctx.items)}`);
 });
 
 check("2. CONVERSATION CONTINUITY: unfinished_thought produces TOPIC_CONTINUITY relevance", () => {
-  const input = makeInput({ socialMomentum: { user_elaborating: false, unfinished_thought: true, user_wants_space: false, topic_depth: 0, exploratory: false, storytelling: false, argumentative: false } });
+  const input = makeInput({
+    socialMomentum: {
+      user_elaborating: false,
+      unfinished_thought: true,
+      user_wants_space: false,
+      topic_depth: 0,
+      exploratory: false,
+      storytelling: false,
+      argumentative: false,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const continuity = ctx.items.find((i) => i.category === "TOPIC_CONTINUITY");
   assert(continuity, `should have TOPIC_CONTINUITY item, got: ${JSON.stringify(ctx.items)}`);
@@ -116,43 +190,78 @@ check("2. CONVERSATION CONTINUITY: unfinished_thought produces TOPIC_CONTINUITY 
 });
 
 check("2. CONVERSATION CONTINUITY: deep topic produces TOPIC_CONTINUITY relevance", () => {
-  const input = makeInput({ socialMomentum: { user_elaborating: false, unfinished_thought: false, user_wants_space: false, topic_depth: 4, exploratory: false, storytelling: false, argumentative: false } });
+  const input = makeInput({
+    socialMomentum: {
+      user_elaborating: false,
+      unfinished_thought: false,
+      user_wants_space: false,
+      topic_depth: 4,
+      exploratory: false,
+      storytelling: false,
+      argumentative: false,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const continuity = ctx.items.find((i) => i.category === "TOPIC_CONTINUITY");
-  assert(continuity, `should have TOPIC_CONTINUITY item for deep topic, got: ${JSON.stringify(ctx.items)}`);
+  assert(
+    continuity,
+    `should have TOPIC_CONTINUITY item for deep topic, got: ${JSON.stringify(ctx.items)}`,
+  );
 });
 
 check("3. MEMORY: relevant memory produces MEMORY_RELEVANCE relevance", () => {
-  const input = makeInput({ memory: { hasPersonalHistory: true, retrievedCount: 3, maxRelevanceScore: 0.7 } });
+  const input = makeInput({
+    memory: { hasPersonalHistory: true, retrievedCount: 3, maxRelevanceScore: 0.7 },
+  });
   const ctx = evaluateSocialContext(input);
   const memory = ctx.items.find((i) => i.category === "MEMORY_RELEVANCE");
   assert(memory, `should have MEMORY_RELEVANCE item, got: ${JSON.stringify(ctx.items)}`);
 });
 
 check("3. MEMORY: irrelevant memory (low score) does NOT produce MEMORY_RELEVANCE", () => {
-  const input = makeInput({ memory: { hasPersonalHistory: true, retrievedCount: 3, maxRelevanceScore: 0.2 } });
+  const input = makeInput({
+    memory: { hasPersonalHistory: true, retrievedCount: 3, maxRelevanceScore: 0.2 },
+  });
   const ctx = evaluateSocialContext(input);
   const memory = ctx.items.find((i) => i.category === "MEMORY_RELEVANCE");
-  assert(!memory, `should NOT have MEMORY_RELEVANCE for low relevance, got: ${JSON.stringify(ctx.items)}`);
+  assert(
+    !memory,
+    `should NOT have MEMORY_RELEVANCE for low relevance, got: ${JSON.stringify(ctx.items)}`,
+  );
 });
 
 check("4. MUSIC: active track + user mentions music produces MUSIC_RELEVANCE", () => {
   const input = makeInput({
     music: { hasActiveTrack: true, isPlaying: true, title: "Song", artist: "Artist" },
-    emotion: { tension: 0, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0, vulnerability: 0 },
+    emotion: {
+      tension: 0,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0,
+    },
     userMentionsMusic: true,
   });
   const ctx = evaluateSocialContext(input);
   const music = ctx.items.find((i) => i.category === "MUSIC_RELEVANCE");
   assert(music, `should have MUSIC_RELEVANCE item, got: ${JSON.stringify(ctx.items)}`);
-  assert(music!.reason.includes("discussing music"), `reason should mention discussing music, got: ${music!.reason}`);
+  assert(
+    music!.reason.includes("discussing music"),
+    `reason should mention discussing music, got: ${music!.reason}`,
+  );
 });
 
 check("4. MUSIC: no active track does NOT produce MUSIC_RELEVANCE", () => {
-  const input = makeInput({ music: { hasActiveTrack: false, isPlaying: false, title: null, artist: null } });
+  const input = makeInput({
+    music: { hasActiveTrack: false, isPlaying: false, title: null, artist: null },
+  });
   const ctx = evaluateSocialContext(input);
   const music = ctx.items.find((i) => i.category === "MUSIC_RELEVANCE");
-  assert(!music, `should NOT have MUSIC_RELEVANCE without active track, got: ${JSON.stringify(ctx.items)}`);
+  assert(
+    !music,
+    `should NOT have MUSIC_RELEVANCE without active track, got: ${JSON.stringify(ctx.items)}`,
+  );
 });
 
 check("5. ATMOSPHERE: present + user mentions environment produces ATMOSPHERE_RELEVANCE", () => {
@@ -166,7 +275,10 @@ check("5. ATMOSPHERE: present but no user mention does NOT produce ATMOSPHERE_RE
   const input = makeInput({ atmospherePresent: true, userMentionsEnvironment: false });
   const ctx = evaluateSocialContext(input);
   const atmosphere = ctx.items.find((i) => i.category === "ATMOSPHERE_RELEVANCE");
-  assert(!atmosphere, `should NOT have ATMOSPHERE_RELEVANCE without user mention, got: ${JSON.stringify(ctx.items)}`);
+  assert(
+    !atmosphere,
+    `should NOT have ATMOSPHERE_RELEVANCE without user mention, got: ${JSON.stringify(ctx.items)}`,
+  );
 });
 
 check("6. INTERRUPTION: userInterrupted produces INTERRUPTION_CONTEXT relevance", () => {
@@ -189,20 +301,41 @@ check("7. TIMING/SILENCE: 15000ms+ silence produces extended SILENCE_CONTEXT", (
   const ctx = evaluateSocialContext(input);
   const silence = ctx.items.find((i) => i.category === "SILENCE_CONTEXT");
   assert(silence, `should have SILENCE_CONTEXT item, got: ${JSON.stringify(ctx.items)}`);
-  assert(silence!.reason.includes("reflecting"), "extended silence reason should mention reflecting");
+  assert(
+    silence!.reason.includes("reflecting"),
+    "extended silence reason should mention reflecting",
+  );
 });
 
 check("7. TIMING/SILENCE: <5000ms silence does NOT produce SILENCE_CONTEXT", () => {
   const input = makeInput({ timing: { silenceDurationMs: 1000, turnCount: 3 } });
   const ctx = evaluateSocialContext(input);
   const silence = ctx.items.find((i) => i.category === "SILENCE_CONTEXT");
-  assert(!silence, `should NOT have SILENCE_CONTEXT for short silence, got: ${JSON.stringify(ctx.items)}`);
+  assert(
+    !silence,
+    `should NOT have SILENCE_CONTEXT for short silence, got: ${JSON.stringify(ctx.items)}`,
+  );
 });
 
 check("8. USER STATE: argumentative + tension produces RELATIONSHIP_SHIFT relevance", () => {
   const input = makeInput({
-    socialMomentum: { user_elaborating: false, unfinished_thought: false, user_wants_space: false, topic_depth: 0, exploratory: false, storytelling: false, argumentative: true },
-    emotion: { tension: 0.7, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0, vulnerability: 0 },
+    socialMomentum: {
+      user_elaborating: false,
+      unfinished_thought: false,
+      user_wants_space: false,
+      topic_depth: 0,
+      exploratory: false,
+      storytelling: false,
+      argumentative: true,
+    },
+    emotion: {
+      tension: 0.7,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0,
+    },
   });
   const ctx = evaluateSocialContext(input);
   const shift = ctx.items.find((i) => i.category === "RELATIONSHIP_SHIFT");
@@ -226,14 +359,35 @@ check("items below WEAK threshold (0.3) are filtered out", () => {
   const ctx = evaluateSocialContext(input);
   const silence = ctx.items.find((i) => i.category === "SILENCE_CONTEXT");
   // 5500ms gives relevance 0.2, which is < 0.3 WEAK threshold
-  assert(!silence || silence.relevance >= 0.3, "item should either not exist or be >= WEAK threshold");
+  assert(
+    !silence || silence.relevance >= 0.3,
+    "item should either not exist or be >= WEAK threshold",
+  );
 });
 
 // ─── E. Initiative isolation ─────────────────────────────────────────
 
 check("Social Presence does NOT consume or produce initiative scores", () => {
-  const input1 = makeInput({ emotion: { tension: 0, energy: 0.8, warmth: 0.8, engagement: 0.8, frustration: 0.8, vulnerability: 0.8 } });
-  const input2 = makeInput({ emotion: { tension: 0, energy: 0.1, warmth: 0.1, engagement: 0.1, frustration: 0, vulnerability: 0 } });
+  const input1 = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.8,
+      warmth: 0.8,
+      engagement: 0.8,
+      frustration: 0.8,
+      vulnerability: 0.8,
+    },
+  });
+  const input2 = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.1,
+      warmth: 0.1,
+      engagement: 0.1,
+      frustration: 0,
+      vulnerability: 0,
+    },
+  });
 
   const ctx1 = evaluateSocialContext(input1);
   const ctx2 = evaluateSocialContext(input2);
@@ -253,7 +407,14 @@ check("Social Presence does NOT consume or produce initiative scores", () => {
 check("music relevance is additive context only — not an initiative trigger", () => {
   const input = makeInput({
     music: { hasActiveTrack: true, isPlaying: true, title: "Song", artist: "Artist" },
-    emotion: { tension: 0, energy: 0.1, warmth: 0.1, engagement: 0.1, frustration: 0, vulnerability: 0 },
+    emotion: {
+      tension: 0,
+      energy: 0.1,
+      warmth: 0.1,
+      engagement: 0.1,
+      frustration: 0,
+      vulnerability: 0,
+    },
     userMentionsMusic: false,
   });
   const ctx = evaluateSocialContext(input);
@@ -267,7 +428,14 @@ check("music relevance is additive context only — not an initiative trigger", 
 
 check("same input produces identical SocialContext (determinism)", () => {
   const input = makeInput({
-    emotion: { tension: 0.5, energy: 0.7, warmth: 0.6, engagement: 0.6, frustration: 0.3, vulnerability: 0.2 },
+    emotion: {
+      tension: 0.5,
+      energy: 0.7,
+      warmth: 0.6,
+      engagement: 0.6,
+      frustration: 0.3,
+      vulnerability: 0.2,
+    },
     userInterrupted: true,
   });
 
@@ -286,7 +454,16 @@ check("same input produces identical SocialContext (determinism)", () => {
 check("evaluateSocialContext is pure and does not throw on any input", () => {
   const inputs = [
     makeInput({}),
-    makeInput({ emotion: { tension: 999, energy: 999, warmth: 999, engagement: 999, frustration: 999, vulnerability: 999 } }),
+    makeInput({
+      emotion: {
+        tension: 999,
+        energy: 999,
+        warmth: 999,
+        engagement: 999,
+        frustration: 999,
+        vulnerability: 999,
+      },
+    }),
     makeInput({ timing: { silenceDurationMs: -1000, turnCount: -1 } }),
     makeInput({ music: { hasActiveTrack: true, isPlaying: true, title: "", artist: "" } }),
   ];
@@ -301,7 +478,12 @@ check("evaluateSocialContext is pure and does not throw on any input", () => {
 });
 
 check("formatSocialContextBlock handles empty items array", () => {
-  const ctx: SocialContext = { items: [], dominantCategory: null, activeInfluenceAreas: [], timestamp: Date.now() };
+  const ctx: SocialContext = {
+    items: [],
+    dominantCategory: null,
+    activeInfluenceAreas: [],
+    timestamp: Date.now(),
+  };
   const block = formatBlock(ctx);
   assert(block === "", "empty items should produce empty block");
 });
@@ -326,21 +508,47 @@ check("formatSocialContextBlock handles items with undefined relevance", () => {
 
 check("formatted block does not contain internal metadata", () => {
   const input = makeInput({
-    emotion: { tension: 0.6, energy: 0.8, warmth: 0.7, engagement: 0.7, frustration: 0.7, vulnerability: 0.6 },
+    emotion: {
+      tension: 0.6,
+      energy: 0.8,
+      warmth: 0.7,
+      engagement: 0.7,
+      frustration: 0.7,
+      vulnerability: 0.6,
+    },
     userInterrupted: true,
     music: { hasActiveTrack: true, isPlaying: true, title: "Song", artist: "Artist" },
   });
   const ctx = evaluateSocialContext(input);
   const block = formatBlock(ctx);
 
-  const leakedTerms = ["relevance", "initiative", "permission", "urgency", "threshold", "category", "score", "0.6", "0.7"];
+  const leakedTerms = [
+    "relevance",
+    "initiative",
+    "permission",
+    "urgency",
+    "threshold",
+    "category",
+    "score",
+    "0.6",
+    "0.7",
+  ];
   leakedTerms.forEach((term) => {
     assert(!block.toLowerCase().includes(term.toLowerCase()), `block should not contain "${term}"`);
   });
 });
 
 check("formatted block contains only natural language reasons", () => {
-  const input = makeInput({ emotion: { tension: 0, energy: 0.8, warmth: 0.8, engagement: 0.8, frustration: 0, vulnerability: 0 } });
+  const input = makeInput({
+    emotion: {
+      tension: 0,
+      energy: 0.8,
+      warmth: 0.8,
+      engagement: 0.8,
+      frustration: 0,
+      vulnerability: 0,
+    },
+  });
   const ctx = evaluateSocialContext(input);
   const block = formatBlock(ctx);
 
@@ -383,14 +591,42 @@ check("ENVIRONMENT_KEYWORDS regex matches environment-related terms", () => {
 
 function makeInput(overrides: Partial<SocialPresenceInput>): SocialPresenceInput {
   return {
-    emotion: { tension: 0, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0, vulnerability: 0, ...overrides.emotion },
-    music: { hasActiveTrack: false, isPlaying: false, title: null, artist: null, ...overrides.music },
+    emotion: {
+      tension: 0,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0,
+      ...overrides.emotion,
+    },
+    music: {
+      hasActiveTrack: false,
+      isPlaying: false,
+      title: null,
+      artist: null,
+      ...overrides.music,
+    },
     atmospherePresent: false,
-    memory: { hasPersonalHistory: false, retrievedCount: 0, maxRelevanceScore: 0, ...overrides.memory },
+    memory: {
+      hasPersonalHistory: false,
+      retrievedCount: 0,
+      maxRelevanceScore: 0,
+      ...overrides.memory,
+    },
     timing: { silenceDurationMs: 0, turnCount: 1, ...overrides.timing },
     userInterrupted: false,
     auraJustSpoke: false,
-    socialMomentum: { user_elaborating: false, unfinished_thought: false, user_wants_space: false, topic_depth: 0, exploratory: false, storytelling: false, argumentative: false, ...overrides.socialMomentum },
+    socialMomentum: {
+      user_elaborating: false,
+      unfinished_thought: false,
+      user_wants_space: false,
+      topic_depth: 0,
+      exploratory: false,
+      storytelling: false,
+      argumentative: false,
+      ...overrides.socialMomentum,
+    },
     relationshipStage: "established",
     autonomousAction: "RESPOND_ONLY",
     senseSourceCount: 0,

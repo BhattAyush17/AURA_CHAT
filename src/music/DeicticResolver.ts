@@ -333,7 +333,7 @@ export function resolveDeicticReference(
   const latestSalientMoment =
     moments.length > 0 ? [...moments].sort((a, b) => b.salience - a.salience)[0] : undefined;
 
-  let moment = latestSalientMoment;
+  const moment = latestSalientMoment;
 
   if (category === "DEICTIC_MUSIC_REFERENCE") {
     const lower = text.toLowerCase();

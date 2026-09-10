@@ -273,7 +273,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 // ─── Hook ────────────────────────────────────────────────────────
 
-export function useMemory(): MemoryContextValue {
+function useMemory(): MemoryContextValue {
   const ctx = useContext(MemoryContext);
   if (!ctx) {
     throw new Error("useMemory must be used within a <MemoryProvider>");

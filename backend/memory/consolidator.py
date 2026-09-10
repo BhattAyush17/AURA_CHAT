@@ -104,8 +104,25 @@ class MemoryConsolidator:
         Consolidate all eligible turn-level memories for a user.
 
         Returns:
-            dict with keys: user_id, episodes_created, turns_consolidated, errors, dry_run
+            dict with keys: user_id, episodes_created, turns_consolidated, errors, dry_run.
+            On an unexpected failure (DB timeout, schema mismatch) the whole body is
+            caught so the error is logged explicitly and returned in an error-shaped
+            stats dict — never silently swallowed into a "no memories" success.
         """
+        try:
+            return await self._consolidate_user_inner(user_id, dry_run)
+        except Exception as exc:
+            log.error("user_consolidation_failed", user_id=user_id, error=str(exc))
+            return {
+                "user_id": user_id,
+                "episodes_created": 0,
+                "turns_consolidated": 0,
+                "errors": 1,
+                "error": str(exc),
+                "dry_run": dry_run,
+            }
+
+    async def _consolidate_user_inner(self, user_id: str, dry_run: bool = False) -> dict:
         cutoff = datetime.utcnow() - timedelta(days=self.MIN_AGE_DAYS)
         memories = await self._fetch_old_memories(user_id, cutoff)
 
@@ -213,8 +230,10 @@ class MemoryConsolidator:
                 if (r.get("metadata") or {}).get("type") != "consolidated_episode"
             ]
         except Exception as exc:
+            # Re-raise, NOT a silent "no eligible memories". A schema mismatch or
+            # DB timeout must surface as a failure, not masquerade as a success.
             log.error("fetch_memories_failed", user_id=user_id, error=str(exc))
-            return []
+            raise
 
     async def _insert_consolidated(
         self,

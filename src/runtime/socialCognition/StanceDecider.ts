@@ -39,11 +39,7 @@ export class StanceDecider {
 
     // If user expresses a definitive claim with strong conviction
     const lower = momentum.topic.toLowerCase();
-    if (
-      userTension < 0.3 &&
-      userEnergy > 0.5 &&
-      !isQuestion
-    ) {
+    if (userTension < 0.3 && userEnergy > 0.5 && !isQuestion) {
       return "alternative_perspective";
     }
 

@@ -1,5 +1,8 @@
 # AURA — Comprehensive Architectural & Request Lifecycle Blueprint
 
+**Date:** 2026-09-10
+**Status:** Canonical Multi-Provider & Perception Architecture Active
+
 This document provides a highly structured, exhaustively detailed, and precise explanation of the AURA architecture. It maps the complete project file structure, data models, and describes the exact pipeline logic of how all backend and frontend components coordinate to process conversational turns in real-time.
 
 ---
@@ -10,41 +13,54 @@ Below is the directory mapping of the core system components, categorized by the
 
 ```
 AURA_CHAT/
-├── server.py                    # FastAPI entry. Exposes `/api/analyze`, `/session/start`, `/session/end`. Orchestrates startup, initializes singletons, and handles hot-path cache reading.
-├── behavior_engine.py           # Brain 2: RuntimeEngine class. Resolves extracted keyword hits against `chroma_behavior_db`, handles `generate_memory_seed()`.
-├── sensing_engine.py            # Brain 2: SensingEngine & StateVector classes. Manages the 15-dim state space, tracks session turns, computes continuous temporal decay, and resolves emotional `arc` (e.g., escalating, withdrawing).
-├── emotional_router.py          # Brain 2: Multi-detector classifier. Scores raw text across Joy, Sadness, Anger, Frustration, and Neutral.
-├── frustration_detector.py      # Brain 2: Evaluates frustration threshold metrics, generating urgency signals for prompt injections.
-├── withdrawal_detector.py       # Brain 2: Evaluates conversational silence gaps and single-word responses to trigger engagement logic.
-├── response_director.py         # Brain 2: Maps the calculated `arc` (from StateVector) into 11 distinct Response Modes (e.g., "reassure", "challenge", "listen").
-├── redis_bus.py                 # Brain 3: Async wrapper around `redis.asyncio`. Defines `STREAM_KEY` (aura:transcripts) and handles `XADD` / `XREADGROUP` consumer logic.
-├── behavior_engine_consumer.py  # Brain 3: Background async worker coroutine. Pops stream messages, executes the heavy analytical pipeline (Brain 2, 4, 5), and writes to the hot-cache.
-├── memory_sync.py               # Brain 4: Supabase pgvector schema client. Contains `get_chromadb_enrichment_v2()` for hybrid semantic+temporal searches and `store_and_backup_memory()`.
-├── chroma_service.py            # Brain 4: Local proxy and initialization wrapper around the Supabase DB connection.
-├── vocab_learner.py             # Brain 5: Tracks per-user multilingual vocabulary (Hindi, Hinglish, English), abuse/slang terms, and persists user `VocabProfile` locally and to Supabase.
-├── proactive_engine.py          # Supporting: Monitors idle session time and triggers unprompted engagement via Redis activity hooks.
-├── relationship_tracker.py      # Supporting: Manages long-term relationship stages (Level 1 Stranger -> Level 5 Companion) and injects relationship-specific trust tokens.
-├── degradation.py               # Supporting: Manages 4 circuit breakers (redis, supabase, worker, embedding_api) with caller-specified timeouts and auto-recovery.
-├── rate_limiter.py              # Supporting: Redis sliding-window API rate limiter enforcing endpoints (e.g., 60/min for analyze).
-├── embedding_cache.py           # Supporting: Redis exact-MD5 hash cache to deduplicate identical Gemini-embedding-001 calls and save costs.
-├── memory_consolidator.py       # Supporting: Cron engine to summarize extensive transcripts into dense memory seeds at session end.
-├── src/                         # Frontend Web Interface (React / Vite / TS / TailwindCSS)
-│   ├── hooks/
-│   │   ├── useGeminiLive.ts     # Brain 1: Root orchestrator hook. Establishes the WebRTC audio context and binds Voice Activity Detection to backend hooks.
-│   │   ├── useInterruption.ts   # Brain 1: Detects mic barge-in (RMS threshold). Immediately halts TTS output upon user interruption.
-│   │   ├── useOpenRouter.ts     # Brain 1: Swappable local fallback Voice Node (TTS/STT pipeline using OpenRouter).
-│   │   └── gemini/
-│   │       ├── useAudioPipeline.ts     # AudioWorklet binding, computes continuous input RMS.
-│   │       ├── useBehaviorInjection.ts # Handles speculative fetch logic, debouncing, and L2 Prompt delivery to the Gemini session.
-│   │       ├── useGeminiWebSocket.ts   # Secures WS connection and implements reconnect/backoff logic.
-│   │       ├── usePromptOrchestrator.ts# Manages L1 (Core Base), L2 (Behavior Dynamic), and L3 (Temporal/Time-of-day) prompt layers.
-│   │       └── useTranscriptManager.ts # Reconciles local and server-side turns into a unified chat log.
-│   ├── lib/
-│   │   ├── gemini-prompt.ts     # Static L1 System Instructions defining core personality constraints.
-│   │   └── behavior-client.ts   # Axios/fetch wrappers for backend REST endpoints.
-│   └── routes/
-│       └── index.tsx            # Main visual dashboard component rendering the grid, selectors, and stateful overlays.
-└── extracted_data/              # Precompiled JSON templates containing baseline emotional heuristics.
+├── backend/
+│   ├── api/
+│   │   ├── main.py              # FastAPI entry. Exposes `/api/analyze`, `/api/analyze/stream`, `/chat`, `/session/start`.
+│   │   ├── contracts.py         # Pydantic schemas: ChatRequest, AnalyzeRequest, Response models.
+│   │   ├── cron.py              # Background maintenance routines & session consolidation.
+│   │   ├── memory_endpoints.py  # REST endpoints for memory retrieval and management.
+│   │   └── webhooks.py          # QStash / asynchronous webhook endpoints.
+│   ├── bus/
+│   │   ├── redis.py             # Redis client wrapper, stream management, transcript publishing.
+│   │   └── consumer.py          # Background async stream consumer.
+│   ├── core/
+│   │   ├── behavior.py          # Brain 2: RuntimeEngine, SensingEngine & StateVector calculations.
+│   │   ├── sensing.py           # Brain 2: 15-dim StateVector, emotional arc tracking, continuous decay.
+│   │   ├── vocab.py             # Brain 5: Multilingual vocabulary (Hindi, Hinglish, English) & tone profiling.
+│   │   ├── relationship.py      # Relationship tracking & trust stage management.
+│   │   ├── proactive.py         # Idle session monitoring & proactive engagement.
+│   │   └── intelligence/        # LLM streaming pipelines, action schema, prompt composition.
+│   ├── infrastructure/
+│   │   ├── degradation.py       # Circuit breakers (redis, supabase, worker, embedding_api).
+│   │   ├── rate_limiter.py      # Sliding-window rate limiter.
+│   │   ├── embedding_provider.py# Multi-tier embeddings: Gemini → Cohere (MRL) → FastEmbed → FTS.
+│   │   └── embedding_cache.py   # Redis embedding deduplication cache.
+│   └── memory/
+│       ├── chroma.py            # ChromaDB / Supabase pgvector proxy.
+│       ├── sync.py              # Memory persistence, match_memories_v2 RPC queries.
+│       └── orchestration/       # Canonical MemoryOrchestrator coordination.
+├── src/                         # Frontend Web Application (React / Vite / TypeScript / TailwindCSS)
+│   ├── core/
+│   │   ├── useVoiceOrchestrator.ts # Root orchestrator: boots SenseManager & RuntimeManager, binds providers.
+│   │   └── IVoicePipeline.ts    # Unified contract for all voice pipelines.
+│   ├── runtime/                 # Central Cognitive & Decision Runtime
+│   │   ├── RuntimeManager.ts    # Canonical gateway for cognitive turn processing and routing.
+│   │   ├── conversationInterpreter/ # Formats unified [COGNITION], [HUMAN STATE], [SENSE EVIDENCE].
+│   │   ├── decision/            # RuntimeDecisionBuilder (SPEAK, WAIT, BACKCHANNEL).
+│   │   ├── socialCognition/     # Presence & social context arbitration.
+│   │   └── attention/           # AdaptiveAttentionLayer (atmosphere relevance assessment).
+│   ├── sense/                   # Perception Subsystem
+│   │   ├── SenseManager/        # Sense Supervisor & registry singleton.
+│   │   ├── PerceptionFusionLayer.ts # Temporal sliding windows & evidence fusion.
+│   │   ├── VoiceSense/          # Acoustic perception adapter (speechProbability, audio context).
+│   │   └── MusicSense/          # Music perception adapter (playback & track context).
+│   ├── providers/               # Swappable Voice & Text Intelligence Providers
+│   │   ├── gemini/              # Gemini Live full-duplex WebSocket integration (`useLiveNext.ts`).
+│   │   ├── openrouter/          # OpenRouter streaming + TTS pipeline (`useProvider.ts`).
+│   │   └── sarvam/              # Sarvam STT / TTS pipeline (`useSarvam.ts`).
+│   ├── music/                   # Music Engine (PlaybackState, MusicService, UI audio player).
+│   └── lib/                     # Memory gateway, behavior client, latency & telemetry utilities.
+└── extracted_data/              # Precompiled baseline emotional heuristics and dataset templates.
 ```
 
 ---

@@ -7,7 +7,12 @@ import { ContributionPlanner } from "./ContributionPlanner";
 import { InterruptionPolicy } from "./InterruptionPolicy";
 import { QuestionEvaluator } from "./QuestionEvaluator";
 import { ContinuitySignals } from "./ContinuitySignals";
-import type { SocialDecisionObject, SocialCognitionSnapshot, BehavioralShift, ContinuitySignal } from "./SocialDecision";
+import type {
+  SocialDecisionObject,
+  SocialCognitionSnapshot,
+  BehavioralShift,
+  ContinuitySignal,
+} from "./SocialDecision";
 import type { ConversationalMomentum } from "./SocialDecision";
 
 export interface TurnInput {
@@ -118,7 +123,8 @@ export class SocialCognitionEngine {
     );
 
     // 8. Evaluate interruption
-    const isAmbiguous = trajectory.intent === "story_continuation" || trajectory.intent === "emotional_elaboration";
+    const isAmbiguous =
+      trajectory.intent === "story_continuation" || trajectory.intent === "emotional_elaboration";
     const isCorrection = input.backendGoal === "repair" || !!(input.backendGoal === "test-aura");
     const { shouldInterrupt, score: interruptionScore } = this.interruptionPolicy.evaluate(
       input.silenceMs,
@@ -145,7 +151,11 @@ export class SocialCognitionEngine {
     const decision: SocialDecisionObject = {
       purpose,
       current_topic: momentum.topic,
-      user_state: this.getUserState(input.backendVulnerability, input.backendTension, input.backendEnergy),
+      user_state: this.getUserState(
+        input.backendVulnerability,
+        input.backendTension,
+        input.backendEnergy,
+      ),
       conversational_momentum: momentum,
       predicted_direction: {
         intent: trajectory.intent,
@@ -163,7 +173,11 @@ export class SocialCognitionEngine {
       continuity_signal: continuitySignal,
       question_value: questionValue,
       interruption_score: interruptionScore,
-      confidence: this.computeOverallConfidence(shift, trajectory.confidence, input.backendVulnerability),
+      confidence: this.computeOverallConfidence(
+        shift,
+        trajectory.confidence,
+        input.backendVulnerability,
+      ),
       timestamp: now,
     };
 
@@ -188,7 +202,9 @@ export class SocialCognitionEngine {
 
     // Trajectory
     if (decision.predicted_direction.confidence > 0.4) {
-      lines.push(`predicted: ${decision.predicted_direction.intent.replace(/_/g, " ")} (${(decision.predicted_direction.confidence * 100).toFixed(0)}%)`);
+      lines.push(
+        `predicted: ${decision.predicted_direction.intent.replace(/_/g, " ")} (${(decision.predicted_direction.confidence * 100).toFixed(0)}%)`,
+      );
     }
 
     // Momentum note
@@ -202,7 +218,10 @@ export class SocialCognitionEngine {
     }
 
     // Storytelling / elaborating — listen
-    if (decision.conversational_momentum.storytelling && decision.conversational_momentum.unfinished_thought) {
+    if (
+      decision.conversational_momentum.storytelling &&
+      decision.conversational_momentum.unfinished_thought
+    ) {
       lines.push("note: user may be mid-thought — let them continue");
     } else if (decision.conversational_momentum.storytelling) {
       lines.push("note: user is sharing — listen naturally");
@@ -242,7 +261,8 @@ export class SocialCognitionEngine {
     }
 
     if (!decision.should_question) {
-      const fatigue = questionFatigue !== undefined ? ` (fatigue ${(questionFatigue * 100).toFixed(0)}%)` : "";
+      const fatigue =
+        questionFatigue !== undefined ? ` (fatigue ${(questionFatigue * 100).toFixed(0)}%)` : "";
       lines.push(`question: no${fatigue}`);
     } else if (decision.should_question) {
       lines.push("question: one natural question ok");
@@ -265,7 +285,9 @@ export class SocialCognitionEngine {
       current_topic: d.current_topic,
       momentum: d.conversational_momentum.carrier,
       predicted_trajectory: `${d.predicted_direction.intent} (${(d.predicted_direction.confidence * 100).toFixed(0)}%)`,
-      behavioral_shift: d.behavioral_shift ? `${d.behavioral_shift.type} (${(d.behavioral_shift.confidence * 100).toFixed(0)}%)` : "none",
+      behavioral_shift: d.behavioral_shift
+        ? `${d.behavioral_shift.type} (${(d.behavioral_shift.confidence * 100).toFixed(0)}%)`
+        : "none",
       aura_stance: d.aura_stance,
       response_mode: d.response_mode,
       should_question: d.should_question,

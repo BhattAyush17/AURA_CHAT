@@ -69,7 +69,7 @@ export class MusicPerceptionOrchestrator {
       signalsReceived: 0,
       evidenceGenerated: 0,
       momentsGenerated: 0,
-      lastMomentAt: null,
+      lastMomentAt: undefined,
       lastSourceCategories: [],
     });
   }
@@ -101,7 +101,7 @@ export class MusicPerceptionOrchestrator {
       // signalsIn counts every signal the orchestrator accepted from providers.
       const prev = perceptionTelemetry.getMobileMusicPipeline().perception;
       perceptionTelemetry.updateMobileMusicPerception({
-        signalsIn: prev.signalsIn + newSignals.length,
+        signalsIn: (prev.signalsIn ?? 0) + newSignals.length,
       });
       const deduplicated = this.deduplicateSignals(newSignals);
       this.activeSignals.push(...deduplicated);
@@ -125,9 +125,9 @@ export class MusicPerceptionOrchestrator {
       // counts evidence + moments it produced.
       perceptionTelemetry.updateMobileMusicEvidence((prevEv) => ({
         ...prevEv,
-        signalsReceived: prevEv.signalsReceived + deduplicated.length,
-        evidenceGenerated: prevEv.evidenceGenerated + deduplicated.length, // 1 evidence / signal
-        momentsGenerated: Math.max(prevEv.momentsGenerated, moments.length),
+        signalsReceived: (prevEv.signalsReceived ?? 0) + deduplicated.length,
+        evidenceGenerated: (prevEv.evidenceGenerated ?? 0) + deduplicated.length, // 1 evidence / signal
+        momentsGenerated: Math.max(prevEv.momentsGenerated ?? 0, moments.length),
         lastMomentAt: moments.length > 0 ? Date.now() : prevEv.lastMomentAt,
         lastSourceCategories: Array.from(new Set(deduplicated.map((s) => s.source))),
       }));

@@ -1,10 +1,13 @@
 # AURA Fallback & Degradation Pipelines
 
+**Date:** 2026-09-10
+**Status:** Validated Production Fallback Topology
+
 This document details the multi-tier failover chains integrated into the AURA architecture. The system strictly adheres to a "fail-open" reliability engineering model, ensuring that the critical conversational voice loop remains functional even as peripheral dependencies degrade.
 
 ---
 
-## 1. LLM Orchestration Pipeline (`llm_pipeline.py`)
+## 1. LLM Orchestration Pipeline (`backend/core/intelligence/llm_pipeline.py`)
 
 The core intelligence engine uses a cascading provider approach to ensure high availability for text and reasoning generation.
 
@@ -12,16 +15,13 @@ The core intelligence engine uses a cascading provider approach to ensure high a
 
 The system iterates through the `FALLBACK_MODELS` list. If a model returns an error or empty response, the next model is tried automatically.
 
-**Intended priority order:**
+**Priority order:**
 
 1. `deepseek/deepseek-chat` — Highest quality reasoning, best personality adherence.
 2. `meta-llama/llama-3.3-70b-instruct:free` — Strong free-tier fallback with broad capabilities.
 3. `google/gemini-2.0-flash-lite-001` — Fast, lightweight Google model.
 4. `google/gemma-3-27b-it` — Open-weight Google alternative.
 5. `openrouter/free` — Auto-routed to any available free model.
-
-> [!WARNING]
-> **Current Code Gap:** `llm_pipeline.py` line 9–14 does NOT include DeepSeek in `FALLBACK_MODELS`. The list currently starts at Llama. DeepSeek must be added as the first entry.
 
 ### P2: Gemini Direct API (Secondary)
 
@@ -63,12 +63,12 @@ Vector embeddings and memory retrieval are protected by strict timeouts and a ha
 
 ---
 
-## 4. Emotional Core & Infrastructure (Circuit Breakers)
+## 4. Emotional Core & Infrastructure (Circuit Breakers — `backend/infrastructure/degradation.py`)
 
 The `DegradationManager` monitors core infrastructure components (Redis, Supabase, Workers) and dynamically adjusts the complexity of the analytical pipeline.
 
 - **Level 0 (Full Operations):**
-  - `consumer.py` calculates complex `StateVectors` and `EmotionVectors` asynchronously via Redis streams, injecting rich behavioral context into the LLM.
+  - `backend/bus/consumer.py` calculates complex `StateVectors` and `EmotionVectors` asynchronously via Redis streams, injecting rich behavioral context into the LLM.
 - **Level 1 (NO_MEMORY):** _Supabase Circuit OPEN_
   - Persistent episodic memory is bypassed. AURA relies solely on the active session's short-term history and the initialized memory `seed`.
 - **Level 2 (NO_SENSING):** _Redis / Worker Circuit OPEN_

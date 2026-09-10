@@ -42,10 +42,10 @@ export class VoiceLanguageManager {
     this.unsubscribeAdaptive = AdaptiveCommunicationAnalyzer.getInstance().subscribe(
       (adaptiveProfile) => {
         // Only react if confidence is high (meaning stable preference)
-        if (adaptiveProfile.overallConfidence > 0.6) {
+        if (adaptiveProfile.language.confidence > 0.6) {
           if (
-            adaptiveProfile.language.primary === "hindi" &&
-            adaptiveProfile.language.hindiRatio > 0.8
+            adaptiveProfile.language.value.primary === "hindi" &&
+            adaptiveProfile.language.value.hindiRatio > 0.8
           ) {
             // Soft-shift response hint if user is solidly in Hindi
             if (this.state.responseLanguage !== "hindi") {

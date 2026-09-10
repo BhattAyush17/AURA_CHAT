@@ -801,7 +801,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         return;
       }
       // Skip leftover JSON fragments
-      if (/^\s*[\{\}"\[\]]/.test(text.trim()) && text.trim().length < 20) {
+      if (/^\s*[{}"[\]]/.test(text.trim()) && text.trim().length < 20) {
         onDone?.();
         return;
       }
@@ -1063,6 +1063,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         modeRef.current,
         atmosphereRef.current,
         { wasInterruption: wasInterrupted },
+        sessionIdRef.current ?? undefined,
       );
 
       // Atmosphere relevance gate: only request backend grounding this turn when
@@ -1832,7 +1833,26 @@ CRITICAL RULES:
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
 
-        // Memory storage is now handled centrally by RuntimeManager
+        // ── Memory Return Path (Bug A) ──
+        if (userText) {
+          const lastAnalysis = behavior.lastAnalysisRef.current;
+          const currentEmotionalState: Record<string, number> = {
+            frustration: lastAnalysis?.frustration || 0,
+            playfulness: lastAnalysis?.playfulness || 0,
+            vulnerability: lastAnalysis?.vulnerability || 0,
+            trust: lastAnalysis?.trust || 0,
+            anxiety: lastAnalysis?.anxiety || 0,
+          };
+          const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
+          memoryGateway.storeMemory(
+            turnContext,
+            userIdRef.current,
+            currentEmotionalState,
+            undefined,
+            sessionIdRef.current ?? undefined,
+            RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+          );
+        }
       }
 
       const turnTotal = performance.now() - turnStart;

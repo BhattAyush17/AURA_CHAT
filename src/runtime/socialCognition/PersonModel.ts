@@ -8,12 +8,28 @@ const MAX_SAMPLES = 3;
 
 const OBSERVATION_MAP: Record<string, { category: string; label: string; keywords: string[] }[]> = {
   current_interests: [
-    { category: "current_interests", label: "topic interest", keywords: ["love", "enjoy", "like", "passionate", "interested in"] },
+    {
+      category: "current_interests",
+      label: "topic interest",
+      keywords: ["love", "enjoy", "like", "passionate", "interested in"],
+    },
   ],
   recurring_topics: [
-    { category: "recurring_topics", label: "work topic", keywords: ["work", "office", "job", "career", "boss", "colleague", "project"] },
-    { category: "recurring_topics", label: "personal topic", keywords: ["family", "friend", "relationship", "mom", "dad", "brother", "sister"] },
-    { category: "recurring_topics", label: "health topic", keywords: ["health", "doctor", "sleep", "exercise", "therapy", "anxiety", "stress"] },
+    {
+      category: "recurring_topics",
+      label: "work topic",
+      keywords: ["work", "office", "job", "career", "boss", "colleague", "project"],
+    },
+    {
+      category: "recurring_topics",
+      label: "personal topic",
+      keywords: ["family", "friend", "relationship", "mom", "dad", "brother", "sister"],
+    },
+    {
+      category: "recurring_topics",
+      label: "health topic",
+      keywords: ["health", "doctor", "sleep", "exercise", "therapy", "anxiety", "stress"],
+    },
   ],
   communication_patterns: [
     { category: "communication_patterns", label: "brief communicator", keywords: [] },
@@ -24,8 +40,16 @@ const OBSERVATION_MAP: Record<string, { category: string; label: string; keyword
     { category: "humor_style", label: "sarcastic", keywords: [] },
   ],
   decision_style: [
-    { category: "decision_style", label: "decisive", keywords: ["definitely", "i'm sure", "certainly", "absolutely", "no doubt"] },
-    { category: "decision_style", label: "cautious", keywords: ["maybe", "i don't know", "not sure", "perhaps", "might", "possibly"] },
+    {
+      category: "decision_style",
+      label: "decisive",
+      keywords: ["definitely", "i'm sure", "certainly", "absolutely", "no doubt"],
+    },
+    {
+      category: "decision_style",
+      label: "cautious",
+      keywords: ["maybe", "i don't know", "not sure", "perhaps", "might", "possibly"],
+    },
   ],
 };
 
@@ -66,8 +90,25 @@ export class PersonModel {
     }
 
     // Decisiveness markers
-    const decisiveList = ["definitely", "i'm sure", "certainly", "absolutely", "no doubt", "for sure", "without question"];
-    const cautiousList = ["maybe", "i don't know", "not sure", "perhaps", "might", "possibly", "i guess", "probably"];
+    const decisiveList = [
+      "definitely",
+      "i'm sure",
+      "certainly",
+      "absolutely",
+      "no doubt",
+      "for sure",
+      "without question",
+    ];
+    const cautiousList = [
+      "maybe",
+      "i don't know",
+      "not sure",
+      "perhaps",
+      "might",
+      "possibly",
+      "i guess",
+      "probably",
+    ];
     const decisiveMatch = decisiveList.some((k) => lower.includes(k));
     const cautiousMatch = cautiousList.some((k) => lower.includes(k));
     if (decisiveMatch) {
@@ -95,7 +136,9 @@ export class PersonModel {
     // Emotional intensity
     if (backendEmotionalState) {
       const intenseKeywords = ["frustration", "anger", "excitement", "distressed", "anxious"];
-      const hasIntense = intenseKeywords.some((k) => backendEmotionalState.toLowerCase().includes(k));
+      const hasIntense = intenseKeywords.some((k) =>
+        backendEmotionalState.toLowerCase().includes(k),
+      );
       if (hasIntense) {
         this.observe(
           observationId("current_interests", "emotional intensity"),
@@ -114,9 +157,15 @@ export class PersonModel {
     const existing = this.observations.get(id);
     if (existing) {
       existing.evidence_count++;
-      existing.confidence = this.computeConfidence(existing.evidence_count, now - existing.first_observed);
+      existing.confidence = this.computeConfidence(
+        existing.evidence_count,
+        now - existing.first_observed,
+      );
       existing.last_observed = now;
-      existing.significance = this.computeSignificance(existing.evidence_count, now - existing.first_observed);
+      existing.significance = this.computeSignificance(
+        existing.evidence_count,
+        now - existing.first_observed,
+      );
       if (!existing.samples.includes(sample)) {
         existing.samples.push(sample);
         if (existing.samples.length > MAX_SAMPLES) existing.samples.shift();
@@ -172,8 +221,12 @@ export class PersonModel {
   }
 
   getCommunicationPattern(): string | null {
-    const brief = this.getObservation(observationId("communication_patterns", "brief communicator"));
-    const elaborate = this.getObservation(observationId("communication_patterns", "elaborate communicator"));
+    const brief = this.getObservation(
+      observationId("communication_patterns", "brief communicator"),
+    );
+    const elaborate = this.getObservation(
+      observationId("communication_patterns", "elaborate communicator"),
+    );
     if (!brief && !elaborate) return null;
     if (!elaborate) return "brief";
     if (!brief) return "elaborate";

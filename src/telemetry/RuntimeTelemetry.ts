@@ -833,12 +833,12 @@ export class RuntimeTelemetry {
 
   private sanitize(text: string): string {
     // Keep observability honest: strip anything that looks like a credential.
-    // eslint-disable-next-line no-useless-escape
+
     const clean = String(text || "")
-      .replace(/(?:sk-or-v1-)[A-Za-z0-9_\-]{8,}/g, "[REDACTED]")
+      .replace(/(?:sk-or-v1-)[A-Za-z0-9_-]{8,}/g, "[REDACTED]")
       .replace(/(?:sk-)[A-Za-z0-9]{16,}/g, "[REDACTED]")
-      .replace(/AIza[A-Za-z0-9_\-]{20,}/g, "[REDACTED]")
-      .replace(/(?:eyJ)[A-Za-z0-9_\-\.]{20,}/g, "[REDACTED]");
+      .replace(/AIza[A-Za-z0-9_-]{20,}/g, "[REDACTED]")
+      .replace(/(?:eyJ)[A-Za-z0-9_\-.]{20,}/g, "[REDACTED]");
     return clean.length > 240 ? `${clean.slice(0, 240)}…` : clean;
   }
 

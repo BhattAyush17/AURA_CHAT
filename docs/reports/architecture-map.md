@@ -1,12 +1,12 @@
 # AURA Forensic Repository Architecture
 
-**Generated:** 2026-08-13
-**Scope:** Current AURA codebase (Phase F implemented).
+**Generated:** 2026-09-10
+**Scope:** Current AURA codebase (Canonical Cognitive & Perception Runtime active).
 
 ## 1. Executive Summary
 
 AURA is an adaptive, multimodal conversational agent. This document maps the _actual_ implemented architecture within the repository.
-The architecture successfully implements the canonical cognitive pipeline (Phases A–F), utilizing a unified `RuntimeManager` as the gateway for cognitive execution and `SenseManager` for perception.
+The architecture implements the canonical cognitive pipeline, utilizing a unified `RuntimeManager` as the gateway for cognitive execution and `SenseManager` (initialized at mount in `useVoiceOrchestrator.ts`) for perception.
 
 **Architectural Paradigm:**
 
@@ -109,18 +109,17 @@ AURA_CHAT/
 
 **Standard Processing Flow:**
 
-1. User speaks → `useVoiceAcoustics.ts` captures PCM, Silero processes VAD, updates `voicePerceptionStore.ts`.
-2. Provider hook (`useSarvam.ts` or `useProvider.ts`) triggers processing at speech end.
-3. Provider hook calls `RuntimeManager.getInstance().processCognitiveTurn()`.
-4. `RuntimeManager` pulls observations via `SenseManager.collectAllContext()`.
-5. `SenseManager` pulls from `VoiceSense` (which reads `voicePerceptionStore`) and `MusicSense`.
-6. Observations are fused in `PerceptionFusionLayer` (adding temporal data like "increasing").
-7. Fused Evidence is passed to `HumanStateModel` via `ConversationInterpreter`.
-8. `HumanStateModel` produces probabilistic affective hypotheses with confidence decay.
-9. `ConversationInterpreter` formats cognitive context `[COGNITION]`, `[HUMAN STATE]`, `[SENSE EVIDENCE]`.
+1. Mount / Boot: `useVoiceOrchestrator.ts` initializes `SenseManager.getInstance().initialize()` and `RuntimeManager.getInstance().initialize()`.
+2. User speaks → `useVoiceAcoustics.ts` captures PCM, Silero processes VAD, updates `voicePerceptionStore.ts`.
+3. Active Provider hook (`useLiveNext.ts`, `useSarvam.ts`, or `useProvider.ts`) triggers processing upon speech boundary / turn.
+4. Provider hook calls `RuntimeManager.getInstance().processCognitiveTurn()`.
+5. `RuntimeManager` pulls observations via `SenseManager.collectAllContext()`.
+6. `SenseManager` pulls from `VoiceSense` (reading `voicePerceptionStore`) and `MusicSense` (reading `MusicService`).
+7. Observations are fused in `PerceptionFusionLayer` (tracking temporal evidence windows).
+8. Fused Evidence is passed to `ConversationInterpreter` alongside memory context, Executive plan, social presence, and atmosphere.
+9. `ConversationInterpreter` formats cognitive context (`[COGNITION]`, `[HUMAN STATE]`, `[SENSE EVIDENCE]`, `[SOCIAL CONTEXT]`).
 10. `RuntimeManager` queries backend behavior and executes `evaluateDecision()` yielding a `ProviderExecutionDirective` (`SPEAK`, `WAIT`, `BACKCHANNEL`).
-11. Provider hook receives `directive.action`, either halting or generating a response text.
-12. TTS engine plays the response.
+11. Provider hook executes the directive action, generating audio stream, triggering TTS, or holding.
 
 ## 6. Sense Architecture
 

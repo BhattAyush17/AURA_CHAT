@@ -15,13 +15,41 @@ type MobileMusicTimelineKind = string;
 type Updater<T> = ((prev: T) => T) | Partial<T>;
 
 interface MobileMusicPipelineState {
-  perception: Record<string, unknown>;
-  evidence: Record<string, unknown>;
-  audioContext: Record<string, unknown>;
+  perception: {
+    signalsIn?: number;
+    signalsOut?: number;
+    lastSignalAt?: number | null;
+    lastSignalType?: string | null;
+    lastContextRebuildAt?: number;
+    lifecycle?: string;
+    [key: string]: unknown;
+  };
+  evidence: {
+    signalsReceived?: number;
+    evidenceGenerated?: number;
+    momentsGenerated?: number;
+    lastMomentAt?: number;
+    lastSourceCategories?: string[];
+    [key: string]: unknown;
+  };
+  audioContext: {
+    resumeRequested?: number;
+    resumeResolved?: number;
+    resumeRejected?: number;
+    lifecycle?: string;
+    sampleRate?: number | null;
+    baseLatency?: number | null;
+    outputLatency?: number | null;
+    [key: string]: unknown;
+  };
   analyser: Record<string, unknown>;
   dspLoop: Record<string, unknown>;
   mediaElementSource: Record<string, unknown>;
-  gesture: { lastGestureAt: number | null; playResolvedAfterGesture: boolean };
+  gesture: {
+    lastGestureAt: number | null;
+    playResolvedAfterGesture: boolean;
+    audioContextResumedAfterPlay?: boolean | null;
+  };
 }
 
 function applyUpdate<T>(prev: T, update: Updater<T>): T {
@@ -32,8 +60,14 @@ function applyUpdate<T>(prev: T, update: Updater<T>): T {
 }
 
 const noopState: MobileMusicPipelineState = {
-  perception: {},
-  evidence: {},
+  perception: { signalsIn: 0 },
+  evidence: {
+    signalsReceived: 0,
+    evidenceGenerated: 0,
+    momentsGenerated: 0,
+    lastMomentAt: 0,
+    lastSourceCategories: [],
+  },
   audioContext: {},
   analyser: {},
   dspLoop: {},
@@ -48,7 +82,9 @@ export const perceptionTelemetry = {
   updateMobileMusicEvidence: (update: Updater<MobileMusicPipelineState["evidence"]>): void => {
     noopState.evidence = applyUpdate(noopState.evidence, update);
   },
-  updateMobileMusicAudioContext: (update: Updater<MobileMusicPipelineState["audioContext"]>): void => {
+  updateMobileMusicAudioContext: (
+    update: Updater<MobileMusicPipelineState["audioContext"]>,
+  ): void => {
     noopState.audioContext = applyUpdate(noopState.audioContext, update);
   },
   updateMobileMusicAnalyser: (update: Updater<MobileMusicPipelineState["analyser"]>): void => {

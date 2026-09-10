@@ -18,6 +18,7 @@
 
 import { ENDPOINTS } from "@/config/api";
 import { storeLocalMemory, retrieveLocalMemories, type LocalMemoryEntry } from "@/lib/local-memory";
+import { MemoryWriteRequestSchema } from "@/lib/contracts/memory";
 import { auraTelemetry } from "@/telemetry";
 
 // Re-export MemoryResult from local-memory so consumers import from gateway
@@ -230,6 +231,8 @@ export class MemoryGateway {
     userId: string,
     emotionalTags: Record<string, number>,
     tier?: "ephemeral" | "short_term" | "durable",
+    sessionId?: string,
+    executivePlan?: string,
   ): Promise<boolean> {
     if (!this._ready) return false;
 
@@ -240,14 +243,57 @@ export class MemoryGateway {
     const startedAt = performance.now();
 
     if (this._mode === "supabase") {
-      // In Supabase mode, storage is handled server-side by the /chat endpoint.
-      // The backend stores memories after each interaction automatically.
-      auraTelemetry.endMemoryOp(opId, {
-        status: "success",
-        resultCount: 0,
-        latencyMs: performance.now() - startedAt,
+      // Phase 3 (episodic writes): POST to the backend /chat memory conduit.
+      // The backend persists the turn as a durable deep memory row and returns
+      // a clean 200 with the write result. Fire-and-forget from the caller's
+      // perspective — failures are telemetry, never a thrown exception.
+      // The payload is strictly validated first (contracts/memory.ts): a
+      // malformed write is rejected client-side instead of shipped silently.
+      const parsed = MemoryWriteRequestSchema.safeParse({
+        text: content,
+        user_id: userId,
+        session_id: sessionId,
+        memory_mode: "supabase",
+        emotional_state: emotionalTags,
+        executive_plan: executivePlan,
       });
-      return true;
+      if (!parsed.ok) {
+        auraTelemetry.endMemoryOp(opId, {
+          status: "error",
+          resultCount: 0,
+          latencyMs: performance.now() - startedAt,
+        });
+        console.warn("[MemoryGateway] Memory write payload rejected:", parsed.errors);
+        return false;
+      }
+      try {
+        const res = await fetch(ENDPOINTS.chat, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed.value),
+        });
+        const ok = res.ok;
+        auraTelemetry.endMemoryOp(opId, {
+          status: ok ? "success" : "error",
+          resultCount: ok ? 1 : 0,
+          latencyMs: performance.now() - startedAt,
+        });
+        if (!ok) {
+          // No silent fallback: a non-200 write must be recorded explicitly.
+          // resultCount 0 would otherwise look like "nothing to write".
+          console.warn(
+            `[MemoryGateway] Supabase memory write failed: HTTP ${res.status} ${res.statusText}`,
+          );
+        }
+        return ok;
+      } catch (e) {
+        auraTelemetry.endMemoryOp(opId, {
+          status: "error",
+          latencyMs: performance.now() - startedAt,
+        });
+        console.warn("[MemoryGateway] Supabase memory write failed:", e);
+        return false;
+      }
     }
 
     // Mode B: Local browser storage

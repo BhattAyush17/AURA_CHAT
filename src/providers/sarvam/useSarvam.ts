@@ -1168,6 +1168,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         modeRef.current,
         atmosphereRef.current,
         { wasInterruption: wasPreviousTurnInterrupted, silenceDurationMs: realSilenceMs },
+        sessionIdRef.current ?? undefined,
       );
 
       // Atmosphere relevance gate: only request backend grounding this turn when
@@ -1948,7 +1949,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
           // We combine the turn context
           const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
-          memoryGateway.storeMemory(turnContext, userIdRef.current, currentEmotionalState);
+          memoryGateway.storeMemory(
+            turnContext,
+            userIdRef.current,
+            currentEmotionalState,
+            undefined,
+            sessionIdRef.current ?? undefined,
+            RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+          );
         }
       }
 

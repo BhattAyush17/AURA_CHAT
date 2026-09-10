@@ -48,10 +48,14 @@ async def execute_memory_consolidation():
     try:
         # 2. Fetch distinct users who have unconsolidated memories
         # Optimization: Only fetch users active in the last week who need compression
-        user_response = await supabase.table("aura_chroma_backup") \
-            .select("user_id") \
-            .is_("consolidated_at", "null") \
-            .execute()
+        try:
+            user_response = await supabase.table("aura_chroma_backup") \
+                .select("user_id") \
+                .is_("consolidated_at", "null") \
+                .execute()
+        except Exception as e:
+            log.error("consolidator_run_consolidation_failed", detail="consolidated_at column missing", error=str(e))
+            return {"status": "error", "message": "Schema missing consolidated_at column."}
             
         if not user_response.data:
             return {"status": "success", "message": "No memories require consolidation."}
@@ -67,7 +71,14 @@ async def execute_memory_consolidation():
             
         # 4. Purge rows that were soft-deleted over 30 days ago
         purged_count = await consolidator.purge_old_memories(days=30)
-        
+
+        # Surface per-user failures explicitly instead of folding them into a
+        # clean 200. The response still lands 200 (cron cycle completed) but the
+        # telemetry makes the error state observable.
+        err_count = sum((s.get("errors", 0) for s in results if isinstance(s, dict)))
+        if err_count:
+            log.warning("cron_consolidation_had_errors", errors=err_count)
+
         return {
             "status": "success",
             "users_processed": len(unique_users),

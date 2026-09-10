@@ -23,6 +23,7 @@ from backend.memory.core.contracts import (
 from backend.memory.core.telemetry import memory_telemetry
 from backend.memory.embedding.embedder import embed_text
 from backend.memory.storage.supabase_store import StoreError
+from backend.infrastructure.degradation import degradation
 
 # Stop words for keyword extraction. Hinglish is first-class in AURA, so Hindi
 # function words are included — otherwise "mujhe yaad hai" degrades to noise.
@@ -194,7 +195,15 @@ class MemoryRetriever:
                 reason=vector_blocked.value if vector_blocked else "vector_zero_hits",
             )
             if hits:
-                # Degraded success: results are real, but keyword-ranked.
+                # Degraded success: results are real, but keyword-ranked. Only
+                # when the vector leg was actually blocked does this count as a
+                # pipeline degradation (vector_zero_hits is a normal miss the
+                # keywords legitimately rescue). Surfaced via the circuit layer
+                # so sustained fallback load stays observable in status().
+                if vector_blocked is not None:
+                    degradation.track_degradation(
+                        "memory", "fts_fallback", reason=vector_blocked.value, count=len(hits)
+                    )
                 return RetrievalResult(
                     MemoryOutcome.FTS_FALLBACK, hits, "fts", attempts, provider
                 )

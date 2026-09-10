@@ -1,4 +1,9 @@
-import type { AuraStance, ContributionType, ResponseMode, ConversationalMomentum } from "./SocialDecision";
+import type {
+  AuraStance,
+  ContributionType,
+  ResponseMode,
+  ConversationalMomentum,
+} from "./SocialDecision";
 import type { TrajectoryIntent } from "./SocialDecision";
 
 export class ContributionPlanner {

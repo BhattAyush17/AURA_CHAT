@@ -30,200 +30,207 @@ export class GeminiSession {
 
     this.setState("CONNECTING");
 
-    this.currentConnectPromise = new Promise<void>(async (resolve, reject) => {
-      try {
-        const ai = new GoogleGenAI({
-          apiKey: this.config.apiKey,
-          httpOptions: { apiVersion: "v1beta" },
-        });
-
-        const isNativeAudio =
-          this.config.model.includes("gemini-2.0") || this.config.model.includes("gemini-3.");
-
-        this.session = await ai.live.connect({
-          model: this.config.model,
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: this.config.voice } },
-              ...(isNativeAudio ? {} : { languageCode: this.config.language || "en-US" }),
-            },
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-            realtimeInputConfig: {
-              automaticActivityDetection: {
-                disabled: false,
-                startOfSpeechSensitivity: "START_SENSITIVITY_HIGH" as any,
-                endOfSpeechSensitivity: "END_SENSITIVITY_LOW" as any,
-                prefixPaddingMs: 20,
-                silenceDurationMs: 1300,
-              },
-            },
-            systemInstruction: (() => {
-              let instruction = this.config.systemInstruction || "";
-              const activeMusicCtx = buildMusicContext();
-              const regex = /\[ACTIVE MUSIC CONTEXT\][\s\S]*?\[\/ACTIVE MUSIC CONTEXT\]/;
-              if (regex.test(instruction)) {
-                instruction = instruction.replace(regex, activeMusicCtx);
-              } else if (activeMusicCtx) {
-                instruction = instruction ? `${instruction}\n\n${activeMusicCtx}` : activeMusicCtx;
-              }
-              return instruction ? { parts: [{ text: instruction }] } : undefined;
-            })(),
-            tools: [
-              {
-                functionDeclarations: [
-                  {
-                    name: "saveMemory",
-                    parameters: {
-                      type: Type.OBJECT,
-                      properties: { fact: { type: Type.STRING } },
-                      required: ["fact"],
-                    },
-                  },
-                  {
-                    name: "updateAnalysis",
-                    parameters: {
-                      type: Type.OBJECT,
-                      properties: {
-                        user_words: { type: Type.STRING },
-                        detected_tone: { type: Type.STRING },
-                        perceived_intent: { type: Type.STRING },
-                      },
-                      required: ["user_words", "detected_tone", "perceived_intent"],
-                    },
-                  },
-                  {
-                    name: "playYouTubeMusic",
-                    description: "Plays a requested song or music on YouTube instantly.",
-                    parameters: {
-                      type: Type.OBJECT,
-                      properties: {
-                        query: {
-                          type: Type.STRING,
-                          description: "The song name and artist to search and play (optional)",
-                        },
-                        mood: {
-                          type: Type.STRING,
-                          description: "The mood of the music (e.g. calm, energetic)",
-                        },
-                        energy: {
-                          type: Type.STRING,
-                          description: "The energy level (e.g. low, high)",
-                        },
-                        genre: {
-                          type: Type.STRING,
-                          description: "The genre of the music",
-                        },
-                        activity: {
-                          type: Type.STRING,
-                          description: "The activity the music is for (e.g. workout, focus)",
-                        },
-                        intent: {
-                          type: Type.STRING,
-                          description:
-                            "explicit_song | mood_based | contextual | similar | preference_based",
-                        },
-                        startAtSeconds: {
-                          type: Type.NUMBER,
-                          description:
-                            "Optional. Start the song from this position (whole seconds, 0-based). Use with fromTimestamp/fromSection/fromLyric resolved to seconds, or a direct number.",
-                        },
-                        fromTimestamp: {
-                          type: Type.STRING,
-                          description:
-                            'Optional. Natural-language or clock position to start the song at, e.g. "1:32", "92 seconds", "2 minutes". Resolved to seconds automatically.',
-                        },
-                        fromSection: {
-                          type: Type.STRING,
-                          description:
-                            'Optional. Start from a named part of the song, e.g. "the chorus", "the bridge", "the intro". Only resolvable when the track has chapter/section metadata.',
-                        },
-                        fromLyric: {
-                          type: Type.STRING,
-                          description:
-                            'Optional. Start from the position of a lyric line, e.g. "start from the line I will always love you". Only resolvable when the track has section metadata matching the line; otherwise the track starts from the beginning.',
-                        },
-                      },
-                      required: [],
-                    },
-                  },
-                  {
-                    name: "seekMusic",
-                    description:
-                      "Seeks the currently playing track to a specific time, section, or lyric line. Resolves timestamps like '1:32', section names like 'the chorus', or a lyric line that matches a section title. Reports the actual resulting position.",
-                    parameters: {
-                      type: Type.OBJECT,
-                      properties: {
-                        seconds: {
-                          type: Type.NUMBER,
-                          description: "Optional. Position to seek to, in whole seconds.",
-                        },
-                        positionMs: {
-                          type: Type.NUMBER,
-                          description: "Optional. Position to seek to, in milliseconds.",
-                        },
-                        fromTimestamp: {
-                          type: Type.STRING,
-                          description:
-                            'Optional. Position to seek to, e.g. "1:32", "92 seconds", "2 minutes".',
-                        },
-                        fromSection: {
-                          type: Type.STRING,
-                          description:
-                            'Optional. Seek to a named part, e.g. "the chorus", "the bridge".',
-                        },
-                        fromLyric: {
-                          type: Type.STRING,
-                          description:
-                            "Optional. Seek to the position of a lyric line if it matches a section title.",
-                        },
-                      },
-                      required: [],
-                    },
-                  },
-                  {
-                    name: "stopYouTubeMusic",
-                    description: "Stops or closes the currently playing YouTube music.",
-                  },
-                  {
-                    name: "getMusicContext",
-                    description:
-                      "Gets the current authoritative playing music track, playback state, queue, and history from runtime. Call this tool when the user asks about: current music, current song, artist, song identity, previous or next songs, playback state, queue, song history, references like 'this song', 'it', 'that track', 'the previous one', or before modifications depending on knowing the current track. Do not guess the track; call this tool for actual state.",
-                    parameters: {
-                      type: Type.OBJECT,
-                      properties: {},
-                    },
-                  },
-                ],
-              },
-            ],
-          },
-          callbacks: {
-            onopen: () => {
-              this.setState("CONNECTED");
-              resolve();
-            },
-            onmessage: (msg: any) => this.handleMessage(msg),
-            onclose: (event: any) => {
-              this.handleClose(event);
-            },
-            onerror: (err: any) => {
-              this.handleError(err);
-              if (this.state === "CONNECTING") {
-                reject(err);
-              }
-            },
-          },
-        });
-      } catch (err: any) {
-        this.setState("ERROR");
-        this.events.onError?.(err);
-        reject(err);
-      }
+    this.currentConnectPromise = new Promise<void>((resolve, reject) => {
+      void this._openSessionConnection(resolve, reject);
     });
 
     return this.currentConnectPromise;
+  }
+
+  private async _openSessionConnection(
+    resolve: () => void,
+    reject: (err: unknown) => void,
+  ): Promise<void> {
+    try {
+      const ai = new GoogleGenAI({
+        apiKey: this.config.apiKey,
+        httpOptions: { apiVersion: "v1beta" },
+      });
+
+      const isNativeAudio =
+        this.config.model.includes("gemini-2.0") || this.config.model.includes("gemini-3.");
+
+      this.session = await ai.live.connect({
+        model: this.config.model,
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: this.config.voice } },
+            ...(isNativeAudio ? {} : { languageCode: this.config.language || "en-US" }),
+          },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: false,
+              startOfSpeechSensitivity: "START_SENSITIVITY_HIGH" as any,
+              endOfSpeechSensitivity: "END_SENSITIVITY_LOW" as any,
+              prefixPaddingMs: 20,
+              silenceDurationMs: 1300,
+            },
+          },
+          systemInstruction: (() => {
+            let instruction = this.config.systemInstruction || "";
+            const activeMusicCtx = buildMusicContext();
+            const regex = /\[ACTIVE MUSIC CONTEXT\][\s\S]*?\[\/ACTIVE MUSIC CONTEXT\]/;
+            if (regex.test(instruction)) {
+              instruction = instruction.replace(regex, activeMusicCtx);
+            } else if (activeMusicCtx) {
+              instruction = instruction ? `${instruction}\n\n${activeMusicCtx}` : activeMusicCtx;
+            }
+            return instruction ? { parts: [{ text: instruction }] } : undefined;
+          })(),
+          tools: [
+            {
+              functionDeclarations: [
+                {
+                  name: "saveMemory",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: { fact: { type: Type.STRING } },
+                    required: ["fact"],
+                  },
+                },
+                {
+                  name: "updateAnalysis",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      user_words: { type: Type.STRING },
+                      detected_tone: { type: Type.STRING },
+                      perceived_intent: { type: Type.STRING },
+                    },
+                    required: ["user_words", "detected_tone", "perceived_intent"],
+                  },
+                },
+                {
+                  name: "playYouTubeMusic",
+                  description: "Plays a requested song or music on YouTube instantly.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      query: {
+                        type: Type.STRING,
+                        description: "The song name and artist to search and play (optional)",
+                      },
+                      mood: {
+                        type: Type.STRING,
+                        description: "The mood of the music (e.g. calm, energetic)",
+                      },
+                      energy: {
+                        type: Type.STRING,
+                        description: "The energy level (e.g. low, high)",
+                      },
+                      genre: {
+                        type: Type.STRING,
+                        description: "The genre of the music",
+                      },
+                      activity: {
+                        type: Type.STRING,
+                        description: "The activity the music is for (e.g. workout, focus)",
+                      },
+                      intent: {
+                        type: Type.STRING,
+                        description:
+                          "explicit_song | mood_based | contextual | similar | preference_based",
+                      },
+                      startAtSeconds: {
+                        type: Type.NUMBER,
+                        description:
+                          "Optional. Start the song from this position (whole seconds, 0-based). Use with fromTimestamp/fromSection/fromLyric resolved to seconds, or a direct number.",
+                      },
+                      fromTimestamp: {
+                        type: Type.STRING,
+                        description:
+                          'Optional. Natural-language or clock position to start the song at, e.g. "1:32", "92 seconds", "2 minutes". Resolved to seconds automatically.',
+                      },
+                      fromSection: {
+                        type: Type.STRING,
+                        description:
+                          'Optional. Start from a named part of the song, e.g. "the chorus", "the bridge", "the intro". Only resolvable when the track has chapter/section metadata.',
+                      },
+                      fromLyric: {
+                        type: Type.STRING,
+                        description:
+                          'Optional. Start from the position of a lyric line, e.g. "start from the line I will always love you". Only resolvable when the track has section metadata matching the line; otherwise the track starts from the beginning.',
+                      },
+                    },
+                    required: [],
+                  },
+                },
+                {
+                  name: "seekMusic",
+                  description:
+                    "Seeks the currently playing track to a specific time, section, or lyric line. Resolves timestamps like '1:32', section names like 'the chorus', or a lyric line that matches a section title. Reports the actual resulting position.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      seconds: {
+                        type: Type.NUMBER,
+                        description: "Optional. Position to seek to, in whole seconds.",
+                      },
+                      positionMs: {
+                        type: Type.NUMBER,
+                        description: "Optional. Position to seek to, in milliseconds.",
+                      },
+                      fromTimestamp: {
+                        type: Type.STRING,
+                        description:
+                          'Optional. Position to seek to, e.g. "1:32", "92 seconds", "2 minutes".',
+                      },
+                      fromSection: {
+                        type: Type.STRING,
+                        description:
+                          'Optional. Seek to a named part, e.g. "the chorus", "the bridge".',
+                      },
+                      fromLyric: {
+                        type: Type.STRING,
+                        description:
+                          "Optional. Seek to the position of a lyric line if it matches a section title.",
+                      },
+                    },
+                    required: [],
+                  },
+                },
+                {
+                  name: "stopYouTubeMusic",
+                  description: "Stops or closes the currently playing YouTube music.",
+                },
+                {
+                  name: "getMusicContext",
+                  description:
+                    "Gets the current authoritative playing music track, playback state, queue, and history from runtime. Call this tool when the user asks about: current music, current song, artist, song identity, previous or next songs, playback state, queue, song history, references like 'this song', 'it', 'that track', 'the previous one', or before modifications depending on knowing the current track. Do not guess the track; call this tool for actual state.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {},
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        callbacks: {
+          onopen: () => {
+            this.setState("CONNECTED");
+            resolve();
+          },
+          onmessage: (msg: any) => this.handleMessage(msg),
+          onclose: (event: any) => {
+            this.handleClose(event);
+          },
+          onerror: (err: any) => {
+            this.handleError(err);
+            if (this.state === "CONNECTING") {
+              reject(err);
+            }
+          },
+        },
+      });
+    } catch (err: any) {
+      this.setState("ERROR");
+      this.events.onError?.(err);
+      reject(err);
+    }
   }
 
   public disconnect(): void {

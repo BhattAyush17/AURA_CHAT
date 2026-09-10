@@ -49,7 +49,7 @@ export class SenseManager {
     }
   }
 
-  async initialize(): Promise<void> {
+  async initializeAll(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
     await senseSupervisor.initializeAll();

@@ -9,6 +9,7 @@ backend (`server.py` on :8000, `uvicorn --reload`). Read-only — **no productio
 no temporary instrumentation left in tree. No commits/pushes.
 
 Verification passes run (all pass):
+
 - `npm run build` → PASS, 12.31s
 - `npm run build:dev` → PASS, 10.82s
 - `npx tsc --noEmit` → 15 pre-existing errors / **0 new** (all in the four known files)
@@ -27,17 +28,18 @@ Verification passes run (all pass):
 - Live OpenAPI exposes **23 routes**. Memory routes are **absent** (see Section 8 — critical finding).
 
 ### What is measurable vs blocked (runtime capability)
-| Infra | Live in this env? | Notes |
-|---|---|---|
-| Redis (bus/cache/rate-limit/embedding-cache) | ✅ yes (0.19ms) | key present |
-| OpenRouter via backend SSE (`/api/analyze/stream`) | ✅ yes | 200, tokens streamed |
-| Cohere embedding (as embedding_provider fallback) | ⚠️ present but Gemini takes priority | `GEMINI_API_KEY` set → active=tier1 |
-| Supabase (pgvector / `aura_storage`) | ❌ down (`ok=false`) | memory retrieval fail-open empty |
-| Sarvam STT (`api.sarvam.ai/speech-to-text`) | ❌ 403 (key unauthorized here) | falls back to browser STT |
-| Sarvam TTS (`api.sarvam.ai/text-to-speech`) | ❌ 403 (key unauthorized here) | falls back to browser Web Speech |
-| Direct OpenRouter from browser (`ai/v1/chat/completions`) | ⚠️ 401 with this env key | Path-B fallback only |
-| Pinecone | ❌ **inactive by design** (`active: False` in telemetry) | Supabase pgvector is live store |
-| Frontend browser E2E (mic/SpeechRecognition/audio) | ❌ blocked (no audio devices / no browser) | STT/TTS local stages SKIPPED |
+
+| Infra                                                     | Live in this env?                                        | Notes                               |
+| --------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------- |
+| Redis (bus/cache/rate-limit/embedding-cache)              | ✅ yes (0.19ms)                                          | key present                         |
+| OpenRouter via backend SSE (`/api/analyze/stream`)        | ✅ yes                                                   | 200, tokens streamed                |
+| Cohere embedding (as embedding_provider fallback)         | ⚠️ present but Gemini takes priority                     | `GEMINI_API_KEY` set → active=tier1 |
+| Supabase (pgvector / `aura_storage`)                      | ❌ down (`ok=false`)                                     | memory retrieval fail-open empty    |
+| Sarvam STT (`api.sarvam.ai/speech-to-text`)               | ❌ 403 (key unauthorized here)                           | falls back to browser STT           |
+| Sarvam TTS (`api.sarvam.ai/text-to-speech`)               | ❌ 403 (key unauthorized here)                           | falls back to browser Web Speech    |
+| Direct OpenRouter from browser (`ai/v1/chat/completions`) | ⚠️ 401 with this env key                                 | Path-B fallback only                |
+| Pinecone                                                  | ❌ **inactive by design** (`active: False` in telemetry) | Supabase pgvector is live store     |
+| Frontend browser E2E (mic/SpeechRecognition/audio)        | ❌ blocked (no audio devices / no browser)               | STT/TTS local stages SKIPPED        |
 
 Per the task instructions, everything not measurable is marked **SKIPPED** rather than assumed.
 
@@ -69,6 +71,7 @@ uses its own `FALLBACK_MODELS` (`meta-llama/llama-3.3-70b-instruct:free`, `deeps
 ## 3. Microphone / audio capture → STT / transcript
 
 ### OpenRouter (browser Web Speech)
+
 - `SpeechRecognition` (`continuous=false`, `interimResults=true`, `lang: responseLanguage || "hi-IN"`),
   wired at `useProvider.ts:1889-2011`.
 - `onspeechstart` → `conversationState.reportUserSpeaking()` + `musicService.onUserSpeechStart()` (duck).
@@ -78,7 +81,8 @@ uses its own `FALLBACK_MODELS` (`meta-llama/llama-3.3-70b-instruct:free`, `deeps
 - `onerror` → exponential backoff retry (`200*2^(n-1)` cap 2000ms, max 3), `no-speech` silent restart.
 
 ### Sarvam (Sarvam STT `saaras:v3` + browser fallback)
-- Browser Web Speech used as the *fallback transcript* source (`useSarvam.ts:2023-2035`), plus PCM
+
+- Browser Web Speech used as the _fallback transcript_ source (`useSarvam.ts:2023-2035`), plus PCM
   capture via `MicrophoneCoordinator` (`useSarvam.ts:550-605`), Silero VAD feed, WAV assembly
   (`encodeWAV(downsampleBuffer(merged, 16000))`, `useSarvam.ts:2094-2095`).
 - Primary: `transcribeAudio(wavBlob)` → `POST https://api.sarvam.ai/speech-to-text` (`sarvamSTT.ts:30-37`),
@@ -101,6 +105,7 @@ A **speculative** prefetch (`behavior.fireSpeculative`, `useProvider.ts:1983` / 
 fires earlier during user speech (debounced 500ms / 4-word min, `behavior-client.ts:213`) — async.
 
 **Backend (`/api/analyze`, main.py:549-692) is an "eager dual path":**
+
 1. Hot emotional routing `engine.analyze(...)` (local, <5ms)
 2. `retrieve_prefetched_memory()` (Redis-cached speculative memory, instant)
 3. Builds `behavior_instructions`, then **returns immediately**
@@ -114,9 +119,10 @@ So behavior analysis does **not** materially block the LLM path in practice — 
 ## 5. Cognitive pipeline (frontend, all brains) — local & synchronous
 
 `RuntimeManager.processCognitiveTurn` (`src/runtime/RuntimeManager.ts:128-326`) — awaited before LLM:
+
 1. `conversationRuntime.registerUserTurn` (local)
 2. `SenseManager.collectAllContext()` — fused perception (local)
-3. **`memoryGateway.retrieveMemories(...)`** (`RuntimeManager.ts:167`) — **the only network step; supabase mode → `GET /api/memory/model/:userId` (route NOT SERVED — see §8); local mode → localStorage.** 
+3. **`memoryGateway.retrieveMemories(...)`** (`RuntimeManager.ts:167`) — **the only network step; supabase mode → `GET /api/memory/model/:userId` (route NOT SERVED — see §8); local mode → localStorage.**
 4. `buildConversationContext` → `ConversationUnderstanding.understand` (local)
 5. **Adaptive Attention** `attentionLayer.determineStance / determinePurpose / assessAtmosphere`
    (`RuntimeManager.ts:211-218`) → produces `lastAtmosphereDecision` (gates atmosphere injection)
@@ -176,6 +182,7 @@ hop, but it is **fail-open**: empty memories degrade the cognitive block, not th
 `app.include_router(memory_router)` at line 123. The reassignment discards the earlier router registration.
 
 Consequences (verified against live OpenAPI — only 23 routes, **no** `/api/memory/*`):
+
 - `GET /api/memory/model/{user_id}` — the endpoint `memoryGateway.retrieveMemories` calls in supabase
   mode (`src/lib/memory-gateway.ts:162`) — **does not exist** on the deployed app (returns 405).
 - `POST /api/memory/consolidate` — **does not exist**.
@@ -193,9 +200,10 @@ reassignment) — but per the task I report it and do **not** fix it.
 ## 9. LLM call (L4) — primary and fallback
 
 ### Backend SSE (Path A — primary, both providers)
+
 - `POST {VITE_API_BASE}/api/analyze/stream` (`config/api.ts:18`), `AbortController`.
 - Body carries `text, user_id, session_id, conversation_history, client_memories:[], memory_mode:"supabase",
-  cognitive_block, include_atmosphere` (delegates memory to server; client sends empty array).
+cognitive_block, include_atmosphere` (delegates memory to server; client sends empty array).
 - Backend (`main.py:846-998`): builds `system_prompt` from `cognitive_block` (canonical path) or
   `behavior_instructions` (fast path), optionally prepends atmosphere grounding, then
   `stream_openrouter_response(...)` (`backend/core/intelligence/llm_pipeline.py:9-59`) →
@@ -206,6 +214,7 @@ reassignment) — but per the task I report it and do **not** fix it.
 - Fallback on failure: direct frontend OpenRouter (Path B).
 
 ### Direct OpenRouter (Path B — fallback)
+
 - `POST https://openrouter.ai/api/v1/chat/completions` (`useProvider.ts:1522` / `useSarvam.ts:1637`),
   `Authorization: Bearer`. Model failover queue + 15s abort + 800ms stagger. 401/402/403 short-circuit.
 
@@ -217,27 +226,28 @@ reassignment) — but per the task I report it and do **not** fix it.
 
 Measured in this environment (OpenRouter key live via header; gold = LLM generation floor + overhead):
 
-| # | Scenario | Connect | Meta TTFT | **Token TTFT** | **Total** | chunks/chars |
-|---|---|---|---|---|---|---|
-| 1 | `/api/analyze` (behavior L2) | – | – | – | **76ms** | eager return |
-| 2 | `/api/analyze/stream` COLD | 15ms | 15ms | **4891ms** | **6013ms** | 7 / 50 |
-| 3 | `/api/analyze/stream` WARM | 79ms | 79ms | **8823ms** | **10040ms** | 7 / 32 |
-| 4 | `/api/analyze/stream` WARM | 12ms | 12ms | **1970ms** | **3424ms** | 14 / 98 |
-| 5 | `/api/analyze/stream` **atmosphere=true** | – | **3118ms** | **11474ms** | **11740ms** | – |
-| 6 | `/api/ytmusic/search` (music spawn) | – | – | – | **4903ms** | – |
-| 7 | `/api/memory/model/:id` | – | – | – | **405 (route not served)** | fail-open |
-| 8 | Sarvam TTS | – | – | – | **403 SKIPPED** | env-blocked |
-| 9 | Sarvam STT | – | – | – | **403 SKIPPED** | env-blocked |
-| 10 | Direct OpenRouter (Path B) | – | – | – | **401 SKIPPED** | env-blocked |
+| #   | Scenario                                  | Connect | Meta TTFT  | **Token TTFT** | **Total**                  | chunks/chars |
+| --- | ----------------------------------------- | ------- | ---------- | -------------- | -------------------------- | ------------ |
+| 1   | `/api/analyze` (behavior L2)              | –       | –          | –              | **76ms**                   | eager return |
+| 2   | `/api/analyze/stream` COLD                | 15ms    | 15ms       | **4891ms**     | **6013ms**                 | 7 / 50       |
+| 3   | `/api/analyze/stream` WARM                | 79ms    | 79ms       | **8823ms**     | **10040ms**                | 7 / 32       |
+| 4   | `/api/analyze/stream` WARM                | 12ms    | 12ms       | **1970ms**     | **3424ms**                 | 14 / 98      |
+| 5   | `/api/analyze/stream` **atmosphere=true** | –       | **3118ms** | **11474ms**    | **11740ms**                | –            |
+| 6   | `/api/ytmusic/search` (music spawn)       | –       | –          | –              | **4903ms**                 | –            |
+| 7   | `/api/memory/model/:id`                   | –       | –          | –              | **405 (route not served)** | fail-open    |
+| 8   | Sarvam TTS                                | –       | –          | –              | **403 SKIPPED**            | env-blocked  |
+| 9   | Sarvam STT                                | –       | –          | –              | **403 SKIPPED**            | env-blocked  |
+| 10  | Direct OpenRouter (Path B)                | –       | –          | –              | **401 SKIPPED**            | env-blocked  |
 
 **Cold vs warm:** not a meaningful split for the LLM — results 2–4 (same session, back-to-back) show
 **2s–9s** token TTFT with high variance (1970 / 4891 / 8823ms), driven by provider-side queueing/scheduling,
 not local state. Warm uptime did not lower it.
 
 **Two decisive latency findings:**
+
 1. **Token TTFT is 2–9s** — the first spoken word waits this long. The metadata event (15–80ms) is fast,
-   but the *first real token* is the bottleneck. This is the **number-one critical-path latency.**
-2. **Atmosphere turns cost +3s**: `composer.get_context` runs *before* metadata is yielded
+   but the _first real token_ is the bottleneck. This is the **number-one critical-path latency.**
+2. **Atmosphere turns cost +3s**: `composer.get_context` runs _before_ metadata is yielded
    (`main.py:938-946`), so an atmosphere-relevant turn pushes metadata to ~3.1s and token TTFT to
    **~11.5s**.
 
@@ -250,12 +260,14 @@ stall/evasion-style turns ("Oh, interesting! What's got you curious right now?")
 ## 11. TTS (text → audio → playback)
 
 ### OpenRouter — browser Web Speech only
+
 - Sentence-chunked via `drainQueue`/`tryStartTTS`. `parseSegments` → `speakChunk`
   (`useProvider.ts:776-922`): strips JSON/noisy text, picks language/premium voice, per-style pitch/rate/vol,
   `SpeechSynthesisUtterance`, registered via `SpeechCoordinator` (`window.speechSynthesis.speak`).
 - **No network.** First-audio latency ≈ last sentence boundary (i.e., close to Token TTFT) + local synth.
 
 ### Sarvam — Sarvam TTS `bulbul:v3` (network) with a **discard bug**
+
 - `generateSpeech(text, speaker, pace, lang)` → `POST https://api.sarvam.ai/text-to-speech`
   (`sarvamTTS.ts:38-46`), `bulbul:v3`, 10s abort, awaited per sentence. Returns whole-response base64.
 - **Critical defect:** `audioCtxRef` is declared (`useSarvam.ts:545`) but **never assigned**. The guard
@@ -264,11 +276,12 @@ stall/evasion-style turns ("Oh, interesting! What's got you curious right now?")
   (`window.speechSynthesis`). The `SarvamTransport`/`SpeechCoordinator.enqueueRawBytes` decode+play branch
   (`useSarvam.ts:835-867`) is dead code.
 - **Net effect:** Sarvam's network TTS costs an unnecessary awaited HTTPS round-trip per sentence, then
-  throws the audio away and falls back to a *different* engine. The audible result is never Sarvam.
+  throws the audio away and falls back to a _different_ engine. The audible result is never Sarvam.
 - **Now + in prod:** network 403 in this env (SKIPPED). With a working key it would still hit the discard
   branch → always Web Speech.
 
 ### Shared
+
 - Barge-in: 400ms grace, dynamic RMS threshold (0.04 → 0.15 during AURA speech), 15 loud frames →
   `speechSynthesis.cancel()` + sentence-queue clear + `onInterrupt`.
 - Music ducking: `onAuraSpeechStart/End` → `MusicService` volume fade to 20% / restore (local).
@@ -278,11 +291,12 @@ stall/evasion-style turns ("Oh, interesting! What's got you curious right now?")
 ## 12. Intent / action / Music execution
 
 Two parallel music-command seams (known architecture):
+
 1. **Gemini Live tool-call seam** (`GeminiSession` schema → `useLiveNext.handleToolCall` →
    `executeAuraAction` in `src/lib/aura-actions.ts` → `MusicService.processIntent`) — Gemini only.
 2. **OpenRouter/Sarvam prompt-tag seam:** `parseSegments` (`useProvider.ts:90-346`) and
    `extractStageDirections` (`useSarvam.ts:120-240`) parse `PLAY_YOUTUBE: / STOP_YOUTUBE / PAUSE_MUSIC /
-   RESUME_MUSIC / SEEK: / NEXT_SONG / PREV_SONG / VOLUME_* / MUSIC_ASSOCIATION / MUSIC_EMOTION`,
+RESUME_MUSIC / SEEK: / NEXT_SONG / PREV_SONG / VOLUME_* / MUSIC_ASSOCIATION / MUSIC_EMOTION`,
    plus inline `{"tool":"play_music",...}` in the token stream. Both call `musicService.processIntent`
    via **dynamic `import()`** (fire-and-forget, never blocks spoken-text drain).
 
@@ -319,6 +333,7 @@ music start, not the reply text.
 ## 15. Music latency & playback timeline (from measured data)
 
 Typical music-intent turn timeline (OpenRouter, from measurements):
+
 ```
 user speech
   → adaptive delay (~1-2s, TBD per turn)
@@ -331,7 +346,8 @@ user speech
        sentence "OK playing that..." spoken ≈ after first token
        [song starts ≈ after search completes ≈ +4.9s]
 ```
-Music intent starts on a **side path** (async), so speech isn't blocked by the ~4.9s search; the *song*
+
+Music intent starts on a **side path** (async), so speech isn't blocked by the ~4.9s search; the _song_
 itself starts ~4.9s in, concurrently with/after speech. Atmosphere-relevant turns shift first-audio to
 ~11.5s (see §10).
 
@@ -358,7 +374,7 @@ itself starts ~4.9s in, concurrently with/after speech. Atmosphere-relevant turn
   network latency (403); direct OpenRouter Path-B (401 with this env key).
 - **Assumed from producer/browser semantics** (not independently timed): adaptive-turn delay, VAD/barge-in
   timing, Web Speech voice pitch/rate timing.
-- **Not measured end-to-end in a browser**, so TTF-*first-spoken-word* is derived as
+- **Not measured end-to-end in a browser**, so TTF-_first-spoken-word_ is derived as
   ≈ Token TTFT (± local synth) — the LLM token time is the dominant, externally-verified term.
 
 ---
@@ -385,4 +401,4 @@ itself starts ~4.9s in, concurrently with/after speech. Atmosphere-relevant turn
 
 ---
 
-*No production code was modified; no temporary instrumentation remains; no commits/pushes made.*
+_No production code was modified; no temporary instrumentation remains; no commits/pushes made._

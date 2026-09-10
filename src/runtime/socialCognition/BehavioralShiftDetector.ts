@@ -13,7 +13,13 @@ export class BehavioralShiftDetector {
   private baseline: Window | null = null;
   private readonly WINDOW_SIZE = 10;
   private readonly SHIFT_THRESHOLD = 0.45;
-  private currentWindow: Window = { avgWordCount: 0, avgPlayfulness: 0, avgEnergy: 0, avgTension: 0, sampleCount: 0 };
+  private currentWindow: Window = {
+    avgWordCount: 0,
+    avgPlayfulness: 0,
+    avgEnergy: 0,
+    avgTension: 0,
+    sampleCount: 0,
+  };
   private previousShift: BehavioralShift | null = null;
 
   observe(
@@ -41,7 +47,13 @@ export class BehavioralShiftDetector {
     if (this.baseline === null || cw.sampleCount < 5) return null;
 
     // Detect shifts
-    const shifts: { type: BehavioralShiftType; confidence: number; prev: string; curr: string; desc: string }[] = [];
+    const shifts: {
+      type: BehavioralShiftType;
+      confidence: number;
+      prev: string;
+      curr: string;
+      desc: string;
+    }[] = [];
 
     // Energy shift (from baseline)
     const energyDelta = Math.abs(cw.avgEnergy - this.baseline.avgEnergy);
@@ -59,7 +71,8 @@ export class BehavioralShiftDetector {
     // Playfulness shift
     const playDelta = Math.abs(cw.avgPlayfulness - this.baseline.avgPlayfulness);
     if (playDelta > this.SHIFT_THRESHOLD) {
-      const dir = cw.avgPlayfulness > this.baseline.avgPlayfulness ? "more playful" : "more serious";
+      const dir =
+        cw.avgPlayfulness > this.baseline.avgPlayfulness ? "more playful" : "more serious";
       shifts.push({
         type: "playfulness_change",
         confidence: Math.min(playDelta, 0.95),
@@ -94,7 +107,8 @@ export class BehavioralShiftDetector {
     }
 
     // Message length shift
-    const wordRatio = this.baseline.avgWordCount > 0 ? cw.avgWordCount / this.baseline.avgWordCount : 1;
+    const wordRatio =
+      this.baseline.avgWordCount > 0 ? cw.avgWordCount / this.baseline.avgWordCount : 1;
     if (wordRatio > 2.5) {
       shifts.push({
         type: "message_length_change",
@@ -129,7 +143,11 @@ export class BehavioralShiftDetector {
     };
 
     // Don't repeat the same type in a row
-    if (this.previousShift && this.previousShift.type === shift.type && this.previousShift.confidence > 0.6) {
+    if (
+      this.previousShift &&
+      this.previousShift.type === shift.type &&
+      this.previousShift.confidence > 0.6
+    ) {
       return null;
     }
 
@@ -139,7 +157,13 @@ export class BehavioralShiftDetector {
 
   reset(): void {
     this.baseline = null;
-    this.currentWindow = { avgWordCount: 0, avgPlayfulness: 0, avgEnergy: 0, avgTension: 0, sampleCount: 0 };
+    this.currentWindow = {
+      avgWordCount: 0,
+      avgPlayfulness: 0,
+      avgEnergy: 0,
+      avgTension: 0,
+      sampleCount: 0,
+    };
     this.previousShift = null;
   }
 }

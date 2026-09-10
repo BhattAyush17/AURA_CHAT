@@ -72,6 +72,22 @@ class DegradationManager:
             "worker": CircuitBreaker("worker", failure_threshold=5, recovery_timeout_seconds=45),
             "embedding_api": CircuitBreaker("embedding_api", failure_threshold=3, recovery_timeout_seconds=60),
         }
+        # Non-fatal degradation signals: a feature executed through a degraded
+        # path (e.g. memory retrieval served by the keyword fallback). Counters
+        # are keyed "source:detail" so a sustained degradation stays observable
+        # in status() instead of vanishing into an occasional log line.
+        self.degradations: dict = {}
+
+    def track_degradation(self, source: str, detail: str, **extra) -> None:
+        """Record an explicit degraded-success signal (a fallback path engaged).
+
+        Not a circuit failure — the request succeeded, but not through the
+        primary mechanism. Bumps a per-key counter and emits a structured log
+        so the degradation is never silent.
+        """
+        key = f"{source}:{detail}"
+        self.degradations[key] = self.degradations.get(key, 0) + 1
+        logger.warning("Degradation %s engaged (count=%d) %s", key, self.degradations[key], extra)
 
     @property
     def level(self) -> DegradationLevel:
@@ -129,6 +145,7 @@ class DegradationManager:
         return {
             "degradation_level": self.level.value,
             "circuits": {name: cb.to_dict() for name, cb in self.circuits.items()},
+            "degradations": dict(self.degradations),
         }
 
 # Global singleton used by the server

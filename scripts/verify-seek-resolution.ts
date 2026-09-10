@@ -6,10 +6,7 @@
  * HTMLMediaElement requires a browser. Here we verify the pure resolution layer
  * (timestamps, named sections, lyric-line best-effort) that feeds the seek path.
  */
-import {
-  parseTimestampToSeconds,
-  resolvePositionTarget,
-} from "../src/music/DeicticResolver";
+import { parseTimestampToSeconds, resolvePositionTarget } from "../src/music/DeicticResolver";
 
 const fakeTrack: any = {
   id: "t1",
@@ -55,12 +52,18 @@ check("parse no time in sentence", parseTimestampToSeconds("play the chorus"), n
 console.log("── Position resolution (explicit timestamp) ──────");
 const ts = resolvePositionTarget("1:32", fakeTrack);
 check("resolve 1:32", ts.seconds, 92);
-if (ts.source !== "timestamp") { fail++; console.log("FAIL  ts.source == timestamp"); } else pass++;
+if (ts.source !== "timestamp") {
+  fail++;
+  console.log("FAIL  ts.source == timestamp");
+} else pass++;
 
 console.log("── Section resolution against chapters ───────────");
 const chorus = resolvePositionTarget("the chorus", fakeTrack);
 check("resolve 'the chorus'", chorus.seconds, 45);
-if (chorus.source !== "section") { fail++; console.log("FAIL  chorus.source == section"); } else pass++;
+if (chorus.source !== "section") {
+  fail++;
+  console.log("FAIL  chorus.source == section");
+} else pass++;
 
 const bridge = resolvePositionTarget("from the bridge", fakeTrack);
 check("resolve 'from the bridge'", bridge.seconds, 120);
@@ -72,26 +75,56 @@ const outro = resolvePositionTarget("the outro", fakeTrack);
 check("resolve 'the outro'", outro.seconds, 210);
 
 console.log("── Section without chapter metadata (honest null) ─");
-const noChapterTrack: any = { id: "t2", title: "NoChapters", artist: "X", durationMs: 100000, source: "youtube" };
+const noChapterTrack: any = {
+  id: "t2",
+  title: "NoChapters",
+  artist: "X",
+  durationMs: 100000,
+  source: "youtube",
+};
 const noCh = resolvePositionTarget("the chorus", noChapterTrack);
 check("chorus w/o chapters -> null", noCh.seconds, null);
-if (noCh.source !== "section") { fail++; console.log("FAIL  noCh.source == section"); } else pass++;
-if (!checkReason(noCh.reason)) { fail++; console.log("FAIL  noCh.reason non-empty"); } else pass++;
+if (noCh.source !== "section") {
+  fail++;
+  console.log("FAIL  noCh.source == section");
+} else pass++;
+if (!checkReason(noCh.reason)) {
+  fail++;
+  console.log("FAIL  noCh.reason non-empty");
+} else pass++;
 
 console.log("── Lyric line (matches section title) ────────────");
 // A lyric line containing a section keyword resolves to that section's start
 // (section detection takes precedence over free-text lyric search).
 const lyricMatch = resolvePositionTarget("from the line chorus", fakeTrack);
-if (lyricMatch.seconds === 45) { pass++; } else { fail++; console.log(`FAIL  lyricMatch: ${JSON.stringify(lyricMatch)}`); }
+if (lyricMatch.seconds === 45) {
+  pass++;
+} else {
+  fail++;
+  console.log(`FAIL  lyricMatch: ${JSON.stringify(lyricMatch)}`);
+}
 
 console.log("── Lyric line (no match -> honest null) ──────────");
 const lyricMiss = resolvePositionTarget("from the line i will always love you", fakeTrack);
-if (lyricMiss.seconds === null && lyricMiss.source === "lyric") { pass++; } else { fail++; console.log(`FAIL  lyricMiss: ${JSON.stringify(lyricMiss)}`); }
-if (!checkReason(lyricMiss.reason)) { fail++; console.log("FAIL  lyricMiss.reason non-empty"); } else pass++;
+if (lyricMiss.seconds === null && lyricMiss.source === "lyric") {
+  pass++;
+} else {
+  fail++;
+  console.log(`FAIL  lyricMiss: ${JSON.stringify(lyricMiss)}`);
+}
+if (!checkReason(lyricMiss.reason)) {
+  fail++;
+  console.log("FAIL  lyricMiss.reason non-empty");
+} else pass++;
 
 console.log("── Empty / unresolvable ─────────────────────────");
 const empty = resolvePositionTarget("", fakeTrack);
-if (empty.seconds === null) { pass++; } else { fail++; console.log("FAIL  empty -> null"); }
+if (empty.seconds === null) {
+  pass++;
+} else {
+  fail++;
+  console.log("FAIL  empty -> null");
+}
 
 console.log("\n══════════════════════════════════════════════════");
 console.log(`RESULT: ${pass} passed, ${fail} failed`);

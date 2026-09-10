@@ -1,5 +1,5 @@
 import { GeminiVoiceEngine } from "./GeminiVoiceEngine";
-
+import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator";
 export type WatchdogReason = "CONNECTION_STALL" | "RESPONSE_STALL" | "MICROPHONE_STALL";
 
 export interface WatchdogConfig {
@@ -71,8 +71,45 @@ export class VoiceHealthWatchdog {
       return;
     }
 
-    // TODO: Connect this to actual GeminiSession metrics if needed
-    // For now, we mainly rely on the engine's built-in reconnection logic.
-    // This watchdog serves as a final fallback if everything else freezes.
+    // Check Microphone Stream
+    if (this.engine.telemetry.isCapturing) {
+      const micCoordinator = MicrophoneCoordinator.getInstance();
+      const micStream = micCoordinator.getStream();
+      if (!micStream || !micStream.active) {
+        console.error(
+          "[VoiceHealthWatchdog] MICROPHONE_STALL detected: Stream inactive while capturing is true.",
+        );
+        this.onRecover("MICROPHONE_STALL");
+        return;
+      }
+    }
+
+    // Check Connection Stall
+    if (this.engine.getState() === "CONNECTING") {
+      if (now - this.lastPlaybackTime > this.config.connectionTimeoutMs) {
+        console.error(
+          `[VoiceHealthWatchdog] CONNECTION_STALL: In CONNECTING state for > ${this.config.connectionTimeoutMs}ms`,
+        );
+        this.onRecover("CONNECTION_STALL");
+        return;
+      }
+    }
+
+    // Check Response Stall
+    if (this.engine.getState() === "CONNECTED" && !this.engine.telemetry.isPlaying) {
+      // If we are connected and it's been a long time since we received a server message or played audio
+      const timeSinceLastMessage = now - this.engine.telemetry.lastServerMessageAt;
+      // We only flag a response stall if lastServerMessageAt > 0, meaning we at least connected fully once.
+      if (
+        timeSinceLastMessage > this.config.responseTimeoutMs &&
+        this.engine.telemetry.lastServerMessageAt > 0
+      ) {
+        console.error(
+          `[VoiceHealthWatchdog] RESPONSE_STALL: No server messages or audio for > ${this.config.responseTimeoutMs}ms`,
+        );
+        this.onRecover("RESPONSE_STALL");
+        return;
+      }
+    }
   }
 }

@@ -4,6 +4,8 @@ import { useOpenRouter } from "@/providers/openrouter/useProvider";
 import { useSarvam } from "@/providers/sarvam/useSarvam";
 import { IVoicePipeline } from "./IVoicePipeline";
 
+import { SenseManager } from "@/sense/SenseManager/SenseManager";
+
 export type ActiveProvider = "gemini" | "openrouter" | "sarvam";
 
 /**
@@ -35,6 +37,16 @@ export function useVoiceOrchestrator(
     import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
       RuntimeManager.getInstance().initialize();
     });
+    // Wake the dormant senses (Time/Location/Weather/Music/Voice) so they begin
+    // accumulating evidence. Must await it.
+    const initSenses = async () => {
+      try {
+        await SenseManager.getInstance().initializeAll();
+      } catch (e) {
+        console.warn("[AURA] SenseManager init failed:", e);
+      }
+    };
+    initSenses();
   }, []);
 
   // ── Only the ACTIVE provider's hook runs with real arguments. ──
@@ -150,6 +162,42 @@ export function useVoiceOrchestrator(
   const previousProviderRef = useRef(provider);
   const previousVoiceRef = useRef(voice);
   const wasActiveRef = useRef(false);
+
+  useEffect(() => {
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+          import("@/runtime/RuntimeTelemetry").then(({ RuntimeTelemetry }) => {
+            RuntimeTelemetry.getInstance().trackWakeLockAcquired(true);
+          });
+        }
+      } catch (err: any) {
+        import("@/runtime/RuntimeTelemetry").then(({ RuntimeTelemetry }) => {
+          RuntimeTelemetry.getInstance().trackWakeLockAcquired(false);
+        });
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLock) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    };
+
+    const isActive = activePipeline.status !== "idle" && activePipeline.status !== "error";
+    if (isActive) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+
+    return () => {
+      releaseWakeLock();
+    };
+  }, [activePipeline.status]);
 
   useEffect(() => {
     const isActive = activePipeline.status !== "idle" && activePipeline.status !== "error";

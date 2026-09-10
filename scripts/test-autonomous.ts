@@ -16,7 +16,10 @@ import {
   formatAutonomousBlock,
   getAutonomousConversationEngine,
 } from "@/runtime/autonomousConversation";
-import type { AutonomousInput, AutonomousConversationDecision } from "@/runtime/autonomousConversation";
+import type {
+  AutonomousInput,
+  AutonomousConversationDecision,
+} from "@/runtime/autonomousConversation";
 
 let passed = 0;
 let failed = 0;
@@ -44,8 +47,21 @@ function fresh(): AutonomousInput {
     move: "Continue",
     speakerGoal: "inform",
     expected: "follow-up",
-    shared: { openQuestion: false, repairPending: false, topicUnfinished: false, emotionUnresolved: false },
-    emotion: { tension: 0.2, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0, vulnerability: 0, arc: "building" },
+    shared: {
+      openQuestion: false,
+      repairPending: false,
+      topicUnfinished: false,
+      emotionUnresolved: false,
+    },
+    emotion: {
+      tension: 0.2,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0,
+      vulnerability: 0,
+      arc: "building",
+    },
     memory: { hasPersonalHistory: false, retrievedCount: 0, relevanceScores: [] },
     timing: { silenceDurationMs: 0, turnCount: 5 },
     frustration: 0,
@@ -112,10 +128,7 @@ check("3 frustrated user → REFLECT (not dismissive, not interrogating)", () =>
   i.emotion.engagement = 0.4;
   i.strategy = "Reflect";
   const d = evaluateAutonomous(i);
-  assert.ok(
-    ["REFLECT", "ACKNOWLEDGE"].includes(d.action),
-    `action = ${d.action}`,
-  );
+  assert.ok(["REFLECT", "ACKNOWLEDGE"].includes(d.action), `action = ${d.action}`);
   assert.notStrictEqual(d.action, "ASK");
   assert.notStrictEqual(d.action, "RESPOND_ONLY");
   assert.strictEqual(d.shouldSpeak, true, "empathy present, not silence");
@@ -243,10 +256,7 @@ check("11 relevant durable memory + curiosity → contextual use", () => {
   i.emotion.warmth = 0.7;
   i.social.conversational_momentum.exploratory = true;
   const d = evaluateAutonomous(i);
-  assert.ok(
-    ["RECALL", "PROACTIVELY_RETURN"].includes(d.action),
-    `action = ${d.action}`,
-  );
+  assert.ok(["RECALL", "PROACTIVELY_RETURN"].includes(d.action), `action = ${d.action}`);
   assert.strictEqual(d.memoryOpportunity, true);
 });
 
@@ -403,7 +413,11 @@ check("ext decision carries permission/urgency/interruptionCost + categories", (
   assert.ok(["allowed", "discouraged", "prohibited"].includes(d.permission));
   assert.ok(d.urgency >= 0 && d.urgency <= 1);
   assert.ok(d.interruptionCost >= 0 && d.interruptionCost <= 1);
-  assert.ok(["USER_TURN_RESPONSE", "AUTONOMOUS_CONTINUATION", "AUTONOMOUS_REENGAGEMENT", "WAIT"].includes(d.utteranceCategory));
+  assert.ok(
+    ["USER_TURN_RESPONSE", "AUTONOMOUS_CONTINUATION", "AUTONOMOUS_REENGAGEMENT", "WAIT"].includes(
+      d.utteranceCategory,
+    ),
+  );
 });
 
 // ── Extended: feedback loop records outcomes (non-destructive) ──────
@@ -411,10 +425,18 @@ check("ext feedback loop records + surfaces outcomes", () => {
   const engine = getAutonomousConversationEngine();
   engine.clear();
   const d: AutonomousConversationDecision = evaluateAutonomous(
-    Object.assign(fresh(), { literal: "question", expected: "information", speakerGoal: "seek-information" }),
+    Object.assign(fresh(), {
+      literal: "question",
+      expected: "information",
+      speakerGoal: "seek-information",
+    }),
   );
   engine.evaluate(
-    Object.assign(fresh(), { literal: "question", expected: "information", speakerGoal: "seek-information" }),
+    Object.assign(fresh(), {
+      literal: "question",
+      expected: "information",
+      speakerGoal: "seek-information",
+    }),
   );
   engine.recordOutcome({
     actionTaken: d.action,
@@ -531,7 +553,10 @@ check("I music context present → music is relevance-only, no forced initiative
   withMusic.hasMusicContext = true;
   const without = fresh();
   without.hasMusicContext = false;
-  assert.strictEqual(evaluateAutonomous(withMusic).initiativeScore, evaluateAutonomous(without).initiativeScore);
+  assert.strictEqual(
+    evaluateAutonomous(withMusic).initiativeScore,
+    evaluateAutonomous(without).initiativeScore,
+  );
 });
 
 check("J determinism → identical input, identical decision", () => {

@@ -161,6 +161,7 @@ There is no CI and no formal test runner. Verification conventions:
 DevMemory is the local secondary code-memory and relationship index for this project.
 
 Use DevMemory as a navigation and discovery aid when investigating:
+
 - unfamiliar subsystems
 - cross-file relationships
 - architecture questions
@@ -171,12 +172,14 @@ Use DevMemory as a navigation and discovery aid when investigating:
 Before broad exploration, query DevMemory when it is likely to reduce search effort.
 
 Available tools:
+
 - `devmemory_devmemory-query` — search project memory
 - `devmemory_devmemory-explain` — inspect a symbol and its relationships
 - `devmemory_devmemory-neighbors` — inspect connected symbols/files
 - `devmemory_devmemory-stats` — verify memory/index health
 
 Use short, concrete queries first:
+
 - symbol names
 - subsystem names
 - distinctive identifiers
@@ -185,6 +188,7 @@ Use short, concrete queries first:
 If a query returns nothing, retry with shorter or more identifier-focused terms before concluding that the project does not contain the concept.
 
 IMPORTANT:
+
 - DevMemory is a derived cache, NOT source of truth.
 - Always verify important findings against the actual source files.
 - Never implement a change solely from DevMemory output.

@@ -1,6 +1,6 @@
 # AURA Voice Runtime v1.0 — Frozen Production Baseline
 
-Date: 2026-08-08 · Status: **FROZEN — approved for production** · Supersedes Latency Runtime v2 and all prior drafts (v1→v2→v3 → Phase 7 → Proposal D + 6 → Latency Runtime v2 → final adversarial audit)
+Date: 2026-09-10 · Status: **FROZEN PRODUCTION BASELINE** · Canonical Voice Runtime Architecture
 
 This is the frozen architecture for AURA Voice. It emerged from months of real-device testing (RC-1/RC-2 across desktop Linux, Samsung Android, realme Android), multiple adversarial reviews, and one definitive audit. The lesson that stabilized it: **browser speech APIs are not the architecture — they are one provider.**
 

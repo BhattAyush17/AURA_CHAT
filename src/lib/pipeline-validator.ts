@@ -183,7 +183,7 @@ export async function validateAllPipelines(): Promise<ValidatorReport> {
     "A1X";
 
   // Derive active combo id
-  let actMem =
+  const actMem =
     state.active_embed_mode === "gemini"
       ? "A"
       : state.active_embed_mode === "fastembed"
@@ -191,7 +191,7 @@ export async function validateAllPipelines(): Promise<ValidatorReport> {
         : state.active_embed_mode === "fts"
           ? "C"
           : "D";
-  let actLlm =
+  const actLlm =
     state.active_llm === "openrouter_haiku"
       ? "1"
       : state.active_llm === "openrouter_mini"
@@ -199,7 +199,7 @@ export async function validateAllPipelines(): Promise<ValidatorReport> {
         : state.active_llm === "gemini_direct"
           ? "3"
           : "4";
-  let actVoice =
+  const actVoice =
     state.active_voice_in === "sarvam" ? "X" : state.active_voice_in === "webspeech" ? "Y" : "Z";
   const currently_active = `${actMem}${actLlm}${actVoice}`;
 

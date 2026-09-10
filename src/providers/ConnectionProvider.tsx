@@ -170,5 +170,3 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   return <ConnectionContext.Provider value={state}>{children}</ConnectionContext.Provider>;
 };
-
-export const useConnection = () => useContext(ConnectionContext);

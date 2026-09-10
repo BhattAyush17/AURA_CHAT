@@ -12,22 +12,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { getGeminiKey, getOpenRouterKey, getSarvamKey } from "@/lib/api";
 import { getCredential } from "@/lib/credentials";
 import { connectionState, type ConnectionState } from "@/config/connectionState";
+import { type LatencyMetrics } from "@/lib/latency";
 
 // ─── Shared types ───────────────────────────────────────────────────
-
-interface LatencyMetrics {
-  geminiConnect: number | null;
-  firstToken: number | null;
-  roundTrip: number | null;
-  audioChunkInterval: number | null;
-  backendAnalysis: number | null;
-  memoryLayer: "live" | "seed" | "deep";
-  geminiSetup: number | null;
-  geminiGenStart: number | null;
-  tokenThroughput: number | null;
-  turnTokens: number | null;
-  interruptionStopMs: number | null;
-}
 
 interface LatencyMeterProps {
   visible?: boolean;
@@ -558,12 +545,4 @@ export function LatencyMeter({ visible = false, activeBrain = "gemini" }: Latenc
       </div>
     </>
   );
-}
-
-// ─── Global emitter (unchanged API) ─────────────────────────────────
-export function emitLatency(
-  type: keyof LatencyMetrics | Partial<LatencyMetrics>,
-  value?: number | string,
-) {
-  window.dispatchEvent(new CustomEvent("aura:latency", { detail: { type, value } }));
 }

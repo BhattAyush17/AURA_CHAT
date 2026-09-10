@@ -30,8 +30,21 @@ function base(): AutonomousInput {
     move: "Continue",
     speakerGoal: "inform",
     expected: "follow-up",
-    shared: { openQuestion: false, repairPending: false, topicUnfinished: false, emotionUnresolved: false },
-    emotion: { tension: 0.3, energy: 0.5, warmth: 0.5, engagement: 0.5, frustration: 0.1, vulnerability: 0, arc: "building" },
+    shared: {
+      openQuestion: false,
+      repairPending: false,
+      topicUnfinished: false,
+      emotionUnresolved: false,
+    },
+    emotion: {
+      tension: 0.3,
+      energy: 0.5,
+      warmth: 0.5,
+      engagement: 0.5,
+      frustration: 0.1,
+      vulnerability: 0,
+      arc: "building",
+    },
     memory: { hasPersonalHistory: false, retrievedCount: 0, relevanceScores: [] },
     timing: { silenceDurationMs: 0, turnCount: 10 },
     frustration: 0.1,
@@ -75,13 +88,63 @@ const seen = new Set<string>();
 // Deterministic scenario probes from the 18-test suite (targets specific actions).
 const scenarioInputs: Array<Partial<AutonomousInput>> = [
   { literal: "question", expected: "information", speakerGoal: "seek-information", move: "Answer" }, // RESPOND_ONLY
-  { vulnerability: 0.75, literal: "statement", speakerGoal: "seek-comfort", strategy: "Comfort", emotion: { ...base().emotion, vulnerability: 0.75, arc: "peak" } }, // ACKNOWLEDGE
-  { literal: "opinion", speakerGoal: "share-excitement", move: "Continue", shared: { ...base().shared, topicUnfinished: true }, emotion: { ...base().emotion, engagement: 0.85 }, social: { ...base().social, conversational_momentum: { ...base().social.conversational_momentum, exploratory: true, topic_depth: 2 } } }, // CONTINUE
-  { shared: { ...base().shared, repairPending: true }, literal: "repair", expected: "clarification" }, // CLARIFY
+  {
+    vulnerability: 0.75,
+    literal: "statement",
+    speakerGoal: "seek-comfort",
+    strategy: "Comfort",
+    emotion: { ...base().emotion, vulnerability: 0.75, arc: "peak" },
+  }, // ACKNOWLEDGE
+  {
+    literal: "opinion",
+    speakerGoal: "share-excitement",
+    move: "Continue",
+    shared: { ...base().shared, topicUnfinished: true },
+    emotion: { ...base().emotion, engagement: 0.85 },
+    social: {
+      ...base().social,
+      conversational_momentum: {
+        ...base().social.conversational_momentum,
+        exploratory: true,
+        topic_depth: 2,
+      },
+    },
+  }, // CONTINUE
+  {
+    shared: { ...base().shared, repairPending: true },
+    literal: "repair",
+    expected: "clarification",
+  }, // CLARIFY
   { literal: "goodbye", speakerGoal: "close", move: "Close" }, // WAIT
-  { strategy: "Reflect", memory: { hasPersonalHistory: true, retrievedCount: 3, relevanceScores: [0.9] }, planMemoryPolicy: "Required", literal: "opinion", speakerGoal: "share-excitement", emotion: { ...base().emotion, engagement: 0.8 } }, // RECALL
-  { strategy: "Reflect", literal: "opinion", speakerGoal: "share-excitement", move: "Continue", memory: { hasPersonalHistory: true, retrievedCount: 3, relevanceScores: [0.9] }, planMemoryPolicy: "Required", shared: { ...base().shared, topicUnfinished: true }, emotion: { ...base().emotion, engagement: 0.8 } }, // PROACTIVELY_RETURN
-  { strategy: "Reflect", literal: "opinion", speakerGoal: "share-excitement", emotion: { ...base().emotion, engagement: 0.9, energy: 0.9 }, questionFatigue: 0, social: { ...base().social, conversational_momentum: { ...base().social.conversational_momentum, exploratory: true } } },
+  {
+    strategy: "Reflect",
+    memory: { hasPersonalHistory: true, retrievedCount: 3, relevanceScores: [0.9] },
+    planMemoryPolicy: "Required",
+    literal: "opinion",
+    speakerGoal: "share-excitement",
+    emotion: { ...base().emotion, engagement: 0.8 },
+  }, // RECALL
+  {
+    strategy: "Reflect",
+    literal: "opinion",
+    speakerGoal: "share-excitement",
+    move: "Continue",
+    memory: { hasPersonalHistory: true, retrievedCount: 3, relevanceScores: [0.9] },
+    planMemoryPolicy: "Required",
+    shared: { ...base().shared, topicUnfinished: true },
+    emotion: { ...base().emotion, engagement: 0.8 },
+  }, // PROACTIVELY_RETURN
+  {
+    strategy: "Reflect",
+    literal: "opinion",
+    speakerGoal: "share-excitement",
+    emotion: { ...base().emotion, engagement: 0.9, energy: 0.9 },
+    questionFatigue: 0,
+    social: {
+      ...base().social,
+      conversational_momentum: { ...base().social.conversational_momentum, exploratory: true },
+    },
+  },
 ];
 
 for (const s of scenarioInputs) {
@@ -92,11 +155,47 @@ for (const s of scenarioInputs) {
 // Randomized stress probe for broader reachability.
 for (let n = 0; n < 50000; n++) {
   const i = base();
-  i.literal = pick(["statement", "question", "answer", "request", "opinion", "repair", "goodbye", "command"]);
+  i.literal = pick([
+    "statement",
+    "question",
+    "answer",
+    "request",
+    "opinion",
+    "repair",
+    "goodbye",
+    "command",
+  ]);
   i.move = pick(["Continue", "Answer", "ChangeTopic", "Close", "Ask"]);
-  i.speakerGoal = pick(["inform", "seek-information", "seek-comfort", "share-excitement", "vent", "close", "persuade"]);
-  i.expected = pick(["follow-up", "information", "clarification", "validation", "acknowledgement", "advice"]);
-  i.strategy = pick(["Answer", "Ask", "Clarify", "Comfort", "Encourage", "Challenge", "Observe", "Reflect", "Redirect", "Summarize", "Listen"]);
+  i.speakerGoal = pick([
+    "inform",
+    "seek-information",
+    "seek-comfort",
+    "share-excitement",
+    "vent",
+    "close",
+    "persuade",
+  ]);
+  i.expected = pick([
+    "follow-up",
+    "information",
+    "clarification",
+    "validation",
+    "acknowledgement",
+    "advice",
+  ]);
+  i.strategy = pick([
+    "Answer",
+    "Ask",
+    "Clarify",
+    "Comfort",
+    "Encourage",
+    "Challenge",
+    "Observe",
+    "Reflect",
+    "Redirect",
+    "Summarize",
+    "Listen",
+  ]);
   i.planInitiative = pick(["Continue", "Proactive", "Respond-only", "Wait"]);
   i.userInterrupted = Math.random() < 0.15;
   i.auraJustSpoke = Math.random() < 0.2;
@@ -149,7 +248,22 @@ console.log(`elapsed ${dt.toFixed(1)}ms for ${N} evals → ${(dt / N).toFixed(4)
 const reached = [...seen].sort();
 console.log(`distinct actions reached (${reached.length}): ${reached.join(", ")}`);
 
-const expected = new Set(["WAIT", "CLARIFY", "ACKNOWLEDGE", "REFLECT", "OBSERVE", "RESPOND_ONLY", "FOLLOW_UP", "OFFER", "ASK", "EXPLORE", "CONTINUE", "RECALL", "PROACTIVELY_ENGAGE", "PROACTIVELY_RETURN"]);
+const expected = new Set([
+  "WAIT",
+  "CLARIFY",
+  "ACKNOWLEDGE",
+  "REFLECT",
+  "OBSERVE",
+  "RESPOND_ONLY",
+  "FOLLOW_UP",
+  "OFFER",
+  "ASK",
+  "EXPLORE",
+  "CONTINUE",
+  "RECALL",
+  "PROACTIVELY_ENGAGE",
+  "PROACTIVELY_RETURN",
+]);
 const missing = [...expected].filter((a) => !seen.has(a));
 if (missing.length) {
   console.log("NOT REACHED:", missing.join(", "));

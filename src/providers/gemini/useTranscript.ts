@@ -11,7 +11,10 @@ import { useState, useRef, useCallback } from "react";
 import type { TranscriptEntry } from "./types";
 import { playbackState } from "@/music/PlaybackState";
 import { resolveDeicticReference } from "@/music/DeicticResolver";
-import { getAdaptiveAttentionLayer, type ResponseMode } from "@/runtime/attention/AdaptiveAttentionLayer";
+import {
+  getAdaptiveAttentionLayer,
+  type ResponseMode,
+} from "@/runtime/attention/AdaptiveAttentionLayer";
 
 const MAX_TRANSCRIPT_LENGTH = 100;
 const MAX_HIGHLIGHTS = 5;

@@ -1,4 +1,5 @@
-import { UserModel, INITIAL_USER_MODEL, Tendency } from "./UserModel";
+import { UserModel, INITIAL_USER_MODEL } from "./UserModel";
+import { EpistemicBelief } from "../language/AdaptiveCommunicationProfile";
 import { AdaptiveCommunicationProfile } from "../language/AdaptiveCommunicationProfile";
 import { BehaviorAnalysis } from "@/lib/behavior-client";
 
@@ -95,8 +96,19 @@ export class UserModelManager {
       const match = text.match(/i (prefer|like) (.*?)(?=\.|$)/i);
       if (match) {
         const pref = match[2].trim();
-        if (!this.model.explicitPreferences.includes(pref)) {
-          this.model.explicitPreferences.push(pref);
+        if (!this.model.explicitPreferences.some((p) => p.value === pref)) {
+          this.model.explicitPreferences.push({
+            value: pref,
+            confidence: 1,
+            stability: 1,
+            evidenceCount: 1,
+            recentEvidenceCount: 1,
+            contradictoryEvidenceCount: 0,
+            lastObserved: Date.now(),
+            firstObserved: Date.now(),
+            state: "KNOWN",
+            source: "explicit",
+          });
         }
       }
     }
@@ -104,7 +116,7 @@ export class UserModelManager {
     this.saveModel();
   }
 
-  public calculateStability(tendency: Tendency, currentSessionId: string): number {
+  public calculateStability(tendency: EpistemicBelief<any>, currentSessionId: string): number {
     // Stability increases with evidenceCount and distinct conversations
     // We assume if it's observed across multiple conversations, stability is higher.
     const conversationsSpan = this.model.totalConversations > 0 ? this.model.totalConversations : 1;

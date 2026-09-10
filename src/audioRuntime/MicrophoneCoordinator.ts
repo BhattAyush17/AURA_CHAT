@@ -316,7 +316,9 @@ export class MicrophoneCoordinator {
   private bindMobileLifecycle() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        if (this.audioContext && this.audioContext.state === "running") {
+        if (this.audioContext && this.audioContext.state === "suspended") {
+          RuntimeTelemetry.getInstance().trackAudioSuspended("hidden_suspension");
+        } else if (this.audioContext && this.audioContext.state === "running") {
           this.isSuspended = true;
           RuntimeTelemetry.getInstance().logEvent({
             subsystem: "MicrophoneCoordinator",
@@ -325,7 +327,7 @@ export class MicrophoneCoordinator {
           });
         }
       } else if (document.visibilityState === "visible") {
-        if (this.isSuspended && this.audioContext) {
+        if (this.audioContext && this.audioContext.state === "suspended") {
           this.audioContext
             .resume()
             .then(() => {

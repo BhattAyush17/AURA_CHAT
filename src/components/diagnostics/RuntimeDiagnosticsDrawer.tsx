@@ -838,77 +838,119 @@ export function RuntimeDiagnosticsDrawer({
               <DiagnosticSection
                 title="Conversational Cognition"
                 icon={Cpu}
-                badge={socialSnapshot?.aura_stance ? socialSnapshot.aura_stance.replace(/_/g, " ") : "idle"}
+                badge={
+                  socialSnapshot?.aura_stance
+                    ? socialSnapshot.aura_stance.replace(/_/g, " ")
+                    : "idle"
+                }
               >
                 {socialSnapshot ? (
                   <div className="space-y-2 font-mono text-xs">
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Purpose</span>
-                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.purpose}</span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">
+                        {socialSnapshot.purpose}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Current Topic</span>
-                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.current_topic || "—"}</span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">
+                        {socialSnapshot.current_topic || "—"}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Momentum Carrier</span>
-                      <span className="text-foreground font-semibold">{socialSnapshot.momentum.replace(/_/g, " ")}</span>
+                      <span className="text-foreground font-semibold">
+                        {socialSnapshot.momentum.replace(/_/g, " ")}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
-                      <span className="text-muted-foreground text-[11px]">Predicted Trajectory</span>
-                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">{socialSnapshot.predicted_trajectory}</span>
+                      <span className="text-muted-foreground text-[11px]">
+                        Predicted Trajectory
+                      </span>
+                      <span className="text-foreground font-semibold text-right max-w-[150px] truncate">
+                        {socialSnapshot.predicted_trajectory}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Behavioral Shift</span>
-                      <span className={`font-semibold text-right ${
-                        socialSnapshot.behavioral_shift === "none" ? "text-muted-foreground" : "text-amber-400"
-                      }`}>
-                        {socialSnapshot.behavioral_shift === "none" ? "none" : socialSnapshot.behavioral_shift}
+                      <span
+                        className={`font-semibold text-right ${
+                          socialSnapshot.behavioral_shift === "none"
+                            ? "text-muted-foreground"
+                            : "text-amber-400"
+                        }`}
+                      >
+                        {socialSnapshot.behavioral_shift === "none"
+                          ? "none"
+                          : socialSnapshot.behavioral_shift}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">AURA Stance</span>
-                      <span className={`font-semibold ${
-                        socialSnapshot.aura_stance === "challenge" || socialSnapshot.aura_stance === "disagree"
-                          ? "text-amber-400"
-                          : socialSnapshot.aura_stance === "question" || socialSnapshot.aura_stance === "clarify"
-                            ? "text-sky-400"
-                            : socialSnapshot.aura_stance === "acknowledge"
-                              ? "text-emerald-400"
-                              : "text-foreground"
-                      }`}>
+                      <span
+                        className={`font-semibold ${
+                          socialSnapshot.aura_stance === "challenge" ||
+                          socialSnapshot.aura_stance === "disagree"
+                            ? "text-amber-400"
+                            : socialSnapshot.aura_stance === "question" ||
+                                socialSnapshot.aura_stance === "clarify"
+                              ? "text-sky-400"
+                              : socialSnapshot.aura_stance === "acknowledge"
+                                ? "text-emerald-400"
+                                : "text-foreground"
+                        }`}
+                      >
                         {socialSnapshot.aura_stance.replace(/_/g, " ")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Response Mode</span>
-                      <span className={`font-semibold ${
-                        socialSnapshot.response_mode === "listen" ? "text-emerald-400" : "text-foreground"
-                      }`}>{socialSnapshot.response_mode}</span>
+                      <span
+                        className={`font-semibold ${
+                          socialSnapshot.response_mode === "listen"
+                            ? "text-emerald-400"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {socialSnapshot.response_mode}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Question Decision</span>
-                      <span className={`font-semibold ${socialSnapshot.should_question ? "text-sky-400" : "text-muted-foreground"}`}>
+                      <span
+                        className={`font-semibold ${socialSnapshot.should_question ? "text-sky-400" : "text-muted-foreground"}`}
+                      >
                         {socialSnapshot.should_question ? "ASK" : "NO ASK"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
-                      <span className="text-muted-foreground text-[11px]">Interruption Decision</span>
-                      <span className={`font-semibold ${socialSnapshot.should_interrupt ? "text-amber-400" : "text-muted-foreground"}`}>
+                      <span className="text-muted-foreground text-[11px]">
+                        Interruption Decision
+                      </span>
+                      <span
+                        className={`font-semibold ${socialSnapshot.should_interrupt ? "text-amber-400" : "text-muted-foreground"}`}
+                      >
                         {socialSnapshot.should_interrupt ? "INTERRUPT" : "WAIT"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-1 border-b border-border/20">
                       <span className="text-muted-foreground text-[11px]">Contribution</span>
-                      <span className="text-foreground font-semibold">{socialSnapshot.contribution === "none" ? "—" : socialSnapshot.contribution}</span>
+                      <span className="text-foreground font-semibold">
+                        {socialSnapshot.contribution === "none" ? "—" : socialSnapshot.contribution}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between py-1">
                       <span className="text-muted-foreground text-[11px]">Confidence</span>
-                      <span className="text-foreground font-semibold">{(socialSnapshot.confidence * 100).toFixed(0)}%</span>
+                      <span className="text-foreground font-semibold">
+                        {(socialSnapshot.confidence * 100).toFixed(0)}%
+                      </span>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-muted-foreground py-2">Waiting for conversation...</p>
+                  <p className="text-[10px] text-muted-foreground py-2">
+                    Waiting for conversation...
+                  </p>
                 )}
               </DiagnosticSection>
 

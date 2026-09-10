@@ -117,7 +117,7 @@ export class MusicService {
     const intentId = ++this.currentIntentId;
 
     switch (intent.type) {
-      case "play":
+      case "play": {
         const playIntent = intent as { type: "play" } & Partial<MusicIntentPayload> & {
             startAtSeconds?: number;
           };
@@ -152,6 +152,7 @@ export class MusicService {
           }
         }
         break;
+      }
       case "seek": {
         const seekIntent = intent as { type: "seek"; positionMs?: number; seconds?: number };
         if (seekIntent.positionMs !== undefined) {
@@ -189,7 +190,7 @@ export class MusicService {
 
     const scoredTracks = tracks.map((track) => {
       let score = 100;
-      let reasons: string[] = [];
+      const reasons: string[] = [];
 
       // Keyword match heuristic against title
       const title = track.title.toLowerCase();

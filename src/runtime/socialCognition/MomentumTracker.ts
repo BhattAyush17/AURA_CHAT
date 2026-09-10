@@ -26,16 +26,40 @@ export class MomentumTracker {
     this.auraInterrupted = isAuraInterrupted;
 
     // Extract topic keywords
-    const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    const words = text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
     const topicWords = words.filter(
-      (w) => !["this", "that", "there", "about", "what", "when", "where", "which", "would", "could", "should", "their", "they're", "there's", "something", "nothing", "everything"].includes(w)
+      (w) =>
+        ![
+          "this",
+          "that",
+          "there",
+          "about",
+          "what",
+          "when",
+          "where",
+          "which",
+          "would",
+          "could",
+          "should",
+          "their",
+          "they're",
+          "there's",
+          "something",
+          "nothing",
+          "everything",
+        ].includes(w),
     );
     const newTopics = topicWords.length > 0 ? [topicWords.slice(0, 3).join(", ")] : [];
     this.previousTopics.push(...newTopics);
-    if (this.previousTopics.length > 10) this.previousTopics.splice(0, this.previousTopics.length - 10);
+    if (this.previousTopics.length > 10)
+      this.previousTopics.splice(0, this.previousTopics.length - 10);
 
     // Carrier determination
-    const avgWords = this.recentUserWords.reduce((a, b) => a + b, 0) / Math.max(this.recentUserWords.length, 1);
+    const avgWords =
+      this.recentUserWords.reduce((a, b) => a + b, 0) / Math.max(this.recentUserWords.length, 1);
     const recentAuraQuestions = this.recentAuraQuestion.filter(Boolean).length;
 
     let carrier: MomentumCarrier;
@@ -52,26 +76,39 @@ export class MomentumTracker {
     // Topic depth: how many previous mentions of recent keywords
     const currentTopicWords = new Set(topicWords);
     const previousMentions = this.previousTopics.filter((t) =>
-      [...currentTopicWords].some((w) => t.includes(w))
+      [...currentTopicWords].some((w) => t.includes(w)),
     ).length;
     const topicDepth = Math.min(previousMentions / 3, 1);
 
     // Unfinished thought: text trailing with ellipsis, "and...", "so..."
     const trimmed = text.trim();
-    const unfinishedThought = trimmed.endsWith("...") || trimmed.endsWith("..") || trimmed.endsWith("and") || trimmed.endsWith("but") || trimmed.endsWith("so") || trimmed.endsWith("or");
+    const unfinishedThought =
+      trimmed.endsWith("...") ||
+      trimmed.endsWith("..") ||
+      trimmed.endsWith("and") ||
+      trimmed.endsWith("but") ||
+      trimmed.endsWith("so") ||
+      trimmed.endsWith("or");
 
     // User elaborating: increasing word count over recent turns
-    const userElaborating = this.recentUserWords.length >= 3 &&
+    const userElaborating =
+      this.recentUserWords.length >= 3 &&
       this.recentUserWords[this.recentUserWords.length - 1] >
-        this.recentUserWords.slice(0, -1).reduce((a, b) => a + b, 0) /
-          (this.recentUserWords.length - 1) * 1.3;
+        (this.recentUserWords.slice(0, -1).reduce((a, b) => a + b, 0) /
+          (this.recentUserWords.length - 1)) *
+          1.3;
 
     // User wants space: short replies, low energy, high vulnerability or withdrawal
     const userWantsSpace = wordCount <= 3 && (backendVulnerability > 0.5 || backendEnergy < 0.3);
 
     // Conversational quality flags
     const exploratory = text.includes("?") && wordCount > 10 && !text.toLowerCase().includes("bye");
-    const argumentative = wordCount > 8 && (text.includes("but") || text.includes("actually") || text.includes("no, ") || text.includes("not true"));
+    const argumentative =
+      wordCount > 8 &&
+      (text.includes("but") ||
+        text.includes("actually") ||
+        text.includes("no, ") ||
+        text.includes("not true"));
     const storytelling = wordCount > 25 && !text.includes("?");
 
     return {

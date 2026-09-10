@@ -253,6 +253,22 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         console.log("[MUSIC_PLAY] starting audio element playback");
         recordEvent("play_requested");
 
+        if ("mediaSession" in navigator && track) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.title,
+            artist: track.artist || "Unknown Artist",
+          });
+          navigator.mediaSession.setActionHandler("play", () => {
+            this.resume();
+          });
+          navigator.mediaSession.setActionHandler("pause", () => {
+            this.pause();
+          });
+          navigator.mediaSession.setActionHandler("stop", () => {
+            this.dispose();
+          });
+        }
+
         // Honor a desired start position. If metadata isn't ready yet (very
         // common for a freshly-loaded source), wait for it so the seek
         // actually applies instead of being silently dropped by the browser.

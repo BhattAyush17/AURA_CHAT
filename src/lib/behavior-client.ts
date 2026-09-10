@@ -1,5 +1,5 @@
 import { ENDPOINTS } from "@/config/api";
-import { emitLatency } from "@/components/LatencyMeter";
+import { emitLatency } from "@/lib/latency";
 import { getCredential } from "@/lib/credentials";
 // API_SECRET import removed
 
