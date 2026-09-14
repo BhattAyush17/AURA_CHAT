@@ -3,6 +3,8 @@ AURA Behavior Engine API Server v3
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import time
 import asyncio
 import functools
@@ -1988,3 +1990,48 @@ async def proxy_audio(url: str, request: Request, response: Response, h: Optiona
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8000, reload=True)
+
+import httpx
+
+@app.get("/api/music/search")
+async def music_search_proxy(q: str):
+    invidious_instances = [
+        "https://invidious.protokolla.fi",
+        "https://yewtu.be",
+        "https://invidious.nerdvpn.de",
+        "https://vid.puffyan.us",
+    ]
+    import urllib.parse
+    inv_query = urllib.parse.quote(q)
+    
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        for instance in invidious_instances:
+            try:
+                res = await client.get(f"{instance}/api/v1/search?q={inv_query}&type=video&sort_by=relevance")
+                if res.status_code == 200:
+                    if "application/json" not in res.headers.get("content-type", ""):
+                        continue
+                    results = res.json()
+                    if results and len(results) > 0:
+                        first = results[0]
+                        audio_url = None
+                        if isinstance(first.get("adaptiveFormats"), list):
+                            for f in first["adaptiveFormats"]:
+                                if "audio" in str(f.get("type", "")) and f.get("url"):
+                                    audio_url = f["url"]
+                                    break
+                        if audio_url:
+                            return [{
+                                "id": first.get("videoId"),
+                                "title": first.get("title") or q,
+                                "artist": first.get("author") or "Unknown Artist",
+                                "albumArt": f"https://img.youtube.com/vi/{first.get('videoId')}/mqdefault.jpg",
+                                "durationMs": (first.get("lengthSeconds") or 0) * 1000,
+                                "url": audio_url,
+                                "source": "youtube"
+                            }]
+            except Exception as e:
+                log.warning("invidious_fallback_failed", instance=instance, error=str(e))
+                continue
+    return []
+

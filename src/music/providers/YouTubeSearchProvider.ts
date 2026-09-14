@@ -143,58 +143,21 @@ export class YouTubeSearchProvider implements SearchProvider {
       );
     }
 
-    // 3. Try Invidious Public API (multiple instances; public instances rotate
-    //    and go down frequently, so try each in turn)
-    const INV_QUERY = encodeURIComponent(query);
-    const invidiousInstances = [
-      "https://invidious.protokolla.fi",
-      "https://yewtu.be",
-      "https://invidious.nerdvpn.de",
-      "https://vid.puffyan.us",
-    ];
-    for (const instance of invidiousInstances) {
-      try {
-        const res = await fetch(
-          `${instance}/api/v1/search?q=${INV_QUERY}&type=video&sort_by=relevance`,
-          {
-            signal: AbortSignal.timeout(6000),
-          },
-        );
-        if (res.ok) {
-          const contentType = res.headers.get("content-type") || "";
-          if (!contentType.includes("application/json")) {
-            // e.g. a CAPTCHA / antibot HTML page served with 200 — not usable
-            console.warn(`[YouTubeSearchProvider] Invidious ${instance} returned non-JSON`);
-            continue;
-          }
-          const results = await res.json();
-          if (results && results.length > 0) {
-            const first = results[0];
-            let invidiousAudioUrl: string | undefined = undefined;
-            if (Array.isArray(first.adaptiveFormats)) {
-              const audioFormat = first.adaptiveFormats.find((f: any) => f.type?.includes("audio"));
-              if (audioFormat?.url) {
-                invidiousAudioUrl = audioFormat.url;
-              }
-            }
-            if (isValidMediaUrl(invidiousAudioUrl)) {
-              return [
-                {
-                  id: first.videoId,
-                  title: first.title || query,
-                  artist: first.author || "Unknown Artist",
-                  albumArt: `https://img.youtube.com/vi/${first.videoId}/mqdefault.jpg`,
-                  durationMs: (first.lengthSeconds || 0) * 1000,
-                  url: invidiousAudioUrl,
-                  source: "youtube",
-                },
-              ];
-            }
-          }
+    // 3. Try Invidious Public API (via our Backend Proxy to avoid CORS)
+    try {
+      const musicSearchEndpoint = ENDPOINTS.health.replace("/health", "/api/music/search");
+      const res = await fetch(`${musicSearchEndpoint}?q=${encodeURIComponent(query)}`, {
+        signal: AbortSignal.timeout(6000),
+      });
+      
+      if (res.ok) {
+        const results = await res.json();
+        if (results && results.length > 0) {
+           return results;
         }
-      } catch (fallbackErr) {
-        console.warn(`[YouTubeSearchProvider] Invidious fallback ${instance} failed:`, fallbackErr);
       }
+    } catch (fallbackErr) {
+      console.warn(`[YouTubeSearchProvider] Backend music proxy failed:`, fallbackErr);
     }
 
     console.warn("[YouTubeSearchProvider] All search methods failed for query:", query);
