@@ -138,6 +138,21 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         // Synchronous Cognitive Sync: Let RuntimeManager process the turn deterministically
         // This saves memories and updates the AdaptiveCommunicationProfile within the turn lifecycle
         try {
+          const lastAnalysis = behavior.lastAnalysisRef.current;
+          const currentEmotionalState = {
+            frustration: lastAnalysis?.frustration || 0,
+            playfulness: lastAnalysis?.playfulness || 0,
+            vulnerability: lastAnalysis?.vulnerability || 0,
+            trust: lastAnalysis?.trust || 0,
+            anxiety: lastAnalysis?.anxiety || 0,
+          };
+
+          const clientMemories = await memoryGateway.retrieveMemories(
+            finalUserText,
+            userIdRef.current,
+            currentEmotionalState,
+          );
+
           const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
             finalUserText,
             behavior.lastAnalysisRef.current,
@@ -148,6 +163,18 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
           const executivePlan = RuntimeManager.getInstance().getLastExecutivePrompt();
           if (sendTextRef.current) {
             const systemDirectives = [];
+
+            if (clientMemories && clientMemories.length > 0) {
+              const memoryLines = clientMemories
+                .slice(0, 5)
+                .map((m) => `- ${(m.content || "").slice(0, 150)}`);
+              if (memoryLines.length > 0) {
+                systemDirectives.push(
+                  `[SYSTEM: CONVERSATION MEMORIES]\n${memoryLines.join("\n")}\n[END MEMORY]`,
+                );
+              }
+            }
+
             if (cognitiveBlock)
               systemDirectives.push(`[SYSTEM: COGNITIVE BLOCK]\n${cognitiveBlock}`);
             if (executivePlan)

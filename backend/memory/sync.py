@@ -229,58 +229,6 @@ async def get_chromadb_enrichment(
 
     # Fallback — frame from current state
     return frame_from_current_input(current_text, state_vector)
-async def get_chromadb_enrichment_v2(
-    current_text: str,
-    state_vector: dict,
-    user_id: str,
-    timeout: float = 0.8,
-    recency_weight: float = 0.15,
-    embedding_cache = None
-) -> str:
-    """
-    Hybrid memory retrieval: semantic similarity + temporal recency.
-    Uses match_memories_v2 RPC for weighted scoring.
-    Falls back to frame_from_current_input on failure.
-    """
-    import asyncio
-    from backend.memory.chroma import chroma_service
-
-    try:
-        t_query = time.perf_counter()
-        results = await asyncio.wait_for(
-            chroma_service.query_memories_v2(
-                text=current_text,
-                user_id=user_id,
-                n=3,
-                threshold=0.65,
-                max_age_days=365,
-                embedding_cache=embedding_cache
-            ),
-            timeout=timeout
-        )
-        query_ms = round((time.perf_counter() - t_query) * 1000, 2)
-
-        if results:
-            log.info("memory_queried", user_id=user_id, result_count=len(results), query_ms=query_ms)
-            lines = []
-            for r in results:
-                content = r.get("text", "")
-                label = r.get("recency_label", "")
-                sim = r.get("similarity", 0)
-                lines.append(
-                    f"[{label}] (sim={sim}) {content[:120]}"
-                )
-            return (
-                "[MEMORY CONTEXT]\n"
-                + "\n".join(lines)
-                + "\n[/MEMORY CONTEXT]"
-            )
-    except asyncio.TimeoutError:
-        log.warning("memory_v2_timeout", user_id=user_id)
-    except Exception as e:
-        log.warning("memory_v2_failed", user_id=user_id, error=str(e))
-
-    return frame_from_current_input(current_text, state_vector)
 
 
 def _age_label(age_hours: float) -> str:

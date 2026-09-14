@@ -111,10 +111,8 @@ class SupabaseMemoryStore:
 
     name = "supabase"
 
-    #: RPC signatures we know how to call, in preference order. `match_memories_v2`
-    #: (migration 002) returns recency-weighted scores; `match_memories` (v1) is
-    #: similarity-only. Probed at runtime — a missing v2 is a normal, handled state.
-    _VECTOR_RPCS = ("match_memories_v2", "match_memories")
+    #: RPC signatures we know how to call. Enforcing the v1 `match_memories` contract.
+    _VECTOR_RPCS = ("match_memories",)
 
     def __init__(self, client_provider, *, table: str = AUTHORITATIVE_TABLE) -> None:
         self._client_provider = client_provider
@@ -256,15 +254,6 @@ class SupabaseMemoryStore:
     def _rpc_args(
         rpc: str, user_id: str, embedding: list[float], count: int, threshold: float
     ) -> dict[str, Any]:
-        if rpc == "match_memories_v2":
-            return {
-                "query_embedding": list(embedding),
-                "p_user_id": user_id,
-                "match_threshold": threshold,
-                "match_count": count,
-                "recency_weight": 0.15,
-                "max_age_days": 365,
-            }
         # v1: similarity only, and `match_user_id` must be passed — leaving it
         # NULL makes the RPC search every user's memories (001_add_hnsw_index.sql
         # documents NULL as "all users"), which would leak across accounts.

@@ -1,6 +1,14 @@
 import { GeminiVoiceEngine } from "./GeminiVoiceEngine";
 import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator";
-export type WatchdogReason = "CONNECTION_STALL" | "RESPONSE_STALL" | "MICROPHONE_STALL";
+import { ConversationStateManager } from "../../runtime/ConversationStateManager";
+import { auraTelemetry } from "@/telemetry/RuntimeTelemetry";
+import { ENDPOINTS } from "@/config/api";
+
+export type WatchdogReason =
+  | "CONNECTION_STALL"
+  | "RESPONSE_STALL"
+  | "MICROPHONE_STALL"
+  | "COGNITION_STALL";
 
 export interface WatchdogConfig {
   connectionTimeoutMs: number;
@@ -26,8 +34,10 @@ export class VoiceHealthWatchdog {
   private config: WatchdogConfig;
 
   private timer: number | null = null;
+  private backendHealthTimer: number | null = null;
   private lastPlaybackTime: number = Date.now();
   private isRunning: boolean = false;
+  private thinkingStartTime: number = 0;
 
   constructor(
     engine: GeminiVoiceEngine,
@@ -46,6 +56,8 @@ export class VoiceHealthWatchdog {
 
     // Poll every second
     this.timer = window.setInterval(() => this.checkHealth(), 1000);
+    // Poll backend health every 5 seconds
+    this.backendHealthTimer = window.setInterval(() => this.checkBackendHealth(), 5000);
   }
 
   public stop() {
@@ -54,10 +66,36 @@ export class VoiceHealthWatchdog {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.backendHealthTimer !== null) {
+      clearInterval(this.backendHealthTimer);
+      this.backendHealthTimer = null;
+    }
   }
 
   public reportPlaybackActive() {
     this.lastPlaybackTime = Date.now();
+  }
+
+  private async checkBackendHealth() {
+    if (!this.isRunning) return;
+    try {
+      const response = await fetch(ENDPOINTS.health);
+      if (!response.ok) {
+        throw new Error("Backend unreachable");
+      }
+      const data = await response.json();
+      if (data.redis_active === false) {
+        auraTelemetry.recordError({
+          code: "backend_degraded",
+          message: "Redis unavailable — operating in synchronous fallback mode",
+        });
+      }
+    } catch (e) {
+      auraTelemetry.recordError({
+        code: "backend_unreachable",
+        message: "Backend is completely unreachable",
+      });
+    }
   }
 
   private checkHealth() {
@@ -110,6 +148,26 @@ export class VoiceHealthWatchdog {
         this.onRecover("RESPONSE_STALL");
         return;
       }
+    }
+
+    // Check Cognition Stall (THINKING state locked)
+    const convStateMgr = ConversationStateManager.getInstance();
+    if (convStateMgr.getState() === "THINKING") {
+      if (this.thinkingStartTime === 0) {
+        this.thinkingStartTime = now;
+      } else if (now - this.thinkingStartTime > 20000) {
+        console.error(
+          "[VoiceHealthWatchdog] COGNITION_STALL: Stuck in THINKING for > 20s. Forcing IDLE.",
+        );
+        // Emit error to telemetry (using console.error which is caught, or auraTelemetry if available)
+        auraTelemetry.recordError({ code: "cognition_stall" });
+        convStateMgr.forceIdle();
+        this.onRecover("COGNITION_STALL");
+        this.thinkingStartTime = 0;
+        return;
+      }
+    } else {
+      this.thinkingStartTime = 0;
     }
   }
 }

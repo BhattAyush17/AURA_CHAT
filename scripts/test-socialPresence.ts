@@ -25,12 +25,12 @@ function check(name: string, fn: () => void): void {
   try {
     fn();
     passed++;
-    // eslint-disable-next-line no-console
+
     console.log(`  PASS  ${name}`);
   } catch (e) {
     failed++;
     failures.push(`${name}: ${(e as Error).message}`);
-    // eslint-disable-next-line no-console
+
     console.log(`  FAIL  ${name}: ${(e as Error).message}`);
   }
 }
@@ -638,10 +638,8 @@ function makeInput(overrides: Partial<SocialPresenceInput>): SocialPresenceInput
 
 // ─── Summary ─────────────────────────────────────────────────────────
 
-// eslint-disable-next-line no-console
 console.log(`\nSocial Presence Wiring Tests: ${passed} passed, ${failed} failed`);
 if (failures.length > 0) {
-  // eslint-disable-next-line no-console
   console.log("\nFailures:");
   failures.forEach((f) => console.log(`  - ${f}`));
   process.exit(1);

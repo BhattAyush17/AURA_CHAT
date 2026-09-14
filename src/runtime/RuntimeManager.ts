@@ -33,6 +33,8 @@ import {
   ENVIRONMENT_KEYWORDS,
 } from "./socialPresence/ContextualRelevanceEngine";
 import { formatSocialContextBlock } from "./socialPresence/formatSocialContextBlock";
+import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
+import type { ExecutionPlan } from "@/executive/ExecutionPlan";
 
 /**
  * RuntimeManager is the single entry point for the Adaptive Runtime.
@@ -114,6 +116,9 @@ export class RuntimeManager {
     return this.lastExecutivePrompt;
   }
 
+  private lastPlan: Readonly<ExecutionPlan> | null = null;
+  private lastUserWordCount: number = 0;
+
   public dispose() {
     this.speechCoordinator.flush();
     this.microphoneSupervisor.dispose();
@@ -163,6 +168,26 @@ export class RuntimeManager {
   ): Promise<string> {
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
+
+    const currentWordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const nextTurnLengthDelta = currentWordCount - this.lastUserWordCount;
+
+    // 1.5 Update Cognitive Momentum and Executive Reflection
+    if (this.lastPlan) {
+      this.conversationExecutive.reflect(this.lastPlan, {
+        userReactedNegatively: (backendBehavior?.frustration ?? 0) > 0.6,
+        userFollowedUp: true,
+        nextTurnLengthDelta,
+      });
+    }
+
+    this.lastUserWordCount = currentWordCount;
+
+    globalLanguageManager.observe({
+      text,
+      source: "transcription",
+      timestamp: Date.now(),
+    });
 
     // 2. Flush fused perception evidence (Senses → Sense Runtime → Fusion)
     const evidence: SenseEvidenceV1[] = await SenseManager.getInstance().collectAllContext();
@@ -224,6 +249,7 @@ export class RuntimeManager {
     // them adds no work — it only stops the values being discarded.
     this.lastAtmosphereDecision = getAdaptiveAttentionLayer().assessAtmosphere(text, atmosphere);
     this.lastExecutivePrompt = this.conversationExecutive.translatePlanToPrompt(plan);
+    this.lastPlan = plan;
 
     // 3.75 Social Cognition — the "how to be present" layer. Runs BEFORE the
     // interpreter so its decision can be threaded into the cognitive block.

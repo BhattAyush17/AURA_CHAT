@@ -1,3 +1,5 @@
+import { auraTelemetry } from "@/telemetry/RuntimeTelemetry";
+
 export type ConversationState =
   | "IDLE"
   | "LISTENING"
@@ -14,6 +16,7 @@ export class ConversationStateManager {
   private static instance: ConversationStateManager;
   private state: ConversationState = "IDLE";
   private listeners: Set<StateListener> = new Set();
+  private watchdogTimer: NodeJS.Timeout | null = null;
 
   // Guard against duplicate/overlapping sessions
   private sttActive = false;
@@ -43,8 +46,30 @@ export class ConversationStateManager {
     if (this.state === newState) return;
 
     console.log(`[${new Date().toISOString()}] ${newState}${context ? ` (${context})` : ""}`);
+
+    // Clear existing watchdog timer
+    if (this.watchdogTimer) {
+      clearTimeout(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+
+    // Start watchdog timer on THINKING state
+    if (newState === "THINKING") {
+      this.watchdogTimer = setTimeout(() => {
+        console.warn(
+          "[ConversationStateManager] Turn timeout failure. Automatically transitioning to IDLE.",
+        );
+        auraTelemetry.recordError({ code: "turn_timeout_failure" });
+        this.forceIdle();
+      }, 15000);
+    }
+
     this.state = newState;
     this.listeners.forEach((l) => l(this.state));
+  }
+
+  public advanceTo(newState: ConversationState, context?: string) {
+    this.transitionTo(newState, context);
   }
 
   // --- External Transition Requests ---

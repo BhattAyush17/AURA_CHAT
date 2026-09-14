@@ -130,30 +130,69 @@ export function useVoiceOrchestrator(
     pipelineRef.current = activePipeline;
   }, [activePipeline]);
 
+  const greetingFiredRef = useRef(false);
+
   const wrappedPipeline: IVoicePipeline = useMemo(() => {
     return {
       ...activePipeline,
       startSession: async () => {
         await activePipeline.startSession();
-        import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
-          RuntimeManager.getInstance()
-            .getLifecycleManager()
-            .startSession(
-              (text) => console.log("[AURA Idle Warning]", text),
-              () => pipelineRef.current.endSession(),
-              () => ({
-                isSpeaking: pipelineRef.current.isSpeaking,
-                isThinking: pipelineRef.current.isThinking,
-                isActiveVoice: pipelineRef.current.isActiveVoice,
-                status: pipelineRef.current.status,
-              }),
-            );
-        });
+        import("@/runtime/RuntimeManager")
+          .then(({ RuntimeManager }) => {
+            RuntimeManager.getInstance()
+              .getLifecycleManager()
+              .startSession(
+                (text) => console.log("[AURA Idle Warning]", text),
+                () => pipelineRef.current.endSession(),
+                () => ({
+                  isSpeaking: pipelineRef.current.isSpeaking,
+                  isThinking: pipelineRef.current.isThinking,
+                  isActiveVoice: pipelineRef.current.isActiveVoice,
+                  status: pipelineRef.current.status,
+                }),
+              );
+          })
+          .catch((err) => {
+            console.error("[AURA] RuntimeManager import failed:", err);
+            import("@/telemetry/RuntimeTelemetry").then(({ auraTelemetry }) => {
+              auraTelemetry.recordError({
+                code: "runtime_manager_import_failure",
+                message: err instanceof Error ? err.message : String(err),
+              });
+            });
+          });
+
+        import("@/runtime/ProactiveEngine")
+          .then(({ ProactiveEngine }) => {
+            return import("@/lib/user-identity").then(({ getCurrentUserId }) => {
+              const sessionId = `or_${crypto.randomUUID().slice(0, 8)}`;
+              const engine = ProactiveEngine.getInstance();
+              engine.start(sessionId, getCurrentUserId());
+              // Guard: only fire greeting once per mount cycle
+              if (!greetingFiredRef.current) {
+                greetingFiredRef.current = true;
+                engine.initiateGreeting();
+              }
+            });
+          })
+          .catch((err) => {
+            console.error("[AURA] ProactiveEngine import chain failed:", err);
+            import("@/telemetry/RuntimeTelemetry").then(({ auraTelemetry }) => {
+              auraTelemetry.recordError({
+                code: "proactive_engine_import_failure",
+                message: err instanceof Error ? err.message : String(err),
+              });
+            });
+          });
       },
       endSession: () => {
         activePipeline.endSession();
+        greetingFiredRef.current = false;
         import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
           RuntimeManager.getInstance().getLifecycleManager().dispose();
+        });
+        import("@/runtime/ProactiveEngine").then(({ ProactiveEngine }) => {
+          ProactiveEngine.getInstance().stop();
         });
       },
     };

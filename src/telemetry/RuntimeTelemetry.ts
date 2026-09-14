@@ -434,6 +434,16 @@ export class RuntimeTelemetry {
     return opId;
   }
 
+  // Record an eviction specifically
+  trackMemoryEvicted(bytes: number): void {
+    this.recordMemoryOp({
+      type: "memory_eviction",
+      service: "local",
+      status: "success",
+      resultCount: bytes,
+    });
+  }
+
   // ── Operations timeline (request-level spans) ───────────────────
 
   beginOperation(opts: { requestId?: string; name: string; service: string }): string {

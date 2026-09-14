@@ -12,6 +12,8 @@
  * layers never know which storage backend is active.
  */
 
+import { auraTelemetry } from "@/telemetry/RuntimeTelemetry";
+
 // ─── Memory Tiers ─────────────────────────────────────────────────
 
 export type MemoryTier = "ephemeral" | "short_term" | "durable";
@@ -368,10 +370,61 @@ export function storeLocalMemory(
     }
 
     saveEntries(userId, entries, detectedTier);
+    enforceGlobalQuota(userId);
     return true;
   } catch (e) {
     console.warn("[LocalMemory] store failed:", e);
     return false;
+  }
+}
+
+function enforceGlobalQuota(userId: string) {
+  try {
+    let totalBytes = 0;
+    const tiers: MemoryTier[] = ["ephemeral", "short_term", "durable"];
+    const rawData: Record<string, string | null> = {
+      ephemeral: null,
+      short_term: null,
+      durable: null,
+    };
+
+    // Estimate total size
+    for (const t of tiers) {
+      const raw = localStorage.getItem(storageKey(userId, t));
+      rawData[t] = raw;
+      if (raw) totalBytes += raw.length * 2; // UTF-16
+    }
+
+    const MAX_QUOTA = 4 * 1024 * 1024; // 4MB (80% of 5MB quota)
+
+    if (totalBytes > MAX_QUOTA) {
+      // Evict from lowest tier to highest
+      for (const t of tiers) {
+        const raw = rawData[t];
+        if (!raw) continue;
+
+        const entries = JSON.parse(raw) as LocalMemoryEntry[];
+        let tierEvicted = false;
+
+        while (entries.length > 0 && totalBytes > MAX_QUOTA) {
+          const evicted = entries.shift();
+          if (evicted) {
+            const evictedBytes = JSON.stringify(evicted).length * 2;
+            totalBytes -= evictedBytes;
+            tierEvicted = true;
+            auraTelemetry.trackMemoryEvicted(evictedBytes);
+          }
+        }
+
+        if (tierEvicted) {
+          saveEntries(userId, entries, t);
+        }
+
+        if (totalBytes <= MAX_QUOTA) break;
+      }
+    }
+  } catch (e) {
+    console.warn("[LocalMemory] enforceGlobalQuota failed:", e);
   }
 }
 

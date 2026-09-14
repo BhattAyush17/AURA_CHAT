@@ -50,6 +50,7 @@ import type { AtmosphereContext } from "@/executive/AtmosphereContext";
 import { atmosphereFromComposer } from "@/executive/AtmosphereContext";
 import { buildModelQueue, MODEL_OPENROUTER_IDS } from "@/executive/ModelProfile";
 import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
+import { ToolExtractionService } from "@/runtime/ToolExtractionService";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
 
 // ─── Paralinguistic Interceptor & Audio Controller ──────────────────
@@ -122,42 +123,7 @@ const resolveSeekSeconds = (raw?: string): number | undefined => {
 const extractStageDirections = (text: string) => {
   const directions: string[] = [];
 
-  // Extract JSON tool calls first
-  const processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
-    try {
-      const data = JSON.parse(match);
-      if (
-        data.query ||
-        data.mood ||
-        data.activity ||
-        data.genre ||
-        data.intent === "similar" ||
-        data.user_query
-      ) {
-        import("@/music/MusicService")
-          .then(({ musicService }) => {
-            musicService
-              .processIntent({
-                type: "play",
-                query: data.query || data.user_query,
-                mood: data.mood,
-                energy: data.energy,
-                genre: data.genre,
-                activity: data.activity,
-                intent: data.intent,
-                ...(typeof data.start_at === "string" && data.start_at.trim()
-                  ? { startAtSeconds: resolveSeekSeconds(data.start_at) }
-                  : {}),
-              })
-              .catch((err) => console.error("[Sarvam] Background play failed:", err));
-          })
-          .catch((err) => console.error("[Sarvam] MusicService import failed:", err));
-      }
-    } catch (e) {}
-    return "";
-  });
-
-  const cleanText = processedText.replace(
+  const cleanText = text.replace(
     /\*([^*]+)\*|\(([^)]+)\)|\[(.*?)\]|<(.*?)>/g,
     (match, p_ast, p_par, p1, p2) => {
       const val = p_ast || p_par || p1 || p2;
@@ -399,6 +365,7 @@ export const emptySessionStats = (): SessionStats => ({
 });
 
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
+  const toolExtractorRef = useRef(new ToolExtractionService());
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
   const isInactiveRef = useRef(isInactive);
@@ -1243,6 +1210,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        toolExtractorRef.current.reset();
         let textBuffer = "";
         let fullResponse = "";
         const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
@@ -1409,54 +1377,35 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                   }
 
                   const chunkText = data.text;
-                  textBuffer += chunkText;
-                  fullResponse += chunkText;
-                  // Do not overwrite words to preserve user transcript
-
-                  // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
-                  if (textBuffer.includes("{") && !textBuffer.includes("}")) {
-                    continue; // Wait for the closing brace before processing further
-                  }
-
-                  const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
-                  if (toolMatch) {
-                    if (!textBuffer.includes("}")) {
-                      continue; // Wait for the chunk with the closing brace
-                    } else {
-                      // Execute and strip the full JSON block
-                      textBuffer = textBuffer.replace(
-                        /\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g,
-                        (match) => {
-                          try {
-                            const data = JSON.parse(match);
-                            if (
-                              data.query ||
-                              data.mood ||
-                              data.activity ||
-                              data.genre ||
-                              data.intent === "similar" ||
-                              data.user_query
-                            ) {
-                              import("@/music/MusicService").then(({ musicService }) => {
-                                musicService.processIntent({
-                                  type: "play",
-                                  query: data.query || data.user_query,
-                                  mood: data.mood,
-                                  energy: data.energy,
-                                  genre: data.genre,
-                                  activity: data.activity,
-                                  intent: data.intent,
-                                });
-                              });
-                            }
-                          } catch (e) {}
-                          return "";
-                        },
-                      );
-                      // Clean up lingering markdown ticks
-                      textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
+                  const cleanChunk = toolExtractorRef.current.feed(chunkText);
+                  const tools = toolExtractorRef.current.extractTools();
+                  for (const tool of tools) {
+                    if (
+                      tool.query ||
+                      tool.mood ||
+                      tool.activity ||
+                      tool.genre ||
+                      tool.intent === "similar" ||
+                      tool.user_query
+                    ) {
+                      import("@/music/MusicService")
+                        .then(({ musicService }) => {
+                          musicService.processIntent({
+                            type: "play",
+                            query: tool.query || tool.user_query,
+                            mood: tool.mood,
+                            energy: tool.energy,
+                            genre: tool.genre,
+                            activity: tool.activity,
+                            intent: tool.intent,
+                          });
+                        })
+                        .catch((e) => {});
                     }
                   }
+                  textBuffer += cleanChunk;
+                  fullResponse += cleanChunk;
+                  // Do not overwrite words to preserve user transcript
 
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {
@@ -1480,6 +1429,27 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           addMessages([{ role: "assistant", content: fullResponse }]);
           transcript_.addTurn(fullResponse, false);
           lastResponseLenRef.current = fullResponse.trim().split(/\s+/).length || 30;
+
+          // ── Memory Return Path (first stream loop) ──
+          if (userText) {
+            const lastAnalysis = behavior.lastAnalysisRef.current;
+            const currentEmotionalState: Record<string, number> = {
+              frustration: lastAnalysis?.frustration || 0,
+              playfulness: lastAnalysis?.playfulness || 0,
+              vulnerability: lastAnalysis?.vulnerability || 0,
+              trust: lastAnalysis?.trust || 0,
+              anxiety: lastAnalysis?.anxiety || 0,
+            };
+            const turnContext = `User: ${userText}\nAURA: ${fullResponse}`;
+            memoryGateway.storeMemory(
+              turnContext,
+              userIdRef.current,
+              currentEmotionalState,
+              undefined,
+              sessionIdRef.current ?? undefined,
+              RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            );
+          }
           return;
         } else {
           throw new Error("Empty response from stream");
@@ -1610,6 +1580,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const modelQueue = explicitModeActivated
         ? ["deepseek/deepseek-chat"]
         : buildModelQueue(defaultRanking);
+      toolExtractorRef.current.reset();
       let currentBuffer = "";
       let completeResponse = "";
       let rawCompleteResponse = "";
@@ -1826,47 +1797,44 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                 completeResponse += newText;
                 // Do not overwrite words to preserve user transcript
 
-                // MUSIC TOOL INTERCEPTOR: Hold buffer if JSON tool block is being assembled
-                if (currentBuffer.includes("{") && !currentBuffer.includes("}")) {
-                  continue; // Wait for closing brace before sentence extraction
-                }
-
-                const toolStart = currentBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
-                if (toolStart) {
-                  if (!currentBuffer.includes("}")) {
-                    continue; // Wait for closing brace
+                // ── Tool Extraction (unified via ToolExtractionService) ──
+                // Feed the new text through the extractor. It returns only the
+                // non-tool conversational text and queues any complete tool JSON.
+                const cleanNewText = toolExtractorRef.current.feed(newText);
+                const extractedTools = toolExtractorRef.current.extractTools();
+                for (const tool of extractedTools) {
+                  if (
+                    tool.query ||
+                    tool.mood ||
+                    tool.activity ||
+                    tool.genre ||
+                    tool.intent === "similar" ||
+                    tool.user_query
+                  ) {
+                    import("@/music/MusicService")
+                      .then(({ musicService }) => {
+                        musicService.processIntent({
+                          type: "play",
+                          query: tool.query || tool.user_query,
+                          mood: tool.mood,
+                          energy: tool.energy,
+                          genre: tool.genre,
+                          activity: tool.activity,
+                          intent: tool.intent,
+                        });
+                      })
+                      .catch((err) => console.error("[Sarvam/OR] Music intent failed:", err));
                   }
-                  // Full JSON block received — execute and strip
-                  currentBuffer = currentBuffer.replace(
-                    /\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g,
-                    (m) => {
-                      try {
-                        const d = JSON.parse(m);
-                        if (
-                          d.query ||
-                          d.mood ||
-                          d.activity ||
-                          d.genre ||
-                          d.intent === "similar" ||
-                          d.user_query
-                        ) {
-                          import("@/music/MusicService").then(({ musicService }) => {
-                            musicService.processIntent({
-                              type: "play",
-                              query: d.query || d.user_query,
-                              mood: d.mood,
-                              energy: d.energy,
-                              genre: d.genre,
-                              activity: d.activity,
-                              intent: d.intent,
-                            });
-                          });
-                        }
-                      } catch {}
-                      return "";
-                    },
-                  );
-                  currentBuffer = currentBuffer.replace(/```json|```/g, "").trim();
+                }
+                // Use cleaned text (tools stripped) for sentence splitting.
+                // Recalculate currentBuffer from the clean stream.
+                if (cleanNewText !== newText) {
+                  // Tools were extracted — rebuild currentBuffer from clean output
+                  currentBuffer =
+                    currentBuffer.slice(0, currentBuffer.length - newText.length) + cleanNewText;
+                  completeResponse =
+                    completeResponse.slice(0, completeResponse.length - newText.length) +
+                    cleanNewText;
                 }
 
                 // Sentence-boundary detection: hand off completed sentences to TTS
@@ -1936,8 +1904,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         transcript_.addTurn(completeResponse, false);
         lastResponseLenRef.current = completeResponse.trim().split(/\s+/).length || 30;
 
-        // Store local memory from this interaction (if local mode is active)
-        if (memoryGateway.mode === "local") {
+        // ── Memory Return Path ──
+        // Persist this turn as durable memory. memoryGateway routes to
+        // supabase (via /chat conduit) or local storage by mode.
+        if (userText) {
           const lastAnalysis = behavior.lastAnalysisRef.current;
           const currentEmotionalState: Record<string, number> = {
             frustration: lastAnalysis?.frustration || 0,
@@ -1946,8 +1916,6 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             trust: lastAnalysis?.trust || 0,
             anxiety: lastAnalysis?.anxiety || 0,
           };
-
-          // We combine the turn context
           const turnContext = `User: ${userText}\nAURA: ${completeResponse}`;
           memoryGateway.storeMemory(
             turnContext,

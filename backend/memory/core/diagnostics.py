@@ -36,7 +36,7 @@ from backend.memory.core.telemetry import memory_telemetry
 REQUIRED_COLUMNS = ("user_id", "session_id", "turn_text", "metadata", "embedding_id")
 
 #: RPCs the read path can use. At least one must exist or vector retrieval is off.
-KNOWN_VECTOR_RPCS = ("match_memories_v2", "match_memories")
+KNOWN_VECTOR_RPCS = ("match_memories",)
 
 
 @dataclass

@@ -17,7 +17,7 @@ function runTests() {
 
   console.log("\n--- Phase F: Human State Model Verification ---\n");
 
-  let model = new HumanStateModel();
+  const model = new HumanStateModel();
 
   // Test 1 — Neutral baseline
   // Empty evidence -> uncertain state

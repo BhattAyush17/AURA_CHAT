@@ -1,6 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE;
+const API_BASE = (import.meta as any).env?.VITE_API_BASE;
 
-if (!API_BASE && import.meta.env.PROD) {
+if (!API_BASE && (import.meta as any).env?.PROD) {
   console.warn(
     "[AURA] VITE_API_BASE is not set. Behavior engine features will be unavailable. " +
       "Set it in your Vercel environment variables if you have a backend deployed.",

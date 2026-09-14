@@ -53,6 +53,7 @@ export type MemoryOpType =
   | "memory_retrieval"
   | "memory_write"
   | "memory_update"
+  | "memory_eviction"
   | "profile_fetch"
   | "session_persistence"
   | "music_memory_persistence";

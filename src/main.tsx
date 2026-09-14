@@ -7,9 +7,17 @@ import { musicService } from "./music/MusicService";
 import { playbackState } from "./music/PlaybackState";
 import { buildMusicContext } from "./lib/aura-actions";
 
+import { auraTelemetry } from "./telemetry/RuntimeTelemetry";
+import { getConversationArchive } from "./lib/storage/ConversationArchive";
+
 (window as any).musicService = musicService;
 (window as any).playbackState = playbackState;
 (window as any).buildMusicContext = buildMusicContext;
+
+(window as any).__AURA_TELEMETRY__ = {
+  getRecentErrors: () => auraTelemetry.getSnapshot().errors,
+  getStats: () => getConversationArchive().getStats(),
+};
 
 // Log a warning (not a crash) if VITE_API_BASE is unset.
 // The behavior engine is optional — the app runs fine without it.

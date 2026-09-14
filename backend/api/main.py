@@ -207,8 +207,14 @@ async def startup_event():
         )
     )
     # ── Brain 3: Redis bus ──
-    redis_ok = await redis_bus.initialize()
+    try:
+        redis_ok = await redis_bus.initialize()
+    except Exception as e:
+        redis_ok = False
+        log.error("redis_initialization_failed", error=str(e))
+        
     if redis_ok:
+        app.state.redis_active = True
         print("[AURA] Brain 3 Redis bus initialized (BackgroundTasks pipeline active)")
         # Initialize proactive engine and rate limiter with Redis client
         global _proactive_engine, _rate_limiter, _embedding_cache
@@ -228,6 +234,7 @@ async def startup_event():
         set_vocab_learner_clients(redis_client=redis_bus.client, supabase_client=supabase)
         print("[AURA] Proactive engine, Rate Limiter, Embedding Cache, and VocabLearner initialized")
     else:
+        app.state.redis_active = False
         print("[AURA] Redis unavailable — Brain 3 running in sync fallback mode")
     print("[AURA] Background services initializing...")
 
@@ -247,6 +254,15 @@ from fastapi.responses import Response
 @app.options("/{rest_of_path:path}")
 async def preflight_handler(rest_of_path: str):
     return Response(status_code=200)
+
+@app.get("/health")
+async def health_check():
+    redis_active = getattr(app.state, "redis_active", False)
+    return {
+        "status": "ok",
+        "redis_active": redis_active,
+        "fallback_mode": "sync" if not redis_active else "none"
+    }
 
 async def apply_rate_limit(identifier: str, max_requests: int, response: Response):
     """Fail-open rate limiting using Redis."""

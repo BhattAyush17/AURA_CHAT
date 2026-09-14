@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 function checkFile(filepath: string, rules: { forbidden?: RegExp[]; required?: RegExp[] }) {
   const content = fs.readFileSync(filepath, "utf8");
-  let errors: string[] = [];
+  const errors: string[] = [];
 
   rules.forbidden?.forEach((regex) => {
     if (regex.test(content)) {

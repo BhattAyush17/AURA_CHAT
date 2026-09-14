@@ -23,18 +23,18 @@ import type {
 
 let passed = 0;
 let failed = 0;
-let failures: string[] = [];
+const failures: string[] = [];
 
 function check(name: string, fn: () => void): void {
   try {
     fn();
     passed++;
-    // eslint-disable-next-line no-console
+
     console.log(`  PASS  ${name}`);
   } catch (e) {
     failed++;
     failures.push(`${name}: ${(e as Error).message}`);
-    // eslint-disable-next-line no-console
+
     console.log(`  FAIL  ${name}`);
   }
 }

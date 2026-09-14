@@ -165,7 +165,7 @@ export class ConversationInterpreter {
     // receives purpose+stance guidance alongside the contextual evidence. With
     // no attention computed (empty string) the result remains byte-identical to
     // the pre-wiring path.
-    return (
+    const finalBlock =
       cogBlock +
       identityBlock +
       memoryBlock +
@@ -175,8 +175,17 @@ export class ConversationInterpreter {
       evidenceBlock +
       humanStateBlock +
       adaptiveBlock +
-      exprBlock
-    );
+      exprBlock;
+
+    // Target 2: Validate the Cognitive Block
+    if (
+      !finalBlock.includes("[COGNITIVE ORCHESTRATION]") ||
+      !finalBlock.includes("[USER IDENTITY]")
+    ) {
+      CognitionTelemetry.getInstance().log({ error: "malformed_cognitive_block" });
+    }
+
+    return finalBlock;
   }
 
   /**

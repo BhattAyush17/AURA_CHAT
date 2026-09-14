@@ -21,6 +21,7 @@ import { saveSyncMeta } from "@/lib/sync-meta";
 import { getCredential } from "@/lib/credentials";
 
 import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
+import { ToolExtractionService } from "@/runtime/ToolExtractionService";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
 import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator";
 import { conversationState } from "@/runtime/ConversationStateManager";
@@ -92,35 +93,9 @@ const AUDIO_ASSET_STYLES: ReadonlySet<SegmentStyle> = new Set([
 export function parseSegments(text: string): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
 
-  // Extract JSON tool calls first
-  const processedText = text.replace(/\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g, (match) => {
-    try {
-      const data = JSON.parse(match);
-      const seekSeconds =
-        typeof data.start_at === "string" ? resolvePositionPhraseToSeconds(data.start_at) : null;
-      const queryToPlay =
-        (typeof data.user_query === "string" && data.user_query) ||
-        (typeof data.query === "string" && data.query);
-      if (queryToPlay) {
-        import("@/music/MusicService")
-          .then(({ musicService }) => {
-            musicService
-              .processIntent({
-                type: "play",
-                query: queryToPlay,
-                ...(seekSeconds !== null && seekSeconds >= 0
-                  ? { startAtSeconds: seekSeconds }
-                  : {}),
-              })
-              .catch((err) => console.error("[OpenRouter] Background play failed:", err));
-          })
-          .catch((err) => console.error("[OpenRouter] MusicService import failed:", err));
-      }
-    } catch (e) {}
-    return "";
-  });
-
-  const noEmojis = processedText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
+  // Tool JSON blocks are now stripped at the stream level by ToolExtractionService.
+  // parseSegments only handles stage directions and speech styling.
+  const noEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
   const regex = /\*([^*]+)\*|\(([^)]+)\)|\[([^\]]+)\]|<([^>]+)>/g;
   let lastIndex = 0;
   let match;
@@ -632,6 +607,7 @@ const BARGE_IN_THRESHOLD = 0.018;
 import { pushConversationTrace } from "../../core/telemetry";
 
 export function useOpenRouter(mode: string = "adaptive") {
+  const toolExtractorRef = useRef(new ToolExtractionService());
   // ── R01 FIX: Inactive guard — skip all resource allocation ──
   const isInactive = mode === "__inactive__";
   const isInactiveRef = useRef(isInactive);
@@ -1131,6 +1107,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        toolExtractorRef.current.reset();
         let textBuffer = "";
         let fullResponse = "";
         const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
@@ -1301,54 +1278,35 @@ export function useOpenRouter(mode: string = "adaptive") {
                   }
 
                   const chunkText = data.text;
-                  textBuffer += chunkText;
-                  fullResponse += chunkText;
-                  // Do not overwrite words to preserve user transcript
-
-                  // MUSIC TOOL INTERCEPTOR: Prevent JSON blocks from being split by punctuation
-                  if (textBuffer.includes("{") && !textBuffer.includes("}")) {
-                    continue; // Wait for the chunk with the closing brace
-                  }
-
-                  const toolMatch = textBuffer.match(/\{\s*"tool"\s*:\s*"play_music"/);
-                  if (toolMatch) {
-                    if (!textBuffer.includes("}")) {
-                      continue; // Wait for the chunk with the closing brace
-                    } else {
-                      // Execute and strip the full JSON block
-                      textBuffer = textBuffer.replace(
-                        /\{\s*"tool"\s*:\s*"play_music"[\s\S]*?\}/g,
-                        (match) => {
-                          try {
-                            const data = JSON.parse(match);
-                            if (
-                              data.query ||
-                              data.mood ||
-                              data.activity ||
-                              data.genre ||
-                              data.intent === "similar" ||
-                              data.user_query
-                            ) {
-                              import("@/music/MusicService").then(({ musicService }) => {
-                                musicService.processIntent({
-                                  type: "play",
-                                  query: data.query || data.user_query,
-                                  mood: data.mood,
-                                  energy: data.energy,
-                                  genre: data.genre,
-                                  activity: data.activity,
-                                  intent: data.intent,
-                                });
-                              });
-                            }
-                          } catch (e) {}
-                          return "";
-                        },
-                      );
-                      // Clean up lingering markdown ticks
-                      textBuffer = textBuffer.replace(/```json|```/g, "").trimLeft();
+                  const cleanChunk = toolExtractorRef.current.feed(chunkText);
+                  const extractedTools = toolExtractorRef.current.extractTools();
+                  for (const tool of extractedTools) {
+                    if (
+                      tool.query ||
+                      tool.mood ||
+                      tool.activity ||
+                      tool.genre ||
+                      tool.intent === "similar" ||
+                      tool.user_query
+                    ) {
+                      import("@/music/MusicService")
+                        .then(({ musicService }) => {
+                          musicService.processIntent({
+                            type: "play",
+                            query: tool.query || tool.user_query,
+                            mood: tool.mood,
+                            energy: tool.energy,
+                            genre: tool.genre,
+                            activity: tool.activity,
+                            intent: tool.intent,
+                          });
+                        })
+                        .catch((err) => console.error("[OpenRouter] Music intent failed:", err));
                     }
                   }
+                  textBuffer += cleanChunk;
+                  fullResponse += cleanChunk;
+                  // Do not overwrite words to preserve user transcript
 
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
                   if (match) {
@@ -1372,6 +1330,27 @@ export function useOpenRouter(mode: string = "adaptive") {
         if (fullResponse) {
           addMessages([{ role: "assistant", content: fullResponse }]);
           transcript_.addTurn(fullResponse, false);
+
+          // ── Memory Return Path (first stream loop) ──
+          if (userText) {
+            const lastAnalysis = behavior.lastAnalysisRef.current;
+            const currentEmotionalState: Record<string, number> = {
+              frustration: lastAnalysis?.frustration || 0,
+              playfulness: lastAnalysis?.playfulness || 0,
+              vulnerability: lastAnalysis?.vulnerability || 0,
+              trust: lastAnalysis?.trust || 0,
+              anxiety: lastAnalysis?.anxiety || 0,
+            };
+            const turnContext = `User: ${userText}\nAURA: ${fullResponse}`;
+            memoryGateway.storeMemory(
+              turnContext,
+              userIdRef.current,
+              currentEmotionalState,
+              undefined,
+              sessionIdRef.current ?? undefined,
+              RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            );
+          }
           return;
         } else {
           throw new Error("Empty response from stream");
@@ -1493,6 +1472,7 @@ CRITICAL RULES:
       const modelQueue = explicitModeActivated
         ? ["deepseek/deepseek-chat"]
         : [activeModel, ...FALLBACK_MODELS.filter((m) => m !== activeModel)];
+      toolExtractorRef.current.reset();
       let currentBuffer = "";
       let completeResponse = "";
       let rawCompleteResponse = "";
@@ -1737,8 +1717,34 @@ CRITICAL RULES:
                 const newText = displayString.slice(completeResponse.length);
                 if (!newText) continue;
 
-                currentBuffer += newText;
-                completeResponse += newText;
+                const cleanNewText = toolExtractorRef.current.feed(newText);
+                const extractedTools = toolExtractorRef.current.extractTools();
+                for (const tool of extractedTools) {
+                  if (
+                    tool.query ||
+                    tool.mood ||
+                    tool.activity ||
+                    tool.genre ||
+                    tool.intent === "similar" ||
+                    tool.user_query
+                  ) {
+                    import("@/music/MusicService")
+                      .then(({ musicService }) => {
+                        musicService.processIntent({
+                          type: "play",
+                          query: tool.query || tool.user_query,
+                          mood: tool.mood,
+                          energy: tool.energy,
+                          genre: tool.genre,
+                          activity: tool.activity,
+                          intent: tool.intent,
+                        });
+                      })
+                      .catch((err) => console.error("[OpenRouter] Music intent failed:", err));
+                  }
+                }
+                currentBuffer += cleanNewText;
+                completeResponse += cleanNewText;
                 // Do not overwrite words to preserve user transcript
 
                 // Sentence-boundary detection: hand off completed sentences to TTS
