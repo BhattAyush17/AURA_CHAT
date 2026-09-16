@@ -6,11 +6,10 @@ if (rawApiBase && rawApiBase.endsWith("/")) {
 if (!rawApiBase && (import.meta as any).env?.PROD) {
   const errMsg =
     "[AURA] VITE_API_BASE is not set in production. Behavior engine features will be unavailable.";
-  console.error(errMsg);
+  console.warn(errMsg);
   if (typeof window !== "undefined") {
     (window as any).__AURA_TELEMETRY__?.recordError?.(new Error(errMsg));
   }
-  throw new Error(errMsg);
 }
 
 let BASE_URL = rawApiBase;
