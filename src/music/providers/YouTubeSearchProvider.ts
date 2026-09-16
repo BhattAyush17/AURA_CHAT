@@ -149,11 +149,11 @@ export class YouTubeSearchProvider implements SearchProvider {
       const res = await fetch(`${musicSearchEndpoint}?q=${encodeURIComponent(query)}`, {
         signal: AbortSignal.timeout(6000),
       });
-      
+
       if (res.ok) {
         const results = await res.json();
         if (results && results.length > 0) {
-           return results;
+          return results;
         }
       }
     } catch (fallbackErr) {

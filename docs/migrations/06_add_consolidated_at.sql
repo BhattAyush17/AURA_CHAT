@@ -1,0 +1,1 @@
+ALTER TABLE aura_chroma_backup ADD COLUMN consolidated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;

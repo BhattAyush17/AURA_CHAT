@@ -97,10 +97,9 @@ export class MicrophoneCoordinator {
         });
 
         // Adaptive Constraints
-        // If we know the user is using headphones or bluetooth, we can safely disable AEC/NS/AGC
-        // to prevent the OS from forcing low-quality "Communications Mode".
-        // Otherwise, we MUST keep them enabled to prevent STT from hallucinating on music from speakers.
-        const useAEC = env === "speaker" || env === "unknown";
+        // We ALWAYS enforce AEC/NS/AGC to prevent STT from hallucinating on AURA's own voice
+        // and causing an infinite interruption loop.
+        const useAEC = true;
 
         const constraints: MediaTrackConstraints = {
           echoCancellation: useAEC,
@@ -289,10 +288,10 @@ export class MicrophoneCoordinator {
     }
 
     if (this.audioContext) {
-      if (this.audioContext.state !== "closed") {
-        this.audioContext.close().catch(() => {});
-      }
-      this.audioContext = null;
+      // Intentionally omitting this.audioContext.close() and this.audioContext = null;
+      // Closing or suspending the AudioContext here forcefully kills the shared mobile
+      // AudioSession (halting HTMLAudioElement playback). Instead, we keep it alive
+      // and reuse it on the next microphone acquisition.
     }
 
     this.subscribers.clear();
@@ -305,6 +304,10 @@ export class MicrophoneCoordinator {
 
   public isAudioContextAlive(): boolean {
     return this.audioContext?.state === "running";
+  }
+
+  public getAudioContextState(): AudioContextState | "closed" | null {
+    return this.audioContext?.state || null;
   }
 
   public async resumeAudioContext(): Promise<void> {

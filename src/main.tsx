@@ -24,7 +24,7 @@ import { getConversationArchive } from "./lib/storage/ConversationArchive";
 // config/api.ts already falls back to localhost:8000.
 if (import.meta.env.DEV && !import.meta.env.VITE_API_BASE) {
   console.warn(
-    "⚠️ VITE_API_BASE is not set. Behavior engine calls will target http://localhost:8000. " +
+    "⚠️ VITE_API_BASE is not set. Behavior engine calls will target port 8000 on the current host. " +
       "Copy .env.example → .env.local if you need to point to a different backend.",
   );
 }

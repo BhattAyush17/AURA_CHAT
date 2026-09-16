@@ -364,11 +364,13 @@ export class RuntimeManager {
 
     // 6. Asynchronously persist memory (fire-and-forget — never blocks TTFB)
     setTimeout(() => {
-      try {
-        memoryGateway.storeMemory(text, userId, emotionalState, undefined, sessionId);
-      } catch (e) {
-        console.error("[RuntimeManager] Error storing memory:", e);
-      }
+      memoryGateway.storeMemory(text, userId, emotionalState, undefined, sessionId).catch((err) => {
+        // Rule 4: No silent fallbacks
+        (window as any).__AURA_TELEMETRY__?.recordError({
+          code: "memory_write_failed",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
     }, 0);
 
     return response + socialPresenceBlock;

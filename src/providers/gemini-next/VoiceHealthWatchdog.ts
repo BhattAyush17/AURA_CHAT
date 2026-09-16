@@ -98,7 +98,7 @@ export class VoiceHealthWatchdog {
     }
   }
 
-  private checkHealth() {
+  private async checkHealth() {
     if (!this.isRunning) return;
 
     const now = Date.now();
@@ -112,6 +112,26 @@ export class VoiceHealthWatchdog {
     // Check Microphone Stream
     if (this.engine.telemetry.isCapturing) {
       const micCoordinator = MicrophoneCoordinator.getInstance();
+
+      if (micCoordinator.getAudioContextState() === "suspended") {
+        console.warn("[VoiceHealthWatchdog] Audio context suspended. Forcing hardware wake up.");
+        await micCoordinator
+          .resumeAudioContext()
+          .then(() => {
+            (window as any).__AURA_TELEMETRY__?.recordError({
+              code: "watchdog_remediation",
+              message: "Forced audio context resume",
+            });
+          })
+          .catch((e) => {
+            (window as any).__AURA_TELEMETRY__?.recordError({
+              code: "watchdog_remediation_failed",
+              message: `Audio context resume failed: ${e}`,
+            });
+          });
+        return;
+      }
+
       const micStream = micCoordinator.getStream();
       if (!micStream || !micStream.active) {
         console.error(

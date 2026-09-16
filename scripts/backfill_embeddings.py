@@ -1,36 +1,37 @@
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
 
-from supabase import create_client
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)
 
-from backend.infrastructure.embedding_provider import embedding_provider
+load_dotenv(os.path.join(project_root, ".env.local"))
+load_dotenv(os.path.join(project_root, ".env"))
 
+_cwd = sys.path.pop(0) if sys.path and (sys.path[0] == '' or sys.path[0] == os.getcwd()) else None
+from supabase._async.client import AsyncClient, create_client as async_create_client
+if _cwd is not None:
+    sys.path.insert(0, _cwd)
+
+from backend.memory.embedding.embedder import embed_text
 
 async def main():
     print("Starting embedding backfill utility...")
     
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
     
-    if not supabase_url or not supabase_key:
+    if not url or not key:
         print("ERROR: SUPABASE_URL and SUPABASE_KEY / SUPABASE_SERVICE_ROLE_KEY must be set.")
         sys.exit(1)
         
-    client = create_client(supabase_url, supabase_key)
-    
-    # Initialize the embedding provider (Gemini/Cohere/Fastembed)
-    await embedding_provider.initialize()
-    if not embedding_provider.is_available:
-        print("ERROR: No embedding provider available.")
-        sys.exit(1)
-        
-    print(f"Embedding provider initialized: {embedding_provider.provider_name}")
+    client = await async_create_client(url, key)
     
     # Fetch rows where embedding is null
     try:
-        response = client.table("aura_chroma_backup").select("id, turn_text").is_("embedding", "null").execute()
-        rows = response.data
+        response = await client.table("aura_chroma_backup").select("id, turn_text, content").is_("embedding", "null").execute()
+        rows = getattr(response, "data", [])
     except Exception as e:
         print(f"ERROR: Failed to fetch rows from Supabase: {e}")
         sys.exit(1)
@@ -46,24 +47,24 @@ async def main():
     
     for row in rows:
         row_id = row.get("id")
-        text = row.get("turn_text")
+        text = row.get("turn_text") or row.get("content") or ""
         
-        if not text:
-            print(f"WARNING: Row {row_id} has no turn_text. Skipping.")
+        if not text.strip():
+            print(f"WARNING: Row {row_id} has no text content. Skipping.")
             error_count += 1
             continue
             
         try:
             # Generate embedding
-            embedding = await embedding_provider.embed(text)
+            embed_res = await embed_text(text)
             
-            if not embedding:
-                print(f"WARNING: Failed to generate embedding for row {row_id}.")
+            if not embed_res.ok or not embed_res.vector:
+                print(f"WARNING: Failed to generate embedding for row {row_id}: {embed_res.detail}")
                 error_count += 1
                 continue
                 
             # Update row in Supabase
-            client.table("aura_chroma_backup").update({"embedding": embedding}).eq("id", row_id).execute()
+            await client.table("aura_chroma_backup").update({"embedding": embed_res.vector}).eq("id", row_id).execute()
             success_count += 1
             if success_count % 50 == 0:
                 print(f"Processed {success_count}/{len(rows)} rows...")
@@ -76,7 +77,6 @@ async def main():
     print(f"Successfully backfilled: {success_count} rows.")
     if error_count > 0:
         print(f"Failed to backfill: {error_count} rows.")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

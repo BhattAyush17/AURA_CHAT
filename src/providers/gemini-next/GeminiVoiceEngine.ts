@@ -20,6 +20,7 @@ export class GeminiVoiceEngine {
   private isAuraSpeaking: boolean = false;
   private turnCounter: number = 0;
   private inputPathVerified: boolean = false;
+  private lastAuraSpeechTimestamp: number = 0;
 
   public readonly telemetry: VoiceTelemetry = {
     lastInputSendAt: 0,
@@ -102,6 +103,7 @@ export class GeminiVoiceEngine {
           this.isAuraSpeaking = false;
           this.output.stopPlayback();
           this.input.setVadState(true, false, false);
+          this.lastAuraSpeechTimestamp = Date.now();
           this.events.onInterrupted?.();
         },
         onTurnComplete: () => {
@@ -111,6 +113,7 @@ export class GeminiVoiceEngine {
           this.isAuraSpeaking = false;
           this.turnCounter++;
           this.input.setVadState(true, false, false);
+          this.lastAuraSpeechTimestamp = Date.now();
           this.events.onTurnComplete?.();
         },
         onToolCall: async (calls) => {
@@ -159,6 +162,7 @@ export class GeminiVoiceEngine {
           }
         },
         () => {
+          if (Date.now() - this.lastAuraSpeechTimestamp < 600) return;
           console.log("[GeminiVoiceEngine] Barge-in/speech confirmed via local VAD.");
           this.events.onUserSpeechDetected?.();
         },

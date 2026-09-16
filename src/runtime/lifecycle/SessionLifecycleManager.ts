@@ -46,18 +46,20 @@ export class SessionLifecycleManager {
         try {
           const sessionId = localStorage.getItem("aura_session_id") || "unknown_session";
           const userId = localStorage.getItem("aura_user_id") || "anonymous";
-          import("@/lib/behavior-client").then((mod) => {
-            const observations = mod.consumeObservationBuffer();
-            fetch("http://localhost:8000/api/memory/consolidate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                session_id: sessionId,
-                user_id: userId,
-                observations: observations,
-              }),
-            }).catch((err) => console.warn("[LifecycleManager] Consolidation failed:", err));
-          });
+          Promise.all([import("@/lib/behavior-client"), import("@/config/api")]).then(
+            ([mod, apiMod]) => {
+              const observations = mod.consumeObservationBuffer();
+              fetch(`${apiMod.ENDPOINTS.base}/api/memory/consolidate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  session_id: sessionId,
+                  user_id: userId,
+                  observations: observations,
+                }),
+              }).catch((err) => console.warn("[LifecycleManager] Consolidation failed:", err));
+            },
+          );
         } catch (e) {
           console.warn("[LifecycleManager] Failed to trigger consolidation", e);
         }

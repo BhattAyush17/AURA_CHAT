@@ -71,6 +71,10 @@ from supabase._async.client import AsyncClient, create_client as async_create_cl
 if _cwd is not None:
     sys.path.insert(0, _cwd)
 
+import os
+import re
+
+env_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -79,7 +83,10 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
     "https://aurachat-beige.vercel.app",
-]
+] + [o.strip() for o in env_origins if o.strip()]
+
+# Allows regex for local network IPs like http://192.168.x.x:5173
+ALLOW_ORIGIN_REGEX = r"^http://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+):\d+$"
 
 # FIX 1: API_SECRET removed. Origin check replaces it — see /api/analyze below.
 # A VITE_ prefixed secret is compiled into the public JS bundle and is
@@ -138,6 +145,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOW_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -386,7 +394,15 @@ def is_allowed_origin(request: Request) -> bool:
     if not origin:
         # No Origin header: allow in development, block in production
         return ENVIRONMENT != "production"
-    return origin.rstrip("/") in [o.rstrip("/") for o in ALLOWED_ORIGINS]
+    
+    clean_origin = origin.rstrip("/")
+    if clean_origin in [o.rstrip("/") for o in ALLOWED_ORIGINS]:
+        return True
+    
+    if re.match(ALLOW_ORIGIN_REGEX, clean_origin):
+        return True
+        
+    return False
 
 def get_base_session_id(sid: str) -> str:
     return sid.split("__tab_")[0]
@@ -917,43 +933,23 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
         )
         behavior_instructions = engine.build_instructions(raw_analysis)
 
-        # Phase 10: memory enforcement — memories the Executive ignored never
-        # reach the LLM; local-mode memories (previously dropped on this path)
-        # are injected when the policy allows.
-        memory_lines = []
-        if body.memory_policy != "Ignore" and body.client_memories:
-            memory_lines = [
-                f"- {(m.get('content') or m.get('text', ''))[:150]}"
-                for m in body.client_memories[:5]
-                if m.get('content') or m.get('text')
-            ]
-        cached_memory = await retrieve_prefetched_memory(session_id)
-        if cached_memory and body.memory_policy != "Ignore":
-            behavior_instructions += f"\n\n{cached_memory}"
-        if memory_lines:
-            behavior_instructions += f"\n\n[MEMORY ENRICHMENT]\n" + "\n".join(memory_lines) + "\n[END MEMORY]"
-
-        # Phase 1 cognitive-integrity fix (C7/parity): the fast path must also
-        # receive the action schema, an explicit emotion-acknowledgment rule,
-        # the anti-leak response contract, and any music state — otherwise the
-        # decision chain is severed on this branch too.
-        music_ctx = body.music_context_text or None
-        system_prompt = build_prompt([
-            ACTION_SCHEMA,
-            EMOTION_ACKNOWLEDGEMENT_DIRECTIVE,
-            body.executive_plan or None,
-            music_ctx,
-            behavior_instructions,
-        ])
-        system_prompt += f"\n\n{RESPONSE_CONTRACT}\n\nRespond in 1-3 sentences. Speak naturally, not formally."
-
-    # Phase 1 (seed activation): the persona mindset seed was fetched above
-    # but never reached the LLM. Prefer the client-supplied seed when present,
-    # fall back to the session-stored seed. Prepended (not appended) so the
-    # identity frame scopes every block assembled above.
-    active_seed = body.seed or seed
-    if active_seed:
-        system_prompt = f"[PERSONA MINDSET]\n{active_seed}\n\n{system_prompt}"
+        # 1. Start with base behavior instructions
+        system_prompt = behavior_instructions
+        
+        # 2. Inject the Persona Seed if present
+        active_seed = body.seed or seed
+        if active_seed:
+            system_prompt += f"\n\n[PERSONA MINDSET]\n{active_seed}"
+            
+        # 3. Inject the Executive Plan if present
+        if body.executive_plan:
+            system_prompt += f"\n\n[COGNITIVE ORCHESTRATION]\n{body.executive_plan}"
+            
+        # 4. Inject Client Memories (Fixing the episodic memory drop)
+        if body.client_memories:
+            system_prompt += "\n\n[RELEVANT MEMORY]\n"
+            for mem in body.client_memories:
+                system_prompt += f"- {mem.get('content', '')}\n"
 
     # ── Atmosphere Context Layer ────────────────────────────────────────────
     # Retrieve real-world grounding from the EXISTING composer (TTL-cached,

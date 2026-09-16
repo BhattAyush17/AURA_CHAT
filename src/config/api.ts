@@ -1,13 +1,32 @@
-const API_BASE = (import.meta as any).env?.VITE_API_BASE;
-
-if (!API_BASE && (import.meta as any).env?.PROD) {
-  console.warn(
-    "[AURA] VITE_API_BASE is not set. Behavior engine features will be unavailable. " +
-      "Set it in your Vercel environment variables if you have a backend deployed.",
-  );
+let rawApiBase = (import.meta as any).env?.VITE_API_BASE?.trim();
+if (rawApiBase && rawApiBase.endsWith("/")) {
+  rawApiBase = rawApiBase.slice(0, -1);
 }
 
-const BASE_URL = API_BASE || "http://localhost:8000";
+if (!rawApiBase && (import.meta as any).env?.PROD) {
+  const errMsg =
+    "[AURA] VITE_API_BASE is not set in production. Behavior engine features will be unavailable.";
+  console.error(errMsg);
+  if (typeof window !== "undefined") {
+    (window as any).__AURA_TELEMETRY__?.recordError?.(new Error(errMsg));
+  }
+  throw new Error(errMsg);
+}
+
+let BASE_URL = rawApiBase;
+if (!BASE_URL) {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname);
+    if (isIP || hostname.endsWith(".local") || hostname === "localhost") {
+      BASE_URL = `http://${hostname}:8000`;
+    } else {
+      BASE_URL = "http://localhost:8000";
+    }
+  } else {
+    BASE_URL = "http://localhost:8000";
+  }
+}
 
 export const ENDPOINTS = {
   base: BASE_URL,

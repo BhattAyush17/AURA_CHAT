@@ -503,6 +503,49 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Target: Hydrate State on Mount (Rule 3 & 4)
+  useEffect(() => {
+    try {
+      const userId = userIdRef.current;
+      const st = localStorage.getItem(`aura_memories_short_term_${userId}`);
+      const ep = localStorage.getItem(`aura_memories_ephemeral_${userId}`);
+
+      const stEntries = st ? JSON.parse(st) : [];
+      const epEntries = ep ? JSON.parse(ep) : [];
+
+      const allEntries = [...stEntries, ...epEntries].sort(
+        (a: any, b: any) => a.timestamp - b.timestamp,
+      );
+
+      const history: ChatMessage[] = [];
+      allEntries.forEach((entry: any) => {
+        if (entry.content) {
+          const content = entry.content as string;
+          if (content.startsWith("User: ")) {
+            const parts = content.split("\nAURA: ");
+            if (parts.length === 2) {
+              history.push({ role: "user", content: parts[0].replace("User: ", "").trim() });
+              history.push({ role: "assistant", content: parts[1].trim() });
+            } else {
+              history.push({ role: "user", content });
+            }
+          } else {
+            history.push({ role: "user", content });
+          }
+        }
+      });
+
+      if (history.length > 0) {
+        setMessages(history.slice(-MAX_MESSAGES));
+      }
+    } catch (err: any) {
+      (window as any).__AURA_TELEMETRY__?.recordError({
+        code: "history_hydration_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
   const addMessages = useCallback((msgs: ChatMessage[]) => {
     setMessages((prev) => {
       const updated = [...prev, ...msgs];

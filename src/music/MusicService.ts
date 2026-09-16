@@ -259,11 +259,15 @@ export class MusicService {
       await this.playbackProvider.play(track.id, startAtSeconds);
     } catch (err: any) {
       console.error(`[MusicService] playTrack failed for trackId=${track.id}:`, err);
+      if (typeof window !== "undefined" && (window as any).__AURA_TELEMETRY__) {
+        (window as any).__AURA_TELEMETRY__?.recordError?.(err);
+      }
       playbackState.update({
         isPlaying: false,
         isLoading: false,
         hasFailed: true,
         failureReason: err.message || "Playback failed",
+        audioUnlockState: err.name === "NotAllowedError" ? "blocked" : undefined,
       });
       throw err;
     }
@@ -278,7 +282,21 @@ export class MusicService {
       const volume = playbackState.getState().volume;
       this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
       await this.playbackProvider.setVolume(this.currentVolume);
-      await this.playbackProvider.play(track.id);
+      try {
+        await this.playbackProvider.play(track.id);
+      } catch (err: any) {
+        console.error(`[MusicService] playQueue failed:`, err);
+        if (typeof window !== "undefined" && (window as any).__AURA_TELEMETRY__) {
+          (window as any).__AURA_TELEMETRY__?.recordError?.(err);
+        }
+        playbackState.update({
+          isPlaying: false,
+          isLoading: false,
+          hasFailed: true,
+          failureReason: err.message || "Playback failed",
+          audioUnlockState: err.name === "NotAllowedError" ? "blocked" : undefined,
+        });
+      }
     }
   }
 
@@ -292,7 +310,21 @@ export class MusicService {
       const volume = playbackState.getState().volume;
       this.currentVolume = this.isDucked ? Math.max(0, Math.round(volume * 0.2)) : volume;
       await this.playbackProvider.setVolume(this.currentVolume);
-      await this.playbackProvider.resume();
+      try {
+        await this.playbackProvider.resume();
+      } catch (err: any) {
+        console.error(`[MusicService] resume failed:`, err);
+        if (typeof window !== "undefined" && (window as any).__AURA_TELEMETRY__) {
+          (window as any).__AURA_TELEMETRY__?.recordError?.(err);
+        }
+        playbackState.update({
+          isPlaying: false,
+          isLoading: false,
+          hasFailed: true,
+          failureReason: err.message || "Resume failed",
+          audioUnlockState: err.name === "NotAllowedError" ? "blocked" : undefined,
+        });
+      }
     }
   }
 
@@ -329,8 +361,22 @@ export class MusicService {
   }
 
   async unlockAudio() {
-    if (this.playbackProvider.unlockAudio) {
-      await this.playbackProvider.unlockAudio();
+    try {
+      if (this.playbackProvider.unlockAudio) {
+        await this.playbackProvider.unlockAudio();
+      }
+    } catch (err: any) {
+      console.warn("[MusicService] unlockAudio failed:", err);
+      if (typeof window !== "undefined" && (window as any).__AURA_TELEMETRY__) {
+        (window as any).__AURA_TELEMETRY__?.recordError?.(err);
+      }
+      playbackState.update({
+        isPlaying: false,
+        isLoading: false,
+        hasFailed: true,
+        failureReason: "Audio unlock failed. Please tap to interact.",
+        audioUnlockState: "blocked",
+      });
     }
   }
 

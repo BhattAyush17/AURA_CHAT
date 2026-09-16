@@ -17,7 +17,12 @@
  */
 
 import { ENDPOINTS } from "@/config/api";
-import { storeLocalMemory, retrieveLocalMemories, type LocalMemoryEntry } from "@/lib/local-memory";
+import {
+  storeLocalMemory,
+  retrieveLocalMemories,
+  type LocalMemoryEntry,
+  enforceGlobalQuota,
+} from "@/lib/local-memory";
 import { MemoryWriteRequestSchema } from "@/lib/contracts/memory";
 import { auraTelemetry } from "@/telemetry";
 
@@ -297,15 +302,68 @@ export class MemoryGateway {
     }
 
     // Mode B: Local browser storage
+    const syncToBackend = (isSuccess: boolean) => {
+      if (!isSuccess) return;
+      const parsed = MemoryWriteRequestSchema.safeParse({
+        text: content,
+        user_id: userId,
+        session_id: sessionId,
+        memory_mode: "local",
+        emotional_state: emotionalTags,
+        executive_plan: executivePlan,
+        client_memories: [],
+      });
+
+      if (parsed.ok) {
+        fetch(ENDPOINTS.chat, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed.value),
+        }).catch((e) => {
+          (window as any).__AURA_TELEMETRY__?.recordError(
+            e instanceof Error ? e : new Error(String(e)),
+            { context: "memory_gateway_local_backend_sync" },
+          );
+        });
+      }
+    };
+
     try {
       const ok = storeLocalMemory(content, userId, emotionalTags, tier);
+      syncToBackend(ok);
+
       auraTelemetry.endMemoryOp(opId, {
         status: ok ? "success" : "error",
         resultCount: ok ? 1 : 0,
         latencyMs: performance.now() - startedAt,
       });
       return ok;
-    } catch (e) {
+    } catch (e: any) {
+      if (e instanceof DOMException && (e.code === 22 || e.name === "QuotaExceededError")) {
+        console.warn("[MemoryGateway] Quota exceeded, enforcing eviction and retrying...");
+        enforceGlobalQuota(userId);
+        try {
+          const ok = storeLocalMemory(content, userId, emotionalTags, tier);
+          syncToBackend(ok);
+          auraTelemetry.endMemoryOp(opId, {
+            status: ok ? "success" : "error",
+            resultCount: ok ? 1 : 0,
+            latencyMs: performance.now() - startedAt,
+          });
+          return ok;
+        } catch (retryError: any) {
+          console.error("[MemoryGateway] Retry failed after eviction:", retryError);
+          auraTelemetry.endMemoryOp(opId, {
+            status: "error",
+            latencyMs: performance.now() - startedAt,
+          });
+          (window as any).__AURA_TELEMETRY__?.recordError(
+            retryError instanceof Error ? retryError : new Error(String(retryError)),
+            { context: "storeMemory_retry_failed", tier, userId },
+          );
+          return false;
+        }
+      }
       console.warn("[MemoryGateway] Local store failed:", e);
       auraTelemetry.endMemoryOp(opId, {
         status: "error",

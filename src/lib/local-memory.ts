@@ -211,11 +211,34 @@ function loadEntries(userId: string, tier?: MemoryTier): LocalMemoryEntry[] {
   }
 }
 
-function saveEntries(userId: string, entries: LocalMemoryEntry[], tier?: MemoryTier): void {
+function saveEntries(
+  userId: string,
+  entries: LocalMemoryEntry[],
+  tier?: MemoryTier,
+  isRetry: boolean = false,
+): void {
   try {
     localStorage.setItem(storageKey(userId, tier), JSON.stringify(entries));
-  } catch (e) {
-    console.warn("[LocalMemory] Failed to save:", e);
+  } catch (e: any) {
+    if (
+      !isRetry &&
+      e instanceof DOMException &&
+      (e.code === 22 || e.name === "QuotaExceededError")
+    ) {
+      console.warn("[LocalMemory] Quota exceeded, enforcing eviction and retrying...");
+      enforceGlobalQuota(userId);
+      try {
+        localStorage.setItem(storageKey(userId, tier), JSON.stringify(entries));
+      } catch (retryError: any) {
+        console.error("[LocalMemory] Retry failed after eviction:", retryError);
+        (window as any).__AURA_TELEMETRY__?.recordError(
+          retryError instanceof Error ? retryError : new Error(String(retryError)),
+          { context: "saveEntries_retry_failed", tier, userId },
+        );
+      }
+    } else {
+      console.warn("[LocalMemory] Failed to save:", e);
+    }
   }
 }
 
@@ -372,13 +395,38 @@ export function storeLocalMemory(
     saveEntries(userId, entries, detectedTier);
     enforceGlobalQuota(userId);
     return true;
-  } catch (e) {
+  } catch (e: any) {
+    if (e instanceof DOMException && (e.code === 22 || e.name === "QuotaExceededError")) {
+      console.warn("[LocalMemory] Quota exceeded in storeLocalMemory, retrying after eviction...");
+      enforceGlobalQuota(userId);
+      try {
+        const detectedTier = tier ?? inferMemoryTier(content, emotionalTags);
+        const entries = loadEntries(userId, detectedTier);
+        const keywords = extractKeywords(content);
+        entries.push({
+          content: content.slice(0, 500),
+          emotional_tags: emotionalTags,
+          timestamp: Date.now(),
+          keywords,
+          tier: detectedTier,
+        });
+        saveEntries(userId, entries, detectedTier, true);
+        return true;
+      } catch (retryError: any) {
+        console.error("[LocalMemory] Retry failed in storeLocalMemory:", retryError);
+        (window as any).__AURA_TELEMETRY__?.recordError(
+          retryError instanceof Error ? retryError : new Error(String(retryError)),
+          { context: "storeLocalMemory_retry_failed", tier, userId },
+        );
+        return false;
+      }
+    }
     console.warn("[LocalMemory] store failed:", e);
     return false;
   }
 }
 
-function enforceGlobalQuota(userId: string) {
+export function enforceGlobalQuota(userId: string) {
   try {
     let totalBytes = 0;
     const tiers: MemoryTier[] = ["ephemeral", "short_term", "durable"];

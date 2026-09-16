@@ -190,27 +190,40 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       if (modelText) {
         transcript_.addTurn(modelText, false);
         conversationState.reportSpeakingFinished();
-
-        // ── Memory Return Path (Bug A) ──
-        if (userText) {
-          const lastAnalysis = behavior.lastAnalysisRef.current;
-          const currentEmotionalState: Record<string, number> = {
-            frustration: lastAnalysis?.frustration || 0,
-            playfulness: lastAnalysis?.playfulness || 0,
-            vulnerability: lastAnalysis?.vulnerability || 0,
-            trust: lastAnalysis?.trust || 0,
-            anxiety: lastAnalysis?.anxiety || 0,
-          };
-          const turnContext = `User: ${userText}\nAURA: ${modelText}`;
-          memoryGateway.storeMemory(
-            turnContext,
-            userIdRef.current,
-            currentEmotionalState,
-            undefined,
-            sessionIdRef.current ?? undefined,
-          );
-        }
       }
+
+      // ── Memory Return Path (Bug A Rescue) ──
+      const cleanUserText = userText?.trim() || "";
+      const cleanModelText = modelText?.trim() || "";
+
+      if (cleanUserText || cleanModelText) {
+        const lastAnalysis = behavior.lastAnalysisRef.current;
+        const currentEmotionalState: Record<string, number> = {
+          frustration: lastAnalysis?.frustration || 0,
+          playfulness: lastAnalysis?.playfulness || 0,
+          vulnerability: lastAnalysis?.vulnerability || 0,
+          trust: lastAnalysis?.trust || 0,
+          anxiety: lastAnalysis?.anxiety || 0,
+        };
+
+        let turnContext = "";
+        if (cleanUserText && cleanModelText) {
+          turnContext = `User: ${cleanUserText}\nAURA: ${cleanModelText}`;
+        } else if (cleanUserText) {
+          turnContext = `User: ${cleanUserText}`;
+        } else if (cleanModelText) {
+          turnContext = `AURA: ${cleanModelText}`;
+        }
+
+        memoryGateway.storeMemory(
+          turnContext,
+          userIdRef.current,
+          currentEmotionalState,
+          undefined,
+          sessionIdRef.current ?? undefined,
+        );
+      }
+
       musicService.onAuraSpeechEnd();
       languageManager.resetBuffer();
       auraTelemetry.endRequest(requestId, { status: "success" });
@@ -242,6 +255,20 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         source: "transcription",
         timestamp: Date.now(),
       });
+
+      // Target 2: Buffer Asynchronous Transcript
+      // If we receive late-arriving text, append it to the last active transcript_ buffer
+      // to prevent losing STT that arrives after onTurnComplete.
+      const currentRef = transcript_.transcriptRef.current;
+      const lastMemory = currentRef.length > 0 ? currentRef[currentRef.length - 1] : null;
+
+      if (lastMemory && lastMemory.user_initiated && Date.now() - lastMemory.timestamp < 3000) {
+        // This mutates the ref without causing a React re-render, ensuring the
+        // conversational context sees the late STT chunks without breaking hooks.
+        if (!lastMemory.text.endsWith(text.trim())) {
+          lastMemory.text += (lastMemory.text ? " " : "") + text.trim();
+        }
+      }
     },
     onAuraSpeechStart: () => {
       musicService.onAuraSpeechStart();
