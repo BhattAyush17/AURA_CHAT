@@ -1113,10 +1113,14 @@ export function useOpenRouter(mode: string = "adaptive") {
         addMessages([{ role: "user", content: userText }]);
       }
 
+      let hasStartedStreaming = false;
+      let sharedFullResponse = "";
+
       // Try Backend SSE Stream first (Phase 2 Full Request Cycle)
       try {
         const l4_start = performance.now();
         fetchAbortRef.current = new AbortController();
+        const backendFetchTimeout = setTimeout(() => fetchAbortRef.current?.abort(), 15000);
         const response = await fetch(ENDPOINTS.analyzeStream, {
           method: "POST",
           signal: fetchAbortRef.current.signal,
@@ -1144,6 +1148,8 @@ export function useOpenRouter(mode: string = "adaptive") {
           }),
         });
 
+        clearTimeout(backendFetchTimeout);
+
         if (!response.ok || !response.body) {
           throw new Error(`Backend returned status ${response.status}`);
         }
@@ -1169,6 +1175,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           setStatus("speaking");
 
           const drainQueue = () => {
+            if (fetchAbortRef.current?.signal.aborted) return;
             if (segmentSubQueue.length > 0) {
               const seg = segmentSubQueue.shift()!;
               if (AUDIO_ASSET_STYLES.has(seg.style)) {
@@ -1190,7 +1197,7 @@ export function useOpenRouter(mode: string = "adaptive") {
 
             const rawNext = sentenceQueueRef.current.shift();
             if (!rawNext) {
-              if (streamDone) {
+              if (streamDone || fetchAbortRef.current?.signal.aborted) {
                 import("@/music/MusicService").then(({ musicService }) => {
                   musicService.onAuraSpeechEnd();
                 });
@@ -1316,6 +1323,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                   lastTokenTimeRef.current = performance.now();
                   if (!firstTokenReceived) {
                     firstTokenReceived = true;
+                    hasStartedStreaming = true;
                     stopThinkingAudio();
                     connectionState.updateLatency({ l4_llm_ms: performance.now() - l4_start });
                   }
@@ -1349,6 +1357,7 @@ export function useOpenRouter(mode: string = "adaptive") {
                   }
                   textBuffer += cleanChunk;
                   fullResponse += cleanChunk;
+                  sharedFullResponse += cleanChunk;
                   // Do not overwrite words to preserve user transcript
 
                   const match = TERMINAL_PUNCTUATION.exec(textBuffer);
@@ -1401,6 +1410,21 @@ export function useOpenRouter(mode: string = "adaptive") {
       } catch (backendError: any) {
         if (backendError.name === "AbortError") {
           console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
+          return;
+        }
+        if (hasStartedStreaming) {
+          console.warn("[Voice Pipeline] Backend stream failed mid-response. Aborting turn to prevent repetition.");
+          if (sharedFullResponse) {
+             addMessages([{ role: "assistant", content: sharedFullResponse + "..." }]);
+             transcript_.addTurn(sharedFullResponse + "...", false);
+          }
+          stopSpeech();
+          conversationState.reportSpeakingFinished();
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            setTimeout(() => startSessionRef.current?.(), 250);
+          } else {
+            setStatus("idle");
+          }
           return;
         }
         console.warn(
@@ -1520,6 +1544,7 @@ CRITICAL RULES:
       let completeResponse = "";
       let rawCompleteResponse = "";
       let success = false;
+      let aborted = false;
       let lastApiError: any = null;
       const attempted: string[] = [];
 
@@ -1528,6 +1553,9 @@ CRITICAL RULES:
       const openrouterRequestId = auraTelemetry.beginRequest();
 
       for (const modelToTry of modelQueue) {
+        currentBuffer = "";
+        completeResponse = "";
+        rawCompleteResponse = "";
         attempted.push(modelToTry);
         setActiveModel(modelToTry);
         if (attempted.length > 1) await new Promise((r) => setTimeout(r, 800));
@@ -1578,6 +1606,8 @@ CRITICAL RULES:
             throw error;
           }
 
+          clearTimeout(fetchTimeout);
+
           // ── SSE streaming reader ────────────────────────────────────
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -1604,6 +1634,7 @@ CRITICAL RULES:
             orchestrator.queueProtection.markPlaybackActive();
 
             const drainQueue = () => {
+              if (fetchAbortRef.current?.signal.aborted) return;
               if (segmentSubQueue.length > 0) {
                 const seg = segmentSubQueue.shift()!;
                 if (AUDIO_ASSET_STYLES.has(seg.style)) {
@@ -1627,7 +1658,7 @@ CRITICAL RULES:
               if (rawNext) orchestrator.queueProtection.reportChunkConsumed();
 
               if (!rawNext) {
-                if (streamDone) {
+                if (streamDone || fetchAbortRef.current?.signal.aborted) {
                   import("@/music/MusicService").then(({ musicService }) => {
                     musicService.onAuraSpeechEnd();
                   });
@@ -1736,6 +1767,7 @@ CRITICAL RULES:
                 if (!token) continue;
                 if (!firstTokenReceived) {
                   firstTokenReceived = true;
+                  hasStartedStreaming = true;
                   firstTokenAt = performance.now();
                   pushConversationTrace("LLM_FIRST_TOKEN", {
                     provider: "openrouter",
@@ -1788,6 +1820,7 @@ CRITICAL RULES:
                 }
                 currentBuffer += cleanNewText;
                 completeResponse += cleanNewText;
+                sharedFullResponse += cleanNewText;
                 // Do not overwrite words to preserve user transcript
 
                 // Sentence-boundary detection: hand off completed sentences to TTS
@@ -1826,9 +1859,28 @@ CRITICAL RULES:
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
-            success = true;
+            aborted = true;
+            success = false;
             pushConversationTrace("LLM_ERROR", { error: "AbortError" });
             endProviderCall(auraTelemetry, callId, { status: "aborted" });
+            break;
+          }
+          if (hasStartedStreaming) {
+            console.warn("[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.");
+            if (sharedFullResponse) {
+              addMessages([{ role: "assistant", content: sharedFullResponse + "..." }]);
+              transcript_.addTurn(sharedFullResponse + "...", false);
+            }
+            aborted = true;
+            success = false;
+            stopSpeech();
+            conversationState.reportSpeakingFinished();
+            if (isSessionActiveRef.current && startSessionRef.current) {
+              setTimeout(() => startSessionRef.current?.(), 250);
+            } else {
+              setStatus("idle");
+            }
+            endProviderCall(auraTelemetry, callId, { status: "error", failureDetail: "Stream failed mid-response" });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
@@ -1848,7 +1900,7 @@ CRITICAL RULES:
         }
       }
 
-      if (!success) {
+      if (!success && !aborted) {
         auraTelemetry.endRequest(openrouterRequestId, {
           status: "error",
         });
@@ -1878,7 +1930,7 @@ CRITICAL RULES:
       }
 
       // Record assistant turn once complete
-      if (success && completeResponse) {
+      if (success && !aborted && completeResponse) {
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
 

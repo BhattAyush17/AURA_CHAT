@@ -25,6 +25,7 @@ import {
 } from "@/lib/local-memory";
 import { MemoryWriteRequestSchema } from "@/lib/contracts/memory";
 import { auraTelemetry } from "@/telemetry";
+import { getCredential } from "@/lib/credentials";
 
 // Re-export MemoryResult from local-memory so consumers import from gateway
 export type { MemoryResult } from "@/lib/local-memory";
@@ -274,7 +275,12 @@ export class MemoryGateway {
       try {
         const res = await fetch(ENDPOINTS.chat, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          headers: { 
+            "Content-Type": "application/json",
+            "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
+            "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
+          },
           body: JSON.stringify(parsed.value),
         });
         const ok = res.ok;
@@ -317,7 +323,12 @@ export class MemoryGateway {
       if (parsed.ok) {
         fetch(ENDPOINTS.chat, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          headers: { 
+            "Content-Type": "application/json",
+            "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
+            "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
+          },
           body: JSON.stringify(parsed.value),
         }).catch((e) => {
           (window as any).__AURA_TELEMETRY__?.recordError(
