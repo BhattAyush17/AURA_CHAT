@@ -914,6 +914,7 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             EMOTION_ACKNOWLEDGEMENT_DIRECTIVE,
             body.executive_plan or None,
             body.music_context_text or None,
+            body.seed or None,
             memory_context,
             body.cognitive_block,
         ]

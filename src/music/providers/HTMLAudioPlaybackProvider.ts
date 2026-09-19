@@ -72,6 +72,18 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       // Safe to cast as it's a standard property that browsers support.
       (this.audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       this.audio.preload = "auto";
+      
+      // Target 1: Attach to DOM so Android Chrome doesn't treat it as a detached background leak
+      this.audio.style.display = "none";
+      document.body.appendChild(this.audio);
+
+      const autoUnlock = () => {
+        this.unlockAudio().catch(() => {});
+        document.removeEventListener("click", autoUnlock);
+        document.removeEventListener("touchstart", autoUnlock);
+      };
+      document.addEventListener("click", autoUnlock, { once: true, passive: true });
+      document.addEventListener("touchstart", autoUnlock, { once: true, passive: true });
 
       this.audio.addEventListener("loadedmetadata", () => {
         recordEvent("loadedmetadata");
@@ -593,26 +605,42 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         // unlockAudio is itself invoked from a user gesture in the UI.
         playbackTelemetry.updateMobileMusicGesture({ lastGestureAt: Date.now() });
         recordEvent("user_gesture", "unlockAudio");
+        
         this.audio.muted = true;
+        // Provide a silent base64 wav data URI so it doesn't throw a NotSupportedError on empty src
+        if (!this.audio.src) {
+           this.audio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        }
         await this.audio.play();
         this.audio.pause();
-        this.audio.muted = false;
+      } catch (e) {
+        console.warn("[HTMLAudioPlaybackProvider] unlockAudio failed:", e);
+        recordEvent("play_rejected", `name=${(e as { name?: string } | undefined)?.name || "?"}`);
+      } finally {
+        if (this.audio) {
+          this.audio.muted = false;
+        }
+      }
 
+      try {
         playbackState.update({ audioUnlockState: "unlocked" });
 
         const state = playbackState.getState();
         if (state.pendingTrack) {
           const track = state.pendingTrack;
           playbackState.update({ pendingTrack: null });
-          import("../MusicService").then(({ musicService }) => {
-            musicService
-              .playTrack(track)
-              .catch((e) => console.error("Resume pending track failed", e));
+          console.log("[HTMLAudioPlaybackProvider] Resuming pending track after unlock:", track.title);
+          // Small delay to ensure unlock finishes
+          setTimeout(() => {
+            import("../MusicService").then(({ musicService }) => {
+              musicService
+                .playTrack(track)
+                .catch((e) => console.error("Resume pending track failed", e));
+            });
           });
         }
       } catch (e) {
-        console.warn("[HTMLAudioPlaybackProvider] unlockAudio failed:", e);
-        recordEvent("play_rejected", `name=${(e as { name?: string } | undefined)?.name || "?"}`);
+         console.warn("[HTMLAudioPlaybackProvider] post-unlock logic failed:", e);
       }
     }
   }

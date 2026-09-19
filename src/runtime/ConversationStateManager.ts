@@ -22,7 +22,13 @@ export class ConversationStateManager {
   private sttActive = false;
   private ttsActive = false;
 
-  private constructor() {}
+  private wakeLockSentinel: WakeLockSentinel | null = null;
+
+  private constructor() {
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    }
+  }
 
   public static getInstance(): ConversationStateManager {
     if (!ConversationStateManager.instance) {
@@ -40,6 +46,40 @@ export class ConversationStateManager {
     // Send immediate initial state
     listener(this.state);
     return () => this.listeners.delete(listener);
+  }
+
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      if (this.state === "LISTENING" || this.state === "AURA_SPEAKING") {
+        this.requestWakeLock();
+      }
+    }
+  };
+
+  private async requestWakeLock() {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+      try {
+        if (!this.wakeLockSentinel) {
+          this.wakeLockSentinel = await navigator.wakeLock.request("screen");
+          this.wakeLockSentinel.addEventListener("release", () => {
+            this.wakeLockSentinel = null;
+          });
+        }
+      } catch (err) {
+        console.warn("[ConversationStateManager] Wake Lock request failed:", err);
+      }
+    }
+  }
+
+  private async releaseWakeLock() {
+    if (this.wakeLockSentinel) {
+      try {
+        await this.wakeLockSentinel.release();
+        this.wakeLockSentinel = null;
+      } catch (err) {
+        console.warn("[ConversationStateManager] Wake Lock release failed:", err);
+      }
+    }
   }
 
   private transitionTo(newState: ConversationState, context?: string) {
@@ -65,6 +105,13 @@ export class ConversationStateManager {
     }
 
     this.state = newState;
+
+    if (newState === "LISTENING" || newState === "AURA_SPEAKING") {
+      this.requestWakeLock();
+    } else if (newState === "IDLE" || newState === "POST_SPEECH_GRACE" || newState === "ERROR") {
+      this.releaseWakeLock();
+    }
+
     this.listeners.forEach((l) => l(this.state));
   }
 

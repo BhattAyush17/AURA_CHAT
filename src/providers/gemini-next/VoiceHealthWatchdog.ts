@@ -3,6 +3,7 @@ import { MicrophoneCoordinator } from "../../audioRuntime/MicrophoneCoordinator"
 import { ConversationStateManager } from "../../runtime/ConversationStateManager";
 import { auraTelemetry } from "@/telemetry/RuntimeTelemetry";
 import { ENDPOINTS } from "@/config/api";
+import { playbackState } from "../../music/PlaybackState";
 
 export type WatchdogReason =
   | "CONNECTION_STALL"
@@ -49,10 +50,51 @@ export class VoiceHealthWatchdog {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
+  private handleVisibilityChange = () => {
+    if (document.visibilityState === "visible" && this.isRunning) {
+      const micCoordinator = MicrophoneCoordinator.getInstance();
+      
+      // Auto-Heal Revival
+      if (micCoordinator.wasHardwareInterrupted()) {
+        console.warn("[VoiceHealthWatchdog] Hardware interruption detected. Seamlessly auto-healing mic.");
+        micCoordinator.clearHardwareInterruption();
+        
+        micCoordinator.acquireMicrophone().then(() => {
+          // Instantly start listening without requiring user tap
+          ConversationStateManager.getInstance().requestStartListening();
+          auraTelemetry.recordError({
+            code: "watchdog_autoheal",
+            message: "Successfully revived microphone after hardware mute",
+          });
+        }).catch((e) => {
+          auraTelemetry.recordError({
+            code: "watchdog_autoheal_failed",
+            message: `Microphone auto-heal failed: ${e}`,
+          });
+        });
+      } else if (micCoordinator.getAudioContextState() === "suspended") {
+        console.warn("[VoiceHealthWatchdog] Visibility restored. Forcing audio context resume.");
+        micCoordinator.resumeAudioContext().then(() => {
+          auraTelemetry.recordError({
+            code: "watchdog_remediation",
+            message: "Forced audio context resume on visibility change",
+          });
+        }).catch((e) => {
+          auraTelemetry.recordError({
+            code: "watchdog_remediation_failed",
+            message: `Audio context resume on visibility change failed: ${e}`,
+          });
+        });
+      }
+    }
+  };
+
   public start() {
     this.stop();
     this.isRunning = true;
     this.lastPlaybackTime = Date.now();
+
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
 
     // Poll every second
     this.timer = window.setInterval(() => this.checkHealth(), 1000);
@@ -62,6 +104,7 @@ export class VoiceHealthWatchdog {
 
   public stop() {
     this.isRunning = false;
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -104,8 +147,10 @@ export class VoiceHealthWatchdog {
     const now = Date.now();
 
     // If we're playing audio, we're definitely not stalled on the connection
-    if (this.engine.telemetry.isPlaying) {
+    const isMusicPlaying = playbackState.getState().isPlaying;
+    if (this.engine.telemetry.isPlaying || isMusicPlaying) {
       this.lastPlaybackTime = now;
+      this.engine.telemetry.lastServerMessageAt = now;
       return;
     }
 

@@ -47,6 +47,16 @@ export class MusicService {
 
     // Subscribe to state changes for context buffering and queue advancement
     musicEvents.on("stateChanged", (state) => {
+      if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+        if (state.currentTrack) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: state.currentTrack.title,
+            artist: state.currentTrack.artist || "AURA",
+          });
+        }
+        navigator.mediaSession.playbackState = state.isPlaying ? "playing" : "paused";
+      }
+
       if (
         state.isPlaying &&
         state.currentTrack &&

@@ -166,6 +166,9 @@ export class RuntimeManager {
     turnSignals: { wasInterruption?: boolean; silenceDurationMs?: number } = {},
     sessionId?: string,
   ): Promise<string> {
+    // 0. Ensure SenseManager is initialized
+    await SenseManager.getInstance().initializeAll();
+
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
 
@@ -182,6 +185,28 @@ export class RuntimeManager {
     }
 
     this.lastUserWordCount = currentWordCount;
+
+    // 1.6 Hard-wire Social Cognition Engine
+    try {
+      getSocialCognitionEngine().processTurn({
+        text,
+        userId: getCurrentUserId() || "anonymous",
+        wordCount: currentWordCount,
+        isQuestion: text.includes("?"),
+        userInitiated: true,
+        backendVulnerability: backendBehavior?.vulnerability ?? 0,
+        backendTension: backendBehavior?.anxiety ?? 0,
+        backendEnergy: backendBehavior?.frustration ?? 0,
+        backendPlayfulness: backendBehavior?.playfulness ?? 0,
+        clarificationRequired: false,
+        auraAskedQuestionThisTurn: false,
+        isAuraInterrupted: turnSignals.wasInterruption ?? false,
+        silenceMs: turnSignals.silenceDurationMs ?? 0,
+        recentHistory: [],
+      });
+    } catch (e) {
+      console.warn("[RuntimeManager] SocialCognitionEngine failed:", e);
+    }
 
     globalLanguageManager.observe({
       text,

@@ -660,6 +660,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       SpeechCoordinator.getInstance().flush();
     });
     isSpeakingRef.current = false;
+    import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+      MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+    });
     currentTurnIdRef.current += 1;
   };
 
@@ -715,6 +718,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         });
         pushConversationTrace("PLAYBACK_START");
         isSpeakingRef.current = true;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(false, true, false);
+        });
         setStatus("speaking");
         connectionState.updateState({ active_voice_out: "webspeech" });
       };
@@ -727,6 +733,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         pushConversationTrace("PLAYBACK_END");
         const ttsLatency = performance.now() - (utterance as any)._startTime;
         connectionState.updateLatency({ tts_ms: ttsLatency });
+        isSpeakingRef.current = false;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+        });
         onDone?.();
       };
       utterance.onerror = () => {
@@ -738,6 +748,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         pushConversationTrace("PLAYBACK_ERROR");
         console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
         connectionState.updateState({ active_voice: "textonly" });
+        isSpeakingRef.current = false;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+        });
         onDone?.();
       };
       pushConversationTrace("TTS_READY", { provider: "webspeech_fallback" });
@@ -855,6 +869,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           lastTtsActivityRef.current = Date.now();
           if (!isSpeakingRef.current) {
             isSpeakingRef.current = true;
+            import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+              MicrophoneCoordinator.getInstance().setVadState(false, true, false);
+            });
             conversationState.requestStartSpeaking();
             setStatus("speaking");
           }
@@ -874,6 +891,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           coordinator.enqueueRawBytes(rawBytes, () => {
             pushConversationTrace("PLAYBACK_END");
             isSpeakingRef.current = false;
+            import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+              MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+            });
             onDone?.();
           });
         });
@@ -1628,6 +1648,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       let completeResponse = "";
       let rawCompleteResponse = "";
       let success = false;
+      let aborted = false;
       const attempted: string[] = [];
 
       // Begin a logical telemetry request for this LLM call (one per turn,
@@ -1635,6 +1656,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       const openrouterRequestId = auraTelemetry.beginRequest();
 
       for (const modelToTry of modelQueue) {
+        console.warn("[AUDIT] Model Init:", modelToTry, "Buffer:", currentBuffer?.length ?? 0);
+        currentBuffer = "";
+        completeResponse = "";
+        rawCompleteResponse = "";
         attempted.push(modelToTry);
         setActiveModel(modelToTry);
         if (attempted.length > 1) await new Promise((r) => setTimeout(r, 800));
@@ -1653,6 +1678,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         // 15s timeout prevents infinite hang on network issues
         const fetchTimeout = setTimeout(() => fetchAbortRef.current?.abort(), 15000);
 
+        let ttsStarted = false;
+        const sentenceQueue: string[] = [];
         try {
           const l4_start = performance.now();
           pushConversationTrace("TRANSCRIPT_READY", { length: userText.length });
@@ -1682,12 +1709,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             throw new Error(errData?.error?.message || `HTTP ${response.status}`);
           }
 
+          clearTimeout(fetchTimeout);
+
           // ── SSE streaming reader ────────────────────────────────────
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
-          const sentenceQueue: string[] = [];
-          let ttsStarted = false;
+          ttsStarted = false;
+          sentenceQueue.length = 0;
           let streamDone = false;
           let firstTokenReceived = false;
 
@@ -1725,7 +1754,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             });
 
             const drainQueue = () => {
-              if (currentTurnIdRef.current !== activeTurnId || streamEpochRef.current !== epoch)
+              console.log("[AUDIT] Draining chunk. Queue length:", sentenceQueue.length);
+              if (fetchAbortRef.current?.signal.aborted || currentTurnIdRef.current !== activeTurnId || streamEpochRef.current !== epoch)
                 return; // PREEMPTION CHECK: Aborted by new turn or failover
 
               const next = sentenceQueue.shift();
@@ -1912,13 +1942,30 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           auraTelemetry.endRequest(openrouterRequestId, { status: "success" });
           break;
         } catch (e: any) {
+          console.error("[AUDIT] Stream Aborted. ttsStarted:", ttsStarted);
+          sentenceQueue.length = 0; // Wipe local queue
+          
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
             pushConversationTrace("LLM_ERROR", { error: "AbortError" });
             sessionStatsRef.current.abortedStreams += 1;
-            success = true;
+            aborted = true;
+            success = false;
             endProviderCall(auraTelemetry, callId, { status: "aborted" });
+            break;
+          }
+          if (ttsStarted) {
+            console.warn("[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.");
+            aborted = true;
+            success = false;
+            conversationState.reportSpeakingFinished();
+            if (isSessionActiveRef.current && startSessionRef.current) {
+              setTimeout(() => startSessionRef.current?.(), 250);
+            } else {
+              setStatus("idle");
+            }
+            endProviderCall(auraTelemetry, callId, { status: "error", failureDetail: "Stream failed mid-response" });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
@@ -1935,14 +1982,14 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
       }
 
-      if (!success) {
+      if (!success && !aborted) {
         auraTelemetry.endRequest(openrouterRequestId, { status: "error" });
         setLastError(`All models failed. Attempted: ${attempted.join(", ")}`);
         setStatus("error");
       }
 
       // Record assistant turn once complete
-      if (success && completeResponse) {
+      if (success && !aborted && completeResponse) {
         addMessages([{ role: "assistant", content: completeResponse }]);
         transcript_.addTurn(completeResponse, false);
         lastResponseLenRef.current = completeResponse.trim().split(/\s+/).length || 30;
@@ -2582,7 +2629,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       }
     }
 
-    transcript_.reset();
+    // transcript_.reset(); // Removed to preserve history
     userIdRef.current = "local-user";
     setStatus("idle");
     setWords("");
@@ -2620,7 +2667,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     setMessages([]);
     setWords("");
     setLastError(null);
-    transcript_.reset();
+    // transcript_.reset(); // Removed to preserve history
   }, [transcript_]);
 
   // Deactivation effect

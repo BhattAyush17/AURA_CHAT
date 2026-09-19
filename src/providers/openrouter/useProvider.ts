@@ -782,6 +782,9 @@ export function useOpenRouter(mode: string = "adaptive") {
       SpeechCoordinator.getInstance().flush();
     });
     isSpeakingRef.current = false;
+    import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+      MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+    });
   };
 
   const stopThinkingAudio = useCallback(() => {
@@ -885,6 +888,10 @@ export function useOpenRouter(mode: string = "adaptive") {
       utterance.onstart = () => {
         const startMs = performance.now();
         const endMs = lastAudioEndRef.current;
+        isSpeakingRef.current = true;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(false, true, false);
+        });
         if (endMs > 0) {
           const gap = startMs - endMs;
           if (gap >= 1500) {
@@ -920,9 +927,13 @@ export function useOpenRouter(mode: string = "adaptive") {
         pushConversationTrace("PLAYBACK_END");
         const ttsLatency = performance.now() - (utterance as any)._startTime;
         connectionState.updateLatency({ tts_ms: ttsLatency });
-        onDone?.();
+        isSpeakingRef.current = false;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+        });
+        if (!fetchAbortRef.current?.signal.aborted) onDone?.();
       };
-      utterance.onerror = () => {
+      utterance.onerror = (e) => {
         if (typeof window !== "undefined") {
           (window as any)._utterances = ((window as any)._utterances || []).filter(
             (u: any) => u !== utterance,
@@ -931,7 +942,11 @@ export function useOpenRouter(mode: string = "adaptive") {
         pushConversationTrace("PLAYBACK_ERROR");
         console.warn("[Voice Pipeline] Web Speech synthesis failed. Displaying text only.");
         connectionState.updateState({ active_voice: "textonly" });
-        onDone?.();
+        isSpeakingRef.current = false;
+        import("@/audioRuntime/MicrophoneCoordinator").then(({ MicrophoneCoordinator }) => {
+          MicrophoneCoordinator.getInstance().setVadState(true, false, false);
+        });
+        if (!fetchAbortRef.current?.signal.aborted) onDone?.();
       };
       pushConversationTrace("TTS_READY", { provider: "webspeech" });
 
@@ -1553,6 +1568,7 @@ CRITICAL RULES:
       const openrouterRequestId = auraTelemetry.beginRequest();
 
       for (const modelToTry of modelQueue) {
+        console.warn("[AUDIT] Model Init:", modelToTry, "Buffer:", currentBuffer?.length ?? 0);
         currentBuffer = "";
         completeResponse = "";
         rawCompleteResponse = "";
@@ -1634,6 +1650,7 @@ CRITICAL RULES:
             orchestrator.queueProtection.markPlaybackActive();
 
             const drainQueue = () => {
+              console.log("[AUDIT] Draining chunk. Queue length:", sentenceQueueRef.current.length);
               if (fetchAbortRef.current?.signal.aborted) return;
               if (segmentSubQueue.length > 0) {
                 const seg = segmentSubQueue.shift()!;
@@ -1856,6 +1873,10 @@ CRITICAL RULES:
           auraTelemetry.endRequest(openrouterRequestId, { status: "success" });
           break;
         } catch (e: any) {
+          console.error("[AUDIT] Stream Aborted. hasStartedStreaming:", hasStartedStreaming);
+          sentenceQueueRef.current = [];
+          spokenTextRef.current = "";
+          
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
@@ -2293,7 +2314,7 @@ CRITICAL RULES:
       }
     }
 
-    transcript_.reset();
+    // transcript_.reset(); // Removed to preserve history
     userIdRef.current = "local-user";
     setStatus("idle");
     setWords("");
@@ -2303,7 +2324,7 @@ CRITICAL RULES:
     setMessages([]);
     setWords("");
     setLastError(null);
-    transcript_.reset();
+    // transcript_.reset(); // Removed to preserve history
   }, [transcript_]);
 
   // Deactivation effect

@@ -35,8 +35,18 @@ export interface TranscriptManagerAPI {
 }
 
 export function useTranscriptManager(): TranscriptManagerAPI {
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const transcriptRef = useRef<TranscriptEntry[]>([]);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("aura_transcript_backup");
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.warn("Failed to load transcript backup", e);
+      }
+    }
+    return [];
+  });
+  const transcriptRef = useRef<TranscriptEntry[]>(transcript);
   const sessionHighlightsRef = useRef<string[]>([]);
   const turnCountRef = useRef<number>(0);
 
@@ -74,14 +84,14 @@ export function useTranscriptManager(): TranscriptManagerAPI {
       musicReferenceConfidence,
     };
 
-    transcriptRef.current = [...transcriptRef.current, turn];
-    sessionStorage.setItem("aura_transcript_backup", JSON.stringify(transcriptRef.current));
-    setTranscript((prev) => {
-      const updated = [...prev, turn];
-      return updated.length > MAX_TRANSCRIPT_LENGTH
-        ? updated.slice(-MAX_TRANSCRIPT_LENGTH)
-        : updated;
-    });
+    const newTranscript = [...transcriptRef.current, turn];
+    const slicedTranscript = newTranscript.length > MAX_TRANSCRIPT_LENGTH
+      ? newTranscript.slice(-MAX_TRANSCRIPT_LENGTH)
+      : newTranscript;
+
+    transcriptRef.current = slicedTranscript;
+    localStorage.setItem("aura_transcript_backup", JSON.stringify(slicedTranscript));
+    setTranscript(slicedTranscript);
 
     // Capture significant user turns as session highlights
     if (userInitiated && text.length > 15 && sessionHighlightsRef.current.length < MAX_HIGHLIGHTS) {

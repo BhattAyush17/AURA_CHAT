@@ -8,6 +8,7 @@ export class GeminiAudioInput {
   private onBargeInCallback: (() => void) | null = null;
   private isStreaming: boolean = false;
   private isMuted: boolean = false;
+  private isAuraSpeaking: boolean = false;
 
   constructor() {
     this.micCoordinator = MicrophoneCoordinator.getInstance();
@@ -31,6 +32,7 @@ export class GeminiAudioInput {
   }
 
   public setVadState(isListening: boolean, isSpeaking: boolean, isGracePeriod: boolean) {
+    this.isAuraSpeaking = isSpeaking;
     this.micCoordinator.setVadState(isListening, isSpeaking, isGracePeriod);
   }
 
@@ -63,7 +65,7 @@ export class GeminiAudioInput {
 
   private handleMicData(msg: any) {
     if (msg.type === "PCM_DATA" && msg.lease && this.onAudioDataCallback) {
-      if (!this.isMuted) {
+      if (!this.isMuted && !this.isAuraSpeaking) {
         const b64 = this.float32ToBase64Pcm(msg.lease.data);
         this.onAudioDataCallback(b64);
       }

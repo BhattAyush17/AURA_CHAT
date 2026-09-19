@@ -13,5 +13,5 @@ class ChatRequest(BaseModel):
     conversation_history: List[Dict[str, Any]] = []
     seed: Optional[str] = None
     include_atmosphere: Optional[bool] = False
-    emotional_state: Optional[str] = "neutral"
+    emotional_state: Optional[Dict[str, Any]] = None
     memory_mode: Optional[str] = "supabase"

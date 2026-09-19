@@ -221,6 +221,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
           currentEmotionalState,
           undefined,
           sessionIdRef.current ?? undefined,
+          RuntimeManager.getInstance().getLastExecutivePrompt() || undefined
         );
       }
 
@@ -330,7 +331,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       modeRef.current = "latenight";
     }
 
-    transcript_.reset();
+    // transcript_.reset(); // Removed to preserve history across sessions
     sessionIdRef.current = crypto.randomUUID();
 
     // Build the full personality system instruction (same canonical source as OpenRouter/Sarvam).

@@ -66,7 +66,10 @@ export function useGeminiVoiceAdapter(options: {
   );
 
   const handleRecovery = useCallback(async (isCritical: boolean = false) => {
-    if (recoveryAttemptsRef.current >= MAX_RECOVERY_ATTEMPTS) {
+    const attempts = recoveryAttemptsRef.current;
+    
+    // If visible, enforce MAX_RECOVERY_ATTEMPTS. If hidden, bypass to allow infinite slow polling.
+    if (document.visibilityState !== "hidden" && attempts >= MAX_RECOVERY_ATTEMPTS) {
       setStatus("error");
       setLastError("Connection failed after multiple recovery attempts.");
       return;
@@ -75,9 +78,15 @@ export function useGeminiVoiceAdapter(options: {
     recoveryAttemptsRef.current++;
     setStatus("reconnecting");
 
+    let backoffMs = Math.min(1000 * Math.pow(2, attempts), 30000); // 1s, 2s, 4s, 8s... up to 30s
+
+    if (document.visibilityState === "hidden") {
+      backoffMs = 10000; // Poll slowly every 10s indefinitely while screen is off
+    }
+
     if (engineRef.current) {
       await engineRef.current.stop();
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, backoffMs));
       await engineRef.current.start();
     }
   }, []);

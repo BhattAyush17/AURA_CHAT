@@ -22,6 +22,10 @@ export class GeminiVoiceEngine {
   private inputPathVerified: boolean = false;
   private lastAuraSpeechTimestamp: number = 0;
 
+  // Playback tracking to prevent VAD unmute during buffered audio
+  private chunksPlaying: number = 0;
+  private serverTurnComplete: boolean = false;
+
   public readonly telemetry: VoiceTelemetry = {
     lastInputSendAt: 0,
     lastServerMessageAt: 0,
@@ -39,10 +43,23 @@ export class GeminiVoiceEngine {
     this.output = new GeminiAudioOutput();
   }
 
+  private checkTurnEnded() {
+    if (this.serverTurnComplete && this.chunksPlaying === 0) {
+      this.telemetry.isPlaying = false;
+      this.isAuraSpeaking = false;
+      this.input.setVadState(true, false, false);
+      this.lastAuraSpeechTimestamp = Date.now();
+      this.events.onTurnComplete?.();
+      this.serverTurnComplete = false;
+    }
+  }
+
   public async start(): Promise<void> {
     if (this.state !== "IDLE" && this.state !== "ERROR" && this.state !== "CLOSED") return;
     this.updateState("CONNECTING");
     this.inputPathVerified = false;
+    this.chunksPlaying = 0;
+    this.serverTurnComplete = false;
 
     try {
       // 1. Acquire Audio Context & Microphone
@@ -61,6 +78,7 @@ export class GeminiVoiceEngine {
         onStateChange: (state) => {
           if (state === "CONNECTING") {
             this.output.stopPlayback();
+            this.chunksPlaying = 0;
           }
           this.updateState(state);
           // Report gemini_session milestone on CONNECTED
@@ -78,9 +96,14 @@ export class GeminiVoiceEngine {
             this.input.setVadState(false, true, false);
             this.events.onAuraSpeechStart?.();
           }
+          
+          this.chunksPlaying++;
           this.output.enqueueChunk(base64Data, () => {
-            // Chunk playback ended. We handle overall turn via onTurnComplete
-            this.telemetry.isPlaying = false;
+            this.chunksPlaying = Math.max(0, this.chunksPlaying - 1);
+            if (this.chunksPlaying === 0) {
+              this.telemetry.isPlaying = false;
+            }
+            this.checkTurnEnded();
           });
           this.events.onAudioChunkReceived?.(base64Data);
         },
@@ -101,6 +124,8 @@ export class GeminiVoiceEngine {
           this.telemetry.lastServerMessageAt = Date.now();
           this.telemetry.isPlaying = false;
           this.isAuraSpeaking = false;
+          this.chunksPlaying = 0;
+          this.serverTurnComplete = false;
           this.output.stopPlayback();
           this.input.setVadState(true, false, false);
           this.lastAuraSpeechTimestamp = Date.now();
@@ -109,12 +134,9 @@ export class GeminiVoiceEngine {
         onTurnComplete: () => {
           this.telemetry.lastServerMessageAt = Date.now();
           this.telemetry.lastTurnCompleteAt = Date.now();
-          this.telemetry.isPlaying = false;
-          this.isAuraSpeaking = false;
           this.turnCounter++;
-          this.input.setVadState(true, false, false);
-          this.lastAuraSpeechTimestamp = Date.now();
-          this.events.onTurnComplete?.();
+          this.serverTurnComplete = true;
+          this.checkTurnEnded();
         },
         onToolCall: async (calls) => {
           if (this.events.onToolCall) {

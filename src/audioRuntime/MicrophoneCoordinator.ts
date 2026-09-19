@@ -1,6 +1,7 @@
 import { RuntimeTelemetry } from "../runtime/RuntimeTelemetry";
 import { AudioBufferPool, BufferLease } from "./AudioBufferPool";
 import { detectAudioEnvironment, AudioEnvironment } from "./AudioEnvironment";
+import { conversationState } from "../runtime/ConversationStateManager";
 
 /**
  * MicrophoneCoordinator
@@ -35,6 +36,8 @@ export class MicrophoneCoordinator {
       silenceMs?: number;
     }) => void
   > = new Set();
+
+  private _hardwareInterrupted: boolean = false;
 
   // Mobile lifecycle bound status
   private isSuspended: boolean = false;
@@ -118,14 +121,31 @@ export class MicrophoneCoordinator {
         });
 
         // Log actual settings resolved by the browser
-        const actualSettings = this.stream.getAudioTracks()[0]?.getSettings();
+        const track = this.stream.getAudioTracks()[0];
+        const actualSettings = track?.getSettings();
         RuntimeTelemetry.getInstance().logEvent({
           subsystem: "MicrophoneCoordinator",
           severity: "info",
           data: { event: "MicSettingsResolved", settings: actualSettings },
         });
 
+        if (track) {
+          track.onmute = () => this.handleHardwareInterruption("mute");
+          track.onended = () => this.handleHardwareInterruption("ended");
+        }
+
         this.audioContext = new AudioContext({ sampleRate: 16000 });
+        
+        // Fight OS-level suspension (e.g. screen off on Android)
+        this.audioContext.onstatechange = () => {
+          if (this.audioContext?.state === "suspended" && this.stream) {
+            console.warn("[MicrophoneCoordinator] OS suspended AudioContext. Forcing resume to keep VAD alive!");
+            this.audioContext.resume().catch((err) => {
+              console.error("[MicrophoneCoordinator] Failed to force resume AudioContext:", err);
+            });
+          }
+        };
+
         this.inputAnalyser = this.audioContext.createAnalyser();
         this.inputAnalyser.fftSize = 256;
 
@@ -314,6 +334,35 @@ export class MicrophoneCoordinator {
     if (this.audioContext && this.audioContext.state === "suspended") {
       await this.audioContext.resume();
     }
+  }
+
+  private handleHardwareInterruption(reason: string) {
+    console.warn(`[MicrophoneCoordinator] Hardware interruption detected (${reason}).`);
+    this._hardwareInterrupted = true;
+    
+    // Stop VAD processor
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      if (this.workletNode.port) this.workletNode.port.close();
+      this.workletNode = null;
+    }
+    
+    // Move conversation state out of LISTENING
+    conversationState.forceIdle();
+
+    RuntimeTelemetry.getInstance().logEvent({
+      subsystem: "Hardware",
+      severity: "error",
+      data: { event: "MicKilled", reason },
+    });
+  }
+
+  public wasHardwareInterrupted(): boolean {
+    return this._hardwareInterrupted;
+  }
+
+  public clearHardwareInterruption() {
+    this._hardwareInterrupted = false;
   }
 
   private bindMobileLifecycle() {
