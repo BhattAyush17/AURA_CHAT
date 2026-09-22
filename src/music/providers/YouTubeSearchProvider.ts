@@ -82,10 +82,17 @@ export class YouTubeSearchProvider implements SearchProvider {
             } else {
               console.warn("[MUSIC_ERROR] Couldn't get an audio stream for this track.");
             }
+          } else if (res.status === 401) {
+            console.warn("[YouTubeSearchProvider] Access token expired (401). Clearing session.");
+            googleIdentityService.logout();
           }
         }
-      } catch (e) {
-        console.warn("[YouTubeSearchProvider] Authenticated search failed, falling back:", e);
+      } catch (e: any) {
+        const isNetworkError = e instanceof TypeError;
+        console.warn(
+          `[YouTubeSearchProvider] Authenticated search failed (${isNetworkError ? "CORS/Network" : e.name}):`,
+          e,
+        );
       }
     }
 
@@ -137,9 +144,10 @@ export class YouTubeSearchProvider implements SearchProvider {
         }
       }
     } catch (err: any) {
+      const isNetworkError = err instanceof TypeError;
       console.warn(
-        "[YouTubeSearchProvider] Backend search failed:",
-        err.name === "AbortError" ? "Timeout after 20s" : err,
+        `[YouTubeSearchProvider] Backend search failed (${isNetworkError ? "CORS/Network" : err.name === "AbortError" ? "Timeout" : err.name}):`,
+        err,
       );
     }
 
@@ -156,12 +164,16 @@ export class YouTubeSearchProvider implements SearchProvider {
           return results;
         }
       }
-    } catch (fallbackErr) {
-      console.warn(`[YouTubeSearchProvider] Backend music proxy failed:`, fallbackErr);
+    } catch (fallbackErr: any) {
+      const isNetworkError = fallbackErr instanceof TypeError;
+      console.warn(
+        `[YouTubeSearchProvider] Backend music proxy failed (${isNetworkError ? "CORS/Network" : fallbackErr.name}):`,
+        fallbackErr,
+      );
     }
 
-    console.warn("[YouTubeSearchProvider] All search methods failed for query:", query);
-    return [];
+    console.error("[YouTubeSearchProvider] All search methods failed for query:", query);
+    throw new Error(`Music search failed: all providers unavailable for "${query}"`);
   }
 
   async getMetadata(trackId: string): Promise<Partial<Track>> {

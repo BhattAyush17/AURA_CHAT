@@ -59,6 +59,8 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
 
   private audio: HTMLAudioElement | null = null;
   private currentUrl: string | null = null;
+  private _userInitiatedPause: boolean = false;
+  private _osForcedPause: boolean = false;
 
   getAudioElement(): HTMLMediaElement | null {
     return this.audio;
@@ -84,6 +86,43 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       };
       document.addEventListener("click", autoUnlock, { once: true, passive: true });
       document.addEventListener("touchstart", autoUnlock, { once: true, passive: true });
+
+      // Register mediaSession action handlers once, not per-track.
+      // This ensures Android lock screen controls are always functional.
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.setActionHandler("play", () => {
+          this.resume();
+        });
+        navigator.mediaSession.setActionHandler("pause", () => {
+          this.pause();
+        });
+        navigator.mediaSession.setActionHandler("stop", () => {
+          this.dispose();
+        });
+        navigator.mediaSession.setActionHandler("nexttrack", () => {
+          import("../MusicService").then(({ musicService }) => {
+            musicService.next();
+          });
+        });
+        navigator.mediaSession.setActionHandler("previoustrack", () => {
+          import("../MusicService").then(({ musicService }) => {
+            musicService.previous();
+          });
+        });
+        navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+          if (this.audio) {
+            this.audio.currentTime = Math.max(0, this.audio.currentTime - (details.seekOffset || 10));
+          }
+        });
+        navigator.mediaSession.setActionHandler("seekforward", (details) => {
+          if (this.audio) {
+            this.audio.currentTime = Math.min(
+              this.audio.duration || Infinity,
+              this.audio.currentTime + (details.seekOffset || 10),
+            );
+          }
+        });
+      }
 
       this.audio.addEventListener("loadedmetadata", () => {
         recordEvent("loadedmetadata");
@@ -117,6 +156,14 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       });
 
       this.audio.addEventListener("pause", () => {
+        // Detect OS-forced pause vs user-initiated pause.
+        // If we didn't explicitly call pause(), the OS killed our audio focus.
+        if (!this._userInitiatedPause) {
+          this._osForcedPause = true;
+          recordEvent("os_forced_pause");
+        }
+        this._userInitiatedPause = false;
+
         playbackState.setPlaying(false, this.audio?.currentTime);
         recordEvent("pause");
         recordAudioElementSnapshot(this.audio);
@@ -124,7 +171,7 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
           RuntimeTelemetry.getInstance().logEvent({
             subsystem: "Music",
             severity: "info",
-            data: { event: "PlaybackPaused" },
+            data: { event: "PlaybackPaused", osForcedPause: this._osForcedPause },
           });
         });
       });
@@ -269,15 +316,6 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: track.title,
             artist: track.artist || "Unknown Artist",
-          });
-          navigator.mediaSession.setActionHandler("play", () => {
-            this.resume();
-          });
-          navigator.mediaSession.setActionHandler("pause", () => {
-            this.pause();
-          });
-          navigator.mediaSession.setActionHandler("stop", () => {
-            this.dispose();
           });
         }
 
@@ -470,12 +508,15 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
 
   async pause(): Promise<void> {
     if (this.audio) {
+      this._userInitiatedPause = true;
+      this._osForcedPause = false;
       this.audio.pause();
     }
   }
 
   async resume(): Promise<void> {
     if (this.audio) {
+      this._osForcedPause = false;
       try {
         await this.audio.play();
       } catch (e: any) {
@@ -491,6 +532,10 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         throw e;
       }
     }
+  }
+
+  wasOsForcedPause(): boolean {
+    return this._osForcedPause;
   }
 
   async seek(positionMs: number): Promise<void> {

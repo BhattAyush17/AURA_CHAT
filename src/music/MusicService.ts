@@ -48,12 +48,6 @@ export class MusicService {
     // Subscribe to state changes for context buffering and queue advancement
     musicEvents.on("stateChanged", (state) => {
       if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
-        if (state.currentTrack) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: state.currentTrack.title,
-            artist: state.currentTrack.artist || "AURA",
-          });
-        }
         navigator.mediaSession.playbackState = state.isPlaying ? "playing" : "paused";
       }
 
@@ -459,6 +453,18 @@ export class MusicService {
       this.previousVolume !== null ? this.previousVolume : playbackState.getState().volume;
     await this.fadeVolume(targetVol, 250);
     this.previousVolume = null;
+
+    // If the OS forcefully paused the audio during ducking (e.g. Android
+    // audio focus shift when microphone opened), resume playback now that
+    // AURA is done speaking.
+    const provider = this.playbackProvider as HTMLAudioPlaybackProvider;
+    if (provider.wasOsForcedPause && provider.wasOsForcedPause()) {
+      try {
+        await this.playbackProvider.resume();
+      } catch (e) {
+        console.warn("[MusicService] Post-duck resume failed:", e);
+      }
+    }
   }
 
   async onUserSpeechStart() {
