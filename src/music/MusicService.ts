@@ -6,6 +6,7 @@ import { YtDlpProvider } from "./providers/YtDlpProvider";
 import { HTMLAudioPlaybackProvider } from "./providers/HTMLAudioPlaybackProvider";
 import { bufferMusicEvent } from "../lib/behavior-client";
 import { musicEvents } from "./PlaybackEvents";
+import { auraTelemetry } from "../telemetry/RuntimeTelemetry";
 
 export class MusicService {
   private searchProvider: SearchProvider;
@@ -463,6 +464,10 @@ export class MusicService {
         await this.playbackProvider.resume();
       } catch (e) {
         console.warn("[MusicService] Post-duck resume failed:", e);
+        auraTelemetry.recordError({
+          code: "music_post_duck_resume_failed",
+          message: e instanceof Error ? e.message : String(e),
+        });
       }
     }
   }

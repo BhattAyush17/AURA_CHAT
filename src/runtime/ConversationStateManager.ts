@@ -67,6 +67,10 @@ export class ConversationStateManager {
         }
       } catch (err) {
         console.warn("[ConversationStateManager] Wake Lock request failed:", err);
+        auraTelemetry.recordError({
+          code: "wake_lock_request_failed",
+          message: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   }
@@ -78,6 +82,10 @@ export class ConversationStateManager {
         this.wakeLockSentinel = null;
       } catch (err) {
         console.warn("[ConversationStateManager] Wake Lock release failed:", err);
+        auraTelemetry.recordError({
+          code: "wake_lock_release_failed",
+          message: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   }

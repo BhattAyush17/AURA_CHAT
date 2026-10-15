@@ -1,3 +1,4 @@
+import { reportAutonomyUserActivity } from "@/runtime/autonomousConversation/AutonomyEvents";
 /**
  * useOpenRouter — High-fidelity voice pipeline matching Gemini Live's responsiveness.
  *
@@ -52,6 +53,7 @@ import { buildModelQueue, MODEL_OPENROUTER_IDS } from "@/executive/ModelProfile"
 import { VoiceLanguageManager } from "@/core/voice-language/VoiceLanguageManager";
 import { ToolExtractionService } from "@/runtime/ToolExtractionService";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
+import { getDayWiseStore } from "@/lib/storage/DayWiseConversationStore";
 
 // ─── Paralinguistic Interceptor & Audio Controller ──────────────────
 const stripEmojis = (text: string) =>
@@ -340,29 +342,14 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
 // ─── Hook ───────────────────────────────────────────────────────────
 import { pushConversationTrace } from "../../core/telemetry";
 import { useResilience } from "@/resilience";
-export interface SessionStats {
-  turns: number;
-  interruptions: number;
-  heldThoughts: number;
-  abortedStreams: number;
-  backchannels: number;
-  proactiveTriggers: number;
-  clarifies: number;
-  hesitations: number;
-  deadAirMs: number[];
-}
+// Per-session conversation-quality metrics are owned by the validation
+// module so the live hook and the Phase 7.2 harness share one contract.
+import {
+  type SessionStats,
+  emptySessionStats,
+} from "../../runtime/validation/ConversationFrictionReport";
 
-export const emptySessionStats = (): SessionStats => ({
-  turns: 0,
-  interruptions: 0,
-  heldThoughts: 0,
-  abortedStreams: 0,
-  backchannels: 0,
-  proactiveTriggers: 0,
-  clarifies: 0,
-  hesitations: 0,
-  deadAirMs: [],
-});
+export { type SessionStats, emptySessionStats };
 
 export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   const toolExtractorRef = useRef(new ToolExtractionService());
@@ -979,6 +966,8 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         if (confirmPending) return;
         if (currentTurnIdRef.current !== activeTurnId) return;
         if (statusRef.current !== "speaking") return;
+        // Don't confirm barge-in if music is playing (acoustic feedback)
+        if (playbackState.getState().isPlaying) return;
 
         const probeAnalyser = micAnalyserRef.current;
         if (!probeAnalyser) {
@@ -1050,8 +1039,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         wasSpeaking = currentlySpeaking;
 
         const isGracePeriod = currentlySpeaking && performance.now() - speakingStartTime < 400;
+        const isMusicPlaying = playbackState.getState().isPlaying;
         const interjection = conversationalPauses.isInInterjectionWindow();
-        const shouldListen = currentlySpeaking || interjection;
+        const shouldListen = currentlySpeaking || isMusicPlaying || interjection;
 
         // Check if we are using the AudioWorklet node
         const node = scriptProcessorRef.current as any;
@@ -1062,6 +1052,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             isListening: shouldListen,
             isSpeaking: currentlySpeaking,
             isGracePeriod: isGracePeriod,
+            isMusicPlaying: isMusicPlaying,
           });
 
           // Loop purely to keep state synced; no heavy math here anymore!
@@ -1082,7 +1073,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         rms = Math.sqrt(rms / buf.length);
 
         const currentThreshold =
-          !interjection && currentlySpeaking ? BARGE_IN_THRESHOLD : BASE_THRESHOLD;
+          !interjection && (currentlySpeaking || isMusicPlaying)
+            ? BARGE_IN_THRESHOLD
+            : BASE_THRESHOLD;
 
         if (rms > currentThreshold) {
           fallbackLoudFrameCount += 1;
@@ -1140,6 +1133,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
   // ── Core turn: Call Saaras STT -> OpenRouter LLM -> Sarvam TTS ──
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, isHiddenPrompt: boolean = false) => {
+      turnNonceRef.current += 1;
+      const currentTurnNonce = turnNonceRef.current;
+
       // ── Bulletproof cleanup for any turn entry (voice or text) ──
       stopSpeech();
       stopRecognition();
@@ -1168,7 +1164,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Append to OR message buffer with XML metadata
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: musicContextXML + userText },
+        { role: isHiddenPrompt ? "system" : "user", content: musicContextXML + userText },
       ];
       if (!isHiddenPrompt) {
         addMessages([{ role: "user", content: userText }]);
@@ -1176,15 +1172,18 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // Canonical Cognition Phase 1: Behavior Analysis
       const l2_start = performance.now();
-      const behaviorResult = await behavior.analyzeForTurn(
-        userText,
-        sessionIdRef.current,
-        0, // RMS not available here
-        0,
-        modeRef.current,
-        userIdRef.current,
-        wasPreviousTurnInterrupted,
-      );
+      const behaviorResult = isHiddenPrompt
+        ? null
+        : await behavior.analyzeForTurn(
+            userText,
+            sessionIdRef.current,
+            0, // RMS not available here
+            0,
+            modeRef.current,
+            userIdRef.current,
+            wasPreviousTurnInterrupted,
+          );
+      if (turnNonceRef.current !== currentTurnNonce) return;
       if (behaviorResult) {
         prompts.processAnalysisForL2(behaviorResult);
       }
@@ -1192,14 +1191,17 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
       const realSilenceMs = Math.max(0, performance.now() - lastAudioActivityRef.current);
-      const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
-        userText,
-        behaviorResult,
-        modeRef.current,
-        atmosphereRef.current,
-        { wasInterruption: wasPreviousTurnInterrupted, silenceDurationMs: realSilenceMs },
-        sessionIdRef.current ?? undefined,
-      );
+      const cognitiveBlock = isHiddenPrompt
+        ? userText
+        : await RuntimeManager.getInstance().processCognitiveTurn(
+            userText,
+            behaviorResult,
+            modeRef.current,
+            atmosphereRef.current,
+            { wasInterruption: wasPreviousTurnInterrupted, silenceDurationMs: realSilenceMs },
+            sessionIdRef.current ?? undefined,
+          );
+      if (turnNonceRef.current !== currentTurnNonce) return;
 
       // Atmosphere relevance gate: only request backend grounding this turn when
       // AdaptiveAttention deemed the surrounding world relevant.
@@ -1225,10 +1227,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           : null;
       heldTextRef.current = null;
 
-      // ── Phase 7.1: interruption context — never resume the old answer ──
+      // ── Phase 7.1: interruption context — combine previous + new input ──
       const interruptionNote = wasPreviousTurnInterrupted
-        ? `[CONTEXT] The user interrupted your previous response${heldText ? ` mid-sentence saying "${heldText}"` : ""}. Address what they said now naturally. Do NOT resume your old answer unless they ask. If their words seem incomplete, one short line inviting them to continue is enough.`
+        ? `[CONTEXT] You were mid-sentence in your previous response when the user interrupted${heldText ? `, saying "${heldText}"` : ""}. The user's new words come first — address them directly. Where it flows naturally, weave the unfinished remainder of your previous thought into the SAME combined response. NEVER repeat words the user already heard — skip anything already spoken and continue from the cutoff point. If their interruption changed the topic entirely, drop the old thread instead of forcing it.`
         : "";
+
+      let backendPartialResponse = "";
 
       // Try Backend SSE Stream first (Phase 2 Full Request Cycle)
       try {
@@ -1248,21 +1252,25 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             "X-Redis-Url": getCredential("redis_url") || "",
           },
           body: JSON.stringify({
-            text: userText,
+            text: isHiddenPrompt ? "" : userText,
+            origin: isHiddenPrompt ? "autonomous" : "user",
             user_id: userIdRef.current,
             session_id: sessionIdRef.current,
-            conversation_history: messagesRef.current.map((m) => ({
+            conversation_history: newMessages.map((m) => ({
               role: m.role,
               content: m.content,
             })),
             client_memories: [], // Delegated to Centralized Cognitive Architecture
             memory_mode: "supabase",
             cognitive_block: boundCognitiveBlock(cognitiveBlock),
-            executive_plan: RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            executive_plan: isHiddenPrompt
+              ? undefined
+              : RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
             music_context_text: playbackState.getState().currentTrack
               ? boundMusicContextText(buildMusicContext(userText))
               : undefined,
             include_atmosphere: includeAtmosphere,
+            interruption_note: interruptionNote || undefined,
           }),
         });
 
@@ -1276,7 +1284,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         toolExtractorRef.current.reset();
         let textBuffer = "";
         let fullResponse = "";
-        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
+        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/g;
         let firstTokenReceived = false;
 
         const backendSentenceQueue: string[] = [];
@@ -1309,6 +1317,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             stopSpeech();
             isSpeakingRef.current = false;
             fetchAbortRef.current?.abort();
+            // Persist interrupted transcription for audit trail
+            const partialResponse = backendPartialResponse;
+            if (partialResponse) {
+              transcript_.addInterruptedTurn(
+                "",
+                partialResponse,
+                undefined,
+                currentTurnIdRef.current,
+              );
+            }
             currentTurnIdRef.current += 1;
             if (isSessionActiveRef.current && startSessionRef.current) {
               startSessionRef.current();
@@ -1468,21 +1486,26 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
                   }
                   textBuffer += cleanChunk;
                   fullResponse += cleanChunk;
+                  backendPartialResponse += cleanChunk;
                   // Do not overwrite words to preserve user transcript
 
-                  const match = TERMINAL_PUNCTUATION.exec(textBuffer);
-                  if (match) {
-                    const splitIndex = match.index + match[0].length;
-                    const sentence = textBuffer.substring(0, splitIndex);
-                    textBuffer = textBuffer.substring(splitIndex);
-                    backendSentenceQueue.push(sentence.trim());
-                    tryStartTTS();
+                  TERMINAL_PUNCTUATION.lastIndex = 0;
+                  let puncMatch: RegExpExecArray | null;
+                  let lastPuncIndex = 0;
+                  while ((puncMatch = TERMINAL_PUNCTUATION.exec(textBuffer)) !== null) {
+                    const splitIndex = puncMatch.index + puncMatch[0].length;
+                    const sentence = textBuffer.substring(lastPuncIndex, splitIndex).trim();
+                    if (sentence) backendSentenceQueue.push(sentence);
+                    lastPuncIndex = splitIndex;
                   }
+                  if (lastPuncIndex > 0) textBuffer = textBuffer.substring(lastPuncIndex);
+                  if (lastPuncIndex > 0) tryStartTTS();
                 } else if (data.event === "error") {
                   throw new Error(data.error);
                 }
               } catch (e) {
-                // Ignore parse errors for incomplete lines
+                // Provider error events must reach the degraded lane.
+                if (!(e instanceof SyntaxError)) throw e;
               }
             }
           }
@@ -1494,7 +1517,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           lastResponseLenRef.current = fullResponse.trim().split(/\s+/).length || 30;
 
           // ── Memory Return Path (first stream loop) ──
-          if (userText) {
+          if (userText && !isHiddenPrompt) {
             const lastAnalysis = behavior.lastAnalysisRef.current;
             const currentEmotionalState: Record<string, number> = {
               frustration: lastAnalysis?.frustration || 0,
@@ -1518,6 +1541,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
           throw new Error("Empty response from stream");
         }
       } catch (backendError: any) {
+        if (turnNonceRef.current !== currentTurnNonce) {
+          console.log("[Voice Pipeline] Turn is stale, skipping fallback.");
+          return;
+        }
         if (backendError.name === "AbortError") {
           console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
           sessionStatsRef.current.abortedStreams += 1;
@@ -1525,6 +1552,28 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         }
         // Phase 7: failover — kill the backend drain so it can't double-speak
         streamEpochRef.current += 1;
+        stopSpeech();
+        if (backendPartialResponse) {
+          // A new generation can repeat audio the user has already heard.
+          // Preserve the interruption in history and let the user take the turn.
+          const interrupted = backendPartialResponse + " [Response interrupted]";
+          addMessages([{ role: "assistant", content: interrupted }]);
+          transcript_.addInterruptedTurn(
+            "",
+            backendPartialResponse,
+            undefined,
+            currentTurnIdRef.current,
+          );
+          pushConversationTrace("LLM_ERROR", { error: "Backend stream interrupted" });
+          setIsThinking(false);
+          conversationState.reportSpeakingFinished();
+          if (isSessionActiveRef.current && startSessionRef.current) {
+            startSessionRef.current();
+          } else {
+            setStatus("idle");
+          }
+          return;
+        }
         console.warn(
           "[Voice Pipeline] Backend /chat endpoint failed. Falling back to frontend direct LLM.",
           backendError,
@@ -1535,15 +1584,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       let behaviorInstructions = "";
       try {
         const l2_start = performance.now();
-        const result = await behavior.analyzeForTurn(
-          userText,
-          sessionIdRef.current,
-          0,
-          0,
-          modeRef.current,
-          userIdRef.current,
-          false,
-        );
+        const result = behaviorResult;
         if (result) {
           prompts.processAnalysisForL2(result);
           behaviorInstructions = result.behavior_instructions ?? "";
@@ -1577,7 +1618,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       // Check for deactivation first
       let isFirstDeactivation = false;
-      if (boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
+      if (!isHiddenPrompt && boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
         boundlessModeActiveRef.current = false;
         isFirstDeactivation = true;
         console.log(
@@ -1591,7 +1632,12 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       let isFirstActivation = false;
       let basePrompt = getSystemPromptForPersonality(modeRef.current, seedRef.current);
 
-      if (!explicitModeActivated && isJoyfulPassionMode && detectActivationPhrase(userText)) {
+      if (
+        !isHiddenPrompt &&
+        !explicitModeActivated &&
+        isJoyfulPassionMode &&
+        detectActivationPhrase(userText)
+      ) {
         explicitModeActivated = true;
         isFirstActivation = true;
         boundlessModeActiveRef.current = true;
@@ -1744,6 +1790,16 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
               stopSpeech();
               isSpeakingRef.current = false;
               fetchAbortRef.current?.abort();
+              // Persist interrupted transcription for audit trail
+              const partialResponse = buffer;
+              if (partialResponse) {
+                transcript_.addInterruptedTurn(
+                  "",
+                  partialResponse,
+                  undefined,
+                  currentTurnIdRef.current,
+                );
+              }
               // Increment turn ID immediately so any awaiting TTS requests silently fail
               currentTurnIdRef.current += 1;
               if (isSessionActiveRef.current && startSessionRef.current) {
@@ -1755,7 +1811,11 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
             const drainQueue = () => {
               console.log("[AUDIT] Draining chunk. Queue length:", sentenceQueue.length);
-              if (fetchAbortRef.current?.signal.aborted || currentTurnIdRef.current !== activeTurnId || streamEpochRef.current !== epoch)
+              if (
+                fetchAbortRef.current?.signal.aborted ||
+                currentTurnIdRef.current !== activeTurnId ||
+                streamEpochRef.current !== epoch
+              )
                 return; // PREEMPTION CHECK: Aborted by new turn or failover
 
               const next = sentenceQueue.shift();
@@ -1944,7 +2004,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         } catch (e: any) {
           console.error("[AUDIT] Stream Aborted. ttsStarted:", ttsStarted);
           sentenceQueue.length = 0; // Wipe local queue
-          
+
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
@@ -1956,7 +2016,9 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             break;
           }
           if (ttsStarted) {
-            console.warn("[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.");
+            console.warn(
+              "[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.",
+            );
             aborted = true;
             success = false;
             conversationState.reportSpeakingFinished();
@@ -1965,7 +2027,10 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
             } else {
               setStatus("idle");
             }
-            endProviderCall(auraTelemetry, callId, { status: "error", failureDetail: "Stream failed mid-response" });
+            endProviderCall(auraTelemetry, callId, {
+              status: "error",
+              failureDetail: "Stream failed mid-response",
+            });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
@@ -1997,7 +2062,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
         // ── Memory Return Path ──
         // Persist this turn as durable memory. memoryGateway routes to
         // supabase (via /chat conduit) or local storage by mode.
-        if (userText) {
+        if (userText && !isHiddenPrompt) {
           const lastAnalysis = behavior.lastAnalysisRef.current;
           const currentEmotionalState: Record<string, number> = {
             frustration: lastAnalysis?.frustration || 0,
@@ -2074,6 +2139,34 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
       // Phase 8: a new session re-establishes language from the first
       // meaningful user message.
       languageManager.resetBuffer();
+
+      // ── Day-wise context restoration: seed the LLM message buffer with
+      // past conversation turns (fresh days) + older-day summaries so the
+      // context never gets lost between visits. Fail-open. ──
+      try {
+        const restored = getDayWiseStore().restoreContext();
+        if (
+          messagesRef.current.length === 0 &&
+          (restored.recentTurns.length > 0 || restored.summaries.length > 0)
+        ) {
+          const seeded: ChatMessage[] = [];
+          if (restored.summaries.length > 0) {
+            seeded.push({
+              role: "system",
+              content: getDayWiseStore().buildContextBlock(restored),
+            });
+          }
+          for (const t of restored.recentTurns.slice(-40)) {
+            seeded.push({ role: t.role, content: t.content });
+          }
+          addMessages(seeded);
+          console.log(
+            `[AURA] Restored ${restored.recentTurns.length} recent turns + ${restored.summaries.length} day summaries from local history.`,
+          );
+        }
+      } catch {
+        // fail-open: context restoration must never block the session start
+      }
 
       if (isUserInitiated) {
         if (messagesRef.current.length === 0) {
@@ -2404,6 +2497,7 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
 
       recognition.onspeechstart = () => {
         turnNonceRef.current++;
+        reportAutonomyUserActivity();
         conversationState.reportUserSpeaking();
         import("@/music/MusicService").then(({ musicService }) => {
           musicService.onUserSpeechStart();
@@ -2725,48 +2819,32 @@ export function useSarvam(mode: string = "adaptive", voice: string = "Puck") {
     });
   }, [isInactive, orchestrator, setupMicAnalyser, speakChunkNative, stopRecognition]);
 
-  // ── Phase 7.1: Proactive engagement ────────────────────────────────
-  // Mirrors useLive's poller on the Sarvam pipeline. The backend
-  // (/api/proactive) already rate-limits to one action per 2 minutes;
-  // the client additionally demands 30s of true inactivity.
-  useEffect(() => {
-    if (isInactive || status !== "listening" || !sessionIdRef.current) return;
-
-    const interval = setInterval(async () => {
-      const lastAny = Math.max(
-        lastAudioActivityRef.current,
-        lastTtsActivityRef.current,
-        lastTokenTsRef.current,
-      );
-      if (performance.now() - lastAny < PROACTIVE_MIN_SILENCE_MS) return;
-      if (isSpeakingRef.current || statusRef.current !== "listening") return;
-
-      try {
-        const res = await fetch(
-          `${ENDPOINTS.proactive}/${sessionIdRef.current}?user_id=${userIdRef.current}`,
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.action && data.inject_text && isSessionActiveRef.current) {
-          console.log(`[AURA] 🫧 Proactive trigger: ${data.action}`);
-          sessionStatsRef.current.proactiveTriggers += 1;
-          pushConversationTrace("PROACTIVE_TRIGGER", { action: data.action });
-          const key = getOpenRouterKey();
-          if (!key) return;
-          processTurnRef.current?.(
-            data.inject_text,
-            key,
-            localStorage.getItem("aura_voice_language") || "hi-IN",
-            true,
-          );
-        }
-      } catch {} // Swallow — proactive is optional
-    }, PROACTIVE_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [isInactive, status]);
-
   return {
+    getSessionId: () => sessionIdRef.current,
+    deliverAutonomous: (instruction: string): boolean => {
+      if (!isSessionActiveRef.current || statusRef.current !== "listening" || isSpeakingRef.current)
+        return false;
+      const key = getOpenRouterKey();
+      if (!key) return false;
+      void processTurn(
+        instruction,
+        key,
+        localStorage.getItem("aura_voice_language") || "hi-IN",
+        true,
+      ).catch((error) => {
+        console.warn("[Autonomy] Provider generation failed", error);
+        setIsThinking(false);
+        setStatus("error");
+      });
+      return true;
+    },
+    cancelAutonomous: () => {
+      turnNonceRef.current++;
+      fetchAbortRef.current?.abort();
+      stopSpeech();
+      setIsThinking(false);
+      if (isSessionActiveRef.current) setStatus("listening");
+    },
     status,
     messages,
     transcript: transcript_.transcript,
