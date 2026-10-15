@@ -48,8 +48,11 @@ export interface VoiceLanguageProviderAdapter {
    * Applies the determined response language to the provider.
    * If the provider natively handles language mapping (like Gemini 3.1 Flash),
    * this may be a no-op or purely for tracking.
+   *
+   * @param language - The target response language code
+   * @param turnNonce - Optional turn nonce to enforce single-language per turn
    */
-  applyResponseLanguage(language: string): Promise<void> | void;
+  applyResponseLanguage(language: string, turnNonce?: number): Promise<void> | void;
 
   /**
    * Optional: Exposes native metadata if the provider supports it.

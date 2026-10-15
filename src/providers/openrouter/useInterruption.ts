@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { playbackState } from "@/music/PlaybackState";
 
 // Base thresholds
 const BASE_THRESHOLD = 0.04;
@@ -34,6 +35,7 @@ export function useBargeIn(
       const rms = Math.sqrt(sumSquares / bufferLength);
 
       const currentlySpeaking = isSpeakingRef.current;
+      const isMusicPlaying = playbackState.getState().isPlaying;
 
       // Track exactly when AURA starts speaking EACH SENTENCE to manage the grace period
       if (currentlySpeaking && !wasSpeakingRef.current) {
@@ -45,13 +47,15 @@ export function useBargeIn(
       // This prevents the initial mechanical "pop" of the speaker activating from triggering a false barge-in.
       const isGracePeriod = currentlySpeaking && Date.now() - speakingStartTime.current < 400;
 
-      // 2. Dynamic Thresholding: Use a higher threshold if AURA is currently making noise
+      // 2. Dynamic Thresholding: Use a higher threshold if AURA is currently making noise OR music is playing
       // If we are in an interjection window (pause), AURA is silent, so we can use the base threshold
       const interjection = isInInterjectionWindow ? isInInterjectionWindow() : false;
       const currentThreshold =
-        currentlySpeaking && !interjection ? ACTIVE_TTS_THRESHOLD : BASE_THRESHOLD;
+        (currentlySpeaking || isMusicPlaying) && !interjection
+          ? ACTIVE_TTS_THRESHOLD
+          : BASE_THRESHOLD;
 
-      const shouldListen = currentlySpeaking || interjection;
+      const shouldListen = currentlySpeaking || isMusicPlaying || interjection;
 
       if (shouldListen && !isGracePeriod && rms > currentThreshold) {
         loudFrameCount.current += 1;

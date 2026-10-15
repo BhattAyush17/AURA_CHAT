@@ -276,7 +276,7 @@ export class MemoryGateway {
         const res = await fetch(ENDPOINTS.chat, {
           method: "POST",
           keepalive: true,
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
             "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
@@ -324,7 +324,7 @@ export class MemoryGateway {
         fetch(ENDPOINTS.chat, {
           method: "POST",
           keepalive: true,
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
             "X-OpenRouter-Key": getCredential("openrouter_api_key") || "",
             "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",

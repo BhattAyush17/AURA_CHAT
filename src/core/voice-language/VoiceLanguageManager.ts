@@ -14,7 +14,7 @@ export class VoiceLanguageManager {
   private policy: VoiceLanguagePolicy;
   private profileManager: VoiceSpeechProfileManager;
   private interpreter: VoiceSpeechInterpreter;
-  private state: ResolvedVoiceLanguage;
+  private state: ResolvedVoiceLanguage & { turnNonce?: number };
   private adapter: VoiceLanguageProviderAdapter | null = null;
   private listeners: Set<(state: ResolvedVoiceLanguage) => void> = new Set();
   private recentContext: string[] = [];
@@ -128,6 +128,11 @@ export class VoiceLanguageManager {
     this.resolver.reset();
   }
 
+  public setTurnNonce(turnNonce: number) {
+    this.state.turnNonce = turnNonce;
+    this.applyCurrentResponseLanguage();
+  }
+
   public reset() {
     this.resolver.reset();
     this.updateState({
@@ -190,7 +195,7 @@ export class VoiceLanguageManager {
   private applyCurrentResponseLanguage() {
     if (this.adapter) {
       try {
-        void this.adapter.applyResponseLanguage(this.state.responseLanguage);
+        void this.adapter.applyResponseLanguage(this.state.responseLanguage, this.state.turnNonce);
       } catch (e) {
         console.error("[VoiceLanguageManager] Error applying response language to adapter:", e);
       }

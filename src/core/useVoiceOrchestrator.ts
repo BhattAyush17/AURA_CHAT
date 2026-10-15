@@ -1,3 +1,6 @@
+import { ProactiveEngine } from "@/runtime/ProactiveEngine";
+import { RuntimeManager } from "@/runtime/RuntimeManager";
+import { getCurrentUserId } from "@/lib/user-identity";
 import { useMemo, useEffect, useRef } from "react";
 import { useLive } from "@/providers/gemini/useLiveNext";
 import { useOpenRouter } from "@/providers/openrouter/useProvider";
@@ -65,6 +68,9 @@ export function useVoiceOrchestrator(
     if (sarvamActive) {
       return {
         providerName: "sarvam",
+        getSessionId: sarvam.getSessionId,
+        deliverAutonomous: sarvam.deliverAutonomous,
+        cancelAutonomous: sarvam.cancelAutonomous,
         status: sarvam.status,
         isThinking: sarvam.isThinking,
         isSpeaking: sarvam.status === "speaking",
@@ -84,6 +90,9 @@ export function useVoiceOrchestrator(
     if (openrouterActive) {
       return {
         providerName: "openrouter",
+        getSessionId: openrouter.getSessionId,
+        deliverAutonomous: openrouter.deliverAutonomous,
+        cancelAutonomous: openrouter.cancelAutonomous,
         status: openrouter.status,
         isThinking: openrouter.isThinking,
         isSpeaking: openrouter.status === "speaking",
@@ -103,6 +112,9 @@ export function useVoiceOrchestrator(
     // Default: Gemini
     return {
       providerName: "gemini",
+      getSessionId: gemini.getSessionId,
+      deliverAutonomous: gemini.deliverAutonomous,
+      cancelAutonomous: gemini.cancelAutonomous,
       status: gemini.status,
       isThinking: gemini.isThinking,
       isSpeaking: gemini.isSpeaking,
@@ -130,13 +142,24 @@ export function useVoiceOrchestrator(
     pipelineRef.current = activePipeline;
   }, [activePipeline]);
 
-  const greetingFiredRef = useRef(false);
+  const sessionEpochRef = useRef(0);
+  useEffect(
+    () => () => {
+      sessionEpochRef.current++;
+      ProactiveEngine.getInstance().stop();
+    },
+    [],
+  );
 
   const wrappedPipeline: IVoicePipeline = useMemo(() => {
     return {
       ...activePipeline,
       startSession: async () => {
+        const epoch = ++sessionEpochRef.current;
+        ProactiveEngine.getInstance().stop();
+        RuntimeManager.getInstance().reset();
         await activePipeline.startSession();
+        if (epoch !== sessionEpochRef.current) return;
         import("@/runtime/RuntimeManager")
           .then(({ RuntimeManager }) => {
             RuntimeManager.getInstance()
@@ -162,37 +185,15 @@ export function useVoiceOrchestrator(
             });
           });
 
-        import("@/runtime/ProactiveEngine")
-          .then(({ ProactiveEngine }) => {
-            return import("@/lib/user-identity").then(({ getCurrentUserId }) => {
-              const sessionId = `or_${crypto.randomUUID().slice(0, 8)}`;
-              const engine = ProactiveEngine.getInstance();
-              engine.start(sessionId, getCurrentUserId());
-              // Guard: only fire greeting once per mount cycle
-              if (!greetingFiredRef.current) {
-                greetingFiredRef.current = true;
-                engine.initiateGreeting();
-              }
-            });
-          })
-          .catch((err) => {
-            console.error("[AURA] ProactiveEngine import chain failed:", err);
-            import("@/telemetry/RuntimeTelemetry").then(({ auraTelemetry }) => {
-              auraTelemetry.recordError({
-                code: "proactive_engine_import_failure",
-                message: err instanceof Error ? err.message : String(err),
-              });
-            });
-          });
+        ProactiveEngine.getInstance().start(getCurrentUserId(), () => pipelineRef.current);
       },
       endSession: () => {
+        sessionEpochRef.current++;
+        ProactiveEngine.getInstance().stop();
         activePipeline.endSession();
-        greetingFiredRef.current = false;
+        RuntimeManager.getInstance().reset();
         import("@/runtime/RuntimeManager").then(({ RuntimeManager }) => {
           RuntimeManager.getInstance().getLifecycleManager().dispose();
-        });
-        import("@/runtime/ProactiveEngine").then(({ ProactiveEngine }) => {
-          ProactiveEngine.getInstance().stop();
         });
       },
     };

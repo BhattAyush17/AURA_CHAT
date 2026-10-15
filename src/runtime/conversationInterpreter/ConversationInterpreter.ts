@@ -177,11 +177,20 @@ export class ConversationInterpreter {
       adaptiveBlock +
       exprBlock;
 
-    // Target 2: Validate the Cognitive Block
-    if (
-      !finalBlock.includes("[COGNITIVE ORCHESTRATION]") ||
-      !finalBlock.includes("[USER IDENTITY]")
-    ) {
+    // Target 2: Validate the Cognitive Block.
+    // [COGNITIVE ORCHESTRATION] is the generation-control section and is always
+    // emitted (HumanResponsePlanner.formatCognitiveBlock). [USER IDENTITY] is
+    // data-dependent — it is rendered only when identity lines exist (see the
+    // `identityLines.length > 0` guard above) — so it is NOT required
+    // unconditionally. Requiring it unconditionally logged a spurious
+    // `malformed_cognitive_block` S1 telemetry event on every turn for any user
+    // without stored identity data (e.g. all first sessions). Validate the
+    // invariant that actually holds: generation control present, and identity
+    // present whenever we produced an identity block.
+    const missingGenerationControl = !finalBlock.includes("[COGNITIVE ORCHESTRATION]");
+    const missingIdentityWhenExpected =
+      identityBlock !== "" && !finalBlock.includes("[USER IDENTITY]");
+    if (missingGenerationControl || missingIdentityWhenExpected) {
       CognitionTelemetry.getInstance().log({ error: "malformed_cognitive_block" });
     }
 

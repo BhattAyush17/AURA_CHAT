@@ -42,6 +42,10 @@ export interface TranscriptEntry {
   musicMoment?: MusicalMoment;
   musicReferenceType?: string;
   musicReferenceConfidence?: number;
+  /** Shared identifier linking both sides of a turn (user input + model output). */
+  turnId?: string;
+  /** Monotonic counter; invalidated on interruption or session restart. */
+  turnNonce?: number;
 }
 
 // ─── Analysis / Emotion ─────────────────────────────────────────────

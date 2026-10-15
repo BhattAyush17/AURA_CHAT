@@ -34,6 +34,8 @@ import {
 } from "./socialPresence/ContextualRelevanceEngine";
 import { formatSocialContextBlock } from "./socialPresence/formatSocialContextBlock";
 import { globalLanguageManager } from "@/core/voice-language/globalLanguageManager";
+import { getAutonomousConversationEngine } from "./autonomousConversation/AutonomousConversationEngine";
+import type { AutonomousInput } from "./autonomousConversation/types";
 import type { ExecutionPlan } from "@/executive/ExecutionPlan";
 
 /**
@@ -118,6 +120,34 @@ export class RuntimeManager {
 
   private lastPlan: Readonly<ExecutionPlan> | null = null;
   private lastUserWordCount: number = 0;
+  private recentTurnHistory: { text: string; isUser: boolean; timestamp: number }[] = [];
+  private autonomyRevision = 0;
+  private autonomyUpdatedAt = 0;
+  private autonomyInput: AutonomousInput | null = null;
+  private cognitionEpoch = 0;
+  private autonomyListeners = new Set<() => void>();
+
+  public subscribeAutonomy(listener: () => void): () => void {
+    this.autonomyListeners.add(listener);
+    return () => this.autonomyListeners.delete(listener);
+  }
+
+  public getAutonomySnapshot() {
+    return {
+      revision: this.autonomyRevision,
+      updatedAt: this.autonomyUpdatedAt,
+      input: this.autonomyInput ? structuredClone(this.autonomyInput) : null,
+    };
+  }
+
+  /** Internal initiative never enters user-turn analysis, language learning or memory. */
+  public buildAutonomousPrompt(intent: string): string {
+    return `[AUTONOMOUS INITIATIVE] This is AURA's internal intention, not something the user said.
+${intent}
+Use the conversation already available; do not repeat the last answer. Offer at most one brief, useful contribution.
+Treat emotional interpretations as tentative. Never claim to know unspoken feelings; leave room for correction.
+Do not invent memories or facts. If evidence is insufficient, acknowledge uncertainty. Do not call tools or change music, settings, or external state on your own initiative. Output only speech.`;
+  }
 
   public dispose() {
     this.speechCoordinator.flush();
@@ -166,47 +196,43 @@ export class RuntimeManager {
     turnSignals: { wasInterruption?: boolean; silenceDurationMs?: number } = {},
     sessionId?: string,
   ): Promise<string> {
+    const epoch = ++this.cognitionEpoch;
+    // Invalidate pending initiative as soon as new user input arrives.
+    this.autonomyInput = null;
+    this.autonomyRevision++;
+    this.autonomyListeners.forEach((listener) => listener());
     // 0. Ensure SenseManager is initialized
     await SenseManager.getInstance().initializeAll();
 
+    if (epoch !== this.cognitionEpoch) return "";
     // 1. Update Conversation Runtime
     this.conversationRuntime.registerUserTurn(text);
 
     const currentWordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
     const nextTurnLengthDelta = currentWordCount - this.lastUserWordCount;
 
+    // Record this turn for topic-continuity detection (bounded rolling window,
+    // oldest → newest). This feeds SocialCognitionEngine's recentHistory so it
+    // can detect unfinished threads instead of always getting an empty buffer.
+    this.recentTurnHistory.push({ text, isUser: true, timestamp: Date.now() });
+    if (this.recentTurnHistory.length > 8) this.recentTurnHistory.shift();
+
     // 1.5 Update Cognitive Momentum and Executive Reflection
     if (this.lastPlan) {
       this.conversationExecutive.reflect(this.lastPlan, {
-        userReactedNegatively: (backendBehavior?.frustration ?? 0) > 0.6,
-        userFollowedUp: true,
+        userReactedNegatively:
+          /\b(that(?:'s| is) wrong|you misunderstood|not what i (?:meant|asked)|too long|galat samjha|galat hai)\b/i.test(
+            text,
+          ),
+        userFollowedUp:
+          /\b(that (?:helped|works|makes sense)|exactly|you got it|sahi kaha|samajh aa gaya)\b/i.test(
+            text,
+          ),
         nextTurnLengthDelta,
       });
     }
 
     this.lastUserWordCount = currentWordCount;
-
-    // 1.6 Hard-wire Social Cognition Engine
-    try {
-      getSocialCognitionEngine().processTurn({
-        text,
-        userId: getCurrentUserId() || "anonymous",
-        wordCount: currentWordCount,
-        isQuestion: text.includes("?"),
-        userInitiated: true,
-        backendVulnerability: backendBehavior?.vulnerability ?? 0,
-        backendTension: backendBehavior?.anxiety ?? 0,
-        backendEnergy: backendBehavior?.frustration ?? 0,
-        backendPlayfulness: backendBehavior?.playfulness ?? 0,
-        clarificationRequired: false,
-        auraAskedQuestionThisTurn: false,
-        isAuraInterrupted: turnSignals.wasInterruption ?? false,
-        silenceMs: turnSignals.silenceDurationMs ?? 0,
-        recentHistory: [],
-      });
-    } catch (e) {
-      console.warn("[RuntimeManager] SocialCognitionEngine failed:", e);
-    }
 
     globalLanguageManager.observe({
       text,
@@ -233,6 +259,7 @@ export class RuntimeManager {
     const emotionalState = this.emotionalStateOf(backendBehavior);
     const retrievedMemories = await memoryGateway.retrieveMemories(text, userId, emotionalState);
 
+    if (epoch !== this.cognitionEpoch) return "";
     const stableFacts = retrievedMemories
       .filter((m) => m.metadata?.tier === "stable")
       .map((m) => m.content);
@@ -297,11 +324,50 @@ export class RuntimeManager {
         auraAskedQuestionThisTurn: false,
         isAuraInterrupted: turnSignals.wasInterruption ?? false,
         silenceMs: turnSignals.silenceDurationMs ?? 0,
-        recentHistory: [],
+        recentHistory: this.recentTurnHistory.slice(),
       });
     } catch (e) {
       console.warn("[RuntimeManager] Social cognition evaluation failed:", e);
       socialDecision = null;
+    }
+
+    if (socialDecision) {
+      const metrics = getAdaptiveAttentionLayer().getInitiativeMetrics();
+      this.autonomyInput = {
+        planInitiative: plan.initiative,
+        strategy: plan.strategy.primary,
+        literal: plan.understanding.literal,
+        move: plan.understanding.move,
+        speakerGoal: plan.understanding.speakerGoal,
+        expected: plan.understanding.expected,
+        shared: { ...plan.understanding.shared },
+        emotion: { ...ctx.emotion },
+        memory: {
+          hasPersonalHistory: ctx.memory.hasPersonalHistory,
+          retrievedCount: ctx.memory.retrieved.length,
+          relevanceScores: [...ctx.memory.relevanceScores],
+        },
+        timing: { silenceDurationMs: 0, turnCount: ctx.timing.turnCount },
+        userInterrupted: turnSignals.wasInterruption ?? false,
+        lastUserGaveShortAnswer: currentWordCount < 4,
+        frustration: ctx.emotion.frustration,
+        initiativeMetrics: { ...metrics },
+        social: {
+          ...socialDecision,
+          conversational_momentum: { ...socialDecision.conversational_momentum },
+        },
+        questionFatigue: metrics.questionFatigue,
+        planMemoryPolicy: plan.memoryPolicy,
+        hasMusicContext: Boolean(playbackState.getState().currentTrack),
+        atmospherePresent: atmosphere !== null,
+        senseSnapshot: {
+          sourceCount: evidence.length,
+          musicDetected: false,
+          voicesDetected: false,
+        },
+      };
+      this.autonomyUpdatedAt = Date.now();
+      this.autonomyListeners.forEach((listener) => listener());
     }
 
     // 4. Interpret Backend Intelligence for Frontend Execution
@@ -538,6 +604,16 @@ export class RuntimeManager {
   }
 
   public reset() {
+    this.cognitionEpoch++;
+    this.autonomyRevision++;
+    this.autonomyInput = null;
+    this.lastPlan = null;
+    this.lastUserWordCount = 0;
+    this.lastExecutivePrompt = "";
+    this.lastAtmosphereDecision = null;
+    this.recentTurnHistory = [];
+    getAutonomousConversationEngine().clear();
+    getSocialCognitionEngine().reset();
     this.conversationRuntime.reset();
     AdaptiveCommunicationAnalyzer.getInstance().clearSession();
   }

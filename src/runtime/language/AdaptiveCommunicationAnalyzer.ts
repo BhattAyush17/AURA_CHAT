@@ -62,6 +62,7 @@ export class AdaptiveCommunicationAnalyzer {
 
   private loadProfile() {
     try {
+      if (typeof localStorage === "undefined") return;
       const saved = localStorage.getItem("aura_communication_profile");
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -98,7 +99,7 @@ export class AdaptiveCommunicationAnalyzer {
   private saveProfile() {
     try {
       // Only save if the profile has meaningful maturity (turns > 0)
-      if (this.profile.totalTurnsAnalyzed > 0) {
+      if (this.profile.totalTurnsAnalyzed > 0 && typeof localStorage !== "undefined") {
         localStorage.setItem("aura_communication_profile", JSON.stringify(this.profile));
       }
     } catch (e) {

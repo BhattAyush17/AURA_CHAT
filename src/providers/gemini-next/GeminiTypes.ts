@@ -20,6 +20,7 @@ export interface VoiceEngineEvents {
   onStateChange?: (state: GeminiSessionState) => void;
   onModelText?: (text: string) => void;
   onInputTranscription?: (text: string) => void;
+  onOutputTranscription?: (text: string) => void;
   onAudioChunkReceived?: (base64Data: string) => void;
   onTurnComplete?: () => void;
   onInterrupted?: () => void;

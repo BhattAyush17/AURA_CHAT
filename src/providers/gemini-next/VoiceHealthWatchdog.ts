@@ -51,40 +51,49 @@ export class VoiceHealthWatchdog {
   }
 
   private handleVisibilityChange = () => {
+    if (typeof document === "undefined") return;
     if (document.visibilityState === "visible" && this.isRunning) {
       const micCoordinator = MicrophoneCoordinator.getInstance();
-      
+
       // Auto-Heal Revival
       if (micCoordinator.wasHardwareInterrupted()) {
-        console.warn("[VoiceHealthWatchdog] Hardware interruption detected. Seamlessly auto-healing mic.");
+        console.warn(
+          "[VoiceHealthWatchdog] Hardware interruption detected. Seamlessly auto-healing mic.",
+        );
         micCoordinator.clearHardwareInterruption();
-        
-        micCoordinator.acquireMicrophone().then(() => {
-          // Instantly start listening without requiring user tap
-          ConversationStateManager.getInstance().requestStartListening();
-          auraTelemetry.recordError({
-            code: "watchdog_autoheal",
-            message: "Successfully revived microphone after hardware mute",
+
+        micCoordinator
+          .acquireMicrophone()
+          .then(() => {
+            // Instantly start listening without requiring user tap
+            ConversationStateManager.getInstance().requestStartListening();
+            auraTelemetry.recordError({
+              code: "watchdog_autoheal",
+              message: "Successfully revived microphone after hardware mute",
+            });
+          })
+          .catch((e) => {
+            auraTelemetry.recordError({
+              code: "watchdog_autoheal_failed",
+              message: `Microphone auto-heal failed: ${e}`,
+            });
           });
-        }).catch((e) => {
-          auraTelemetry.recordError({
-            code: "watchdog_autoheal_failed",
-            message: `Microphone auto-heal failed: ${e}`,
-          });
-        });
       } else if (micCoordinator.getAudioContextState() === "suspended") {
         console.warn("[VoiceHealthWatchdog] Visibility restored. Forcing audio context resume.");
-        micCoordinator.resumeAudioContext().then(() => {
-          auraTelemetry.recordError({
-            code: "watchdog_remediation",
-            message: "Forced audio context resume on visibility change",
+        micCoordinator
+          .resumeAudioContext()
+          .then(() => {
+            auraTelemetry.recordError({
+              code: "watchdog_remediation",
+              message: "Forced audio context resume on visibility change",
+            });
+          })
+          .catch((e) => {
+            auraTelemetry.recordError({
+              code: "watchdog_remediation_failed",
+              message: `Audio context resume on visibility change failed: ${e}`,
+            });
           });
-        }).catch((e) => {
-          auraTelemetry.recordError({
-            code: "watchdog_remediation_failed",
-            message: `Audio context resume on visibility change failed: ${e}`,
-          });
-        });
       }
     }
   };
@@ -93,6 +102,13 @@ export class VoiceHealthWatchdog {
     this.stop();
     this.isRunning = true;
     this.lastPlaybackTime = Date.now();
+
+    // Browser-only: the visibility listener and interval timers require DOM
+    // globals. Guarded so non-DOM hosts (Node harnesses, SSR) no-op instead of
+    // throwing `document is not defined`.
+    if (typeof document === "undefined" || typeof window === "undefined") {
+      return;
+    }
 
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
 
@@ -104,7 +120,9 @@ export class VoiceHealthWatchdog {
 
   public stop() {
     this.isRunning = false;
-    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    }
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -117,6 +135,16 @@ export class VoiceHealthWatchdog {
 
   public reportPlaybackActive() {
     this.lastPlaybackTime = Date.now();
+  }
+
+  /**
+   * Reset the stall detection baseline after a successful reconnect.
+   * This prevents immediate false-positive stall detection after recovery.
+   */
+  public resetStallBaseline() {
+    this.lastPlaybackTime = Date.now();
+    this.engine.telemetry.lastServerMessageAt = Date.now();
+    this.thinkingStartTime = 0;
   }
 
   private async checkBackendHealth() {

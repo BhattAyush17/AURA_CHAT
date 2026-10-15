@@ -1,8 +1,9 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 
 class ChatRequest(BaseModel):
     text: str
+    origin: Literal["user", "autonomous"] = "user"
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     cognitive_block: Optional[str] = None
@@ -14,4 +15,5 @@ class ChatRequest(BaseModel):
     seed: Optional[str] = None
     include_atmosphere: Optional[bool] = False
     emotional_state: Optional[Dict[str, Any]] = None
+    interruption_note: Optional[str] = None
     memory_mode: Optional[str] = "supabase"

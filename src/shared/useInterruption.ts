@@ -42,7 +42,7 @@ const DEFAULT_CONFIG: InterruptionConfig = {
 // ─── Types for caller integration ───────────────────────────────────
 
 export interface InterruptionDeps {
-  /** The shared AudioContext from useGeminiLive */
+  /** The shared AudioContext from the active provider hook */
   audioContextRef: React.MutableRefObject<AudioContext | null>;
   /** The mic MediaStream */
   micStreamRef: React.MutableRefObject<MediaStream | null>;
@@ -74,7 +74,7 @@ export interface InterruptionAPI {
  * Detects when the user speaks over AURA's audio playback and
  * triggers a graceful interruption (duck → flush → hand off).
  *
- * @param deps - Audio context, streams, and callbacks from useGeminiLive
+ * @param deps - Audio context, streams, and callbacks from the active provider hook
  * @param config - Optional tuning parameters
  * @returns InterruptionAPI for state access and flag consumption
  */

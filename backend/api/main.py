@@ -888,8 +888,9 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
     seed = session_data.get("seed", "") if session_data else ""
     turn_history = session_data.get("turn_history", []) if session_data else []
 
-    turn_history.append({"text": body.text, "user_initiated": True})
-    if len(turn_history) > 10: turn_history.pop(0)
+    if body.origin == "user":
+        turn_history.append({"text": body.text, "user_initiated": True})
+        if len(turn_history) > 10: turn_history.pop(0)
 
     if body.cognitive_block:
         # Canonical Path: Frontend ConversationInterpreter already did the work.
@@ -924,6 +925,10 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             "Answer in 1-3 sentences. Speak naturally, not formally."
         )
 
+        # Inject interruption context so the LLM avoids repeating itself
+        if body.interruption_note:
+            system_prompt += f"\n\n{body.interruption_note}"
+
         # Log moved down to capture final system_prompt
     else:
         # Fast path routing logic
@@ -951,6 +956,10 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             system_prompt += "\n\n[RELEVANT MEMORY]\n"
             for mem in body.client_memories:
                 system_prompt += f"- {mem.get('content', '')}\n"
+
+        # 5. Inject interruption context so the LLM avoids repeating itself
+        if body.interruption_note:
+            system_prompt += f"\n\n{body.interruption_note}"
 
     # ── Atmosphere Context Layer ────────────────────────────────────────────
     # Retrieve real-world grounding from the EXISTING composer (TTL-cached,
@@ -1009,7 +1018,11 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
         try:
             from backend.core.intelligence.llm_pipeline import stream_openrouter_response
         except ImportError as e:
-            log.error("run_turn_pipeline_import_failed", error=str(e))
+            log.error(
+                "llm_pipeline_import_failed",
+                module="backend.core.intelligence.llm_pipeline",
+                error=str(e),
+            )
             yield f"data: {json.dumps({'event': 'error', 'error': 'Pipeline import failed'})}\n\n"
             return
             
@@ -1018,13 +1031,14 @@ async def analyze_turn_stream(request: Request, body: ChatRequest, response: Res
             async for chunk in stream_openrouter_response(body.conversation_history, system_prompt):
                 if "error" in chunk:
                     yield f"data: {json.dumps({'event': 'error', 'error': chunk['error']})}\n\n"
-                    break
+                    return
                 if "text" in chunk:
                     full_response += chunk["text"]
                     yield f"data: {json.dumps({'event': 'text_chunk', 'text': chunk['text']})}\n\n"
         except Exception as e:
             log.error("llm_pipeline_stream_error", error=str(e))
             yield f"data: {json.dumps({'event': 'error', 'error': 'Stream generation failed'})}\n\n"
+            return
 
         # 3. Background task trigger — REMOVED in Phase 2B.
         # The legacy L1-L5 pipeline (via QStash webhook or local background
@@ -2031,4 +2045,3 @@ async def music_search_proxy(q: str):
                 log.warning("invidious_fallback_failed", instance=instance, error=str(e))
                 continue
     return []
-

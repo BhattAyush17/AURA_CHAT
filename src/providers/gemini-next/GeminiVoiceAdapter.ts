@@ -28,6 +28,10 @@ export interface GeminiVoiceAdapterState {
   startSession: (systemInstruction: string, tools: any[], voice: string) => Promise<void>;
   endSession: () => Promise<void>;
   sendText: (text: string) => void;
+  requestAutonomousResponse: (text: string) => boolean;
+  cancelAutonomousResponse: () => void;
+  /** Injects internal cognition without triggering a model response. */
+  injectContext: (text: string) => void;
   muteMicrophone: () => void;
   unmuteMicrophone: () => void;
   setOutputVolume: (gain: number) => void;
@@ -35,10 +39,21 @@ export interface GeminiVoiceAdapterState {
 }
 
 export function useGeminiVoiceAdapter(options: {
-  onTurnComplete?: (userText: string, modelText: string) => void;
+  onTurnComplete?: (
+    userText: string,
+    modelText: string,
+    turnId?: string,
+    turnNonce?: number,
+  ) => void;
   onToolCall?: (toolCall: any) => Promise<any>;
-  onInterruption?: () => void;
+  onInterruption?: (
+    userText: string,
+    modelText: string,
+    turnId?: string,
+    turnNonce?: number,
+  ) => void;
   onInputTranscription?: (text: string) => void;
+  onOutputTranscription?: (text: string) => void;
   onAuraSpeechStart?: () => void;
   onUserSpeechDetected?: () => void;
   onUsageMetadata?: (meta: any) => void;
@@ -52,10 +67,13 @@ export function useGeminiVoiceAdapter(options: {
   const [isThinking, setIsThinking] = useState(false);
   const [words, setWords] = useState("");
   const [lastError, setLastError] = useState<string | null>(null);
+  const lastAuthErrorRef = useRef<string | null>(null);
   const [readinessSnapshot, setReadinessSnapshot] = useState<ReadinessSnapshot | null>(null);
 
   const currentUserTextRef = useRef("");
   const currentModelTextRef = useRef("");
+  const currentTurnIdRef = useRef<string | null>(null);
+  const turnNonceCounterRef = useRef(0);
 
   const recoveryAttemptsRef = useRef(0);
   const MAX_RECOVERY_ATTEMPTS = 3;
@@ -67,7 +85,18 @@ export function useGeminiVoiceAdapter(options: {
 
   const handleRecovery = useCallback(async (isCritical: boolean = false) => {
     const attempts = recoveryAttemptsRef.current;
-    
+
+    // Auth errors are non-retryable (speech contract: retryable=false for auth).
+    // Retrying with the same invalid/expired key just burns recovery attempts.
+    if (lastAuthErrorRef.current) {
+      console.warn(
+        "[GeminiVoiceAdapter] Skipping recovery — credential error is non-retryable. User must update their key.",
+      );
+      setStatus("error");
+      setLastError(lastAuthErrorRef.current);
+      return;
+    }
+
     // If visible, enforce MAX_RECOVERY_ATTEMPTS. If hidden, bypass to allow infinite slow polling.
     if (document.visibilityState !== "hidden" && attempts >= MAX_RECOVERY_ATTEMPTS) {
       setStatus("error");
@@ -84,10 +113,25 @@ export function useGeminiVoiceAdapter(options: {
       backoffMs = 10000; // Poll slowly every 10s indefinitely while screen is off
     }
 
+    // Clear stale turn state so recovery doesn't replay an interrupted turn
+    currentUserTextRef.current = "";
+    currentModelTextRef.current = "";
+    currentTurnIdRef.current = null;
+
     if (engineRef.current) {
       await engineRef.current.stop();
       await new Promise((r) => setTimeout(r, backoffMs));
-      await engineRef.current.start();
+      try {
+        await engineRef.current.start();
+        // Reset watchdog stall baseline after successful reconnect
+        if (watchdogRef.current) {
+          watchdogRef.current.resetStallBaseline();
+        }
+      } catch (e: any) {
+        // engine.start() already surfaced the error via onError → readiness.
+        // If it was an auth error, recovery is now permanently gated.
+        setStatus("error");
+      }
     }
   }, []);
 
@@ -99,6 +143,8 @@ export function useGeminiVoiceAdapter(options: {
       watchdogRef.current.stop();
       watchdogRef.current = null;
     }
+
+    lastAuthErrorRef.current = null;
 
     if (readinessRef.current) {
       readinessRef.current.dispose();
@@ -121,6 +167,7 @@ export function useGeminiVoiceAdapter(options: {
     async (systemInstruction: string, tools: any[], voice: string, isRecovery = false) => {
       if (!isRecovery) {
         recoveryAttemptsRef.current = 0;
+        lastAuthErrorRef.current = null;
         lastConfigRef.current = { systemInstruction, tools, voice };
       }
 
@@ -185,12 +232,34 @@ export function useGeminiVoiceAdapter(options: {
           }
         },
         onModelText: (text: string) => {
+          if (!currentTurnIdRef.current) {
+            currentTurnIdRef.current = `turn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          }
           setIsThinking(false);
           setIsSpeaking(true);
           setStatus("speaking");
           currentModelTextRef.current += text;
         },
+        onOutputTranscription: (text: string) => {
+          // With responseModalities AUDIO, AURA's words come back as output
+          // transcription (modelTurn text parts do not carry speech). Without
+          // accumulating it, interrupted turns record empty model text and the
+          // archive loses the basis for repetition analysis.
+          if (!currentTurnIdRef.current) {
+            currentTurnIdRef.current = `turn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          }
+          setIsThinking(false);
+          setIsSpeaking(true);
+          setStatus("speaking");
+          currentModelTextRef.current += text;
+          if (options.onOutputTranscription) {
+            options.onOutputTranscription(text);
+          }
+        },
         onInputTranscription: (text: string) => {
+          if (!currentTurnIdRef.current) {
+            currentTurnIdRef.current = `turn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          }
           currentUserTextRef.current += text + " ";
           setWords(currentUserTextRef.current);
           if (options.onInputTranscription) {
@@ -203,13 +272,17 @@ export function useGeminiVoiceAdapter(options: {
 
           const userTxt = currentUserTextRef.current.trim();
           const modelTxt = currentModelTextRef.current.trim();
+          const turnId = currentTurnIdRef.current ?? undefined;
+          const turnNonce = turnNonceCounterRef.current;
 
           if (options.onTurnComplete && (userTxt || modelTxt)) {
-            options.onTurnComplete(userTxt, modelTxt);
+            options.onTurnComplete(userTxt, modelTxt, turnId, turnNonce);
           }
 
           currentUserTextRef.current = "";
           currentModelTextRef.current = "";
+          currentTurnIdRef.current = null;
+          turnNonceCounterRef.current++;
           setWords("");
         },
         onToolCall: async (calls: any[]) => {
@@ -228,11 +301,17 @@ export function useGeminiVoiceAdapter(options: {
           return [];
         },
         onInterrupted: () => {
+          const userTxt = currentUserTextRef.current.trim();
+          const modelTxt = currentModelTextRef.current.trim();
+          const turnId = currentTurnIdRef.current ?? undefined;
+          const turnNonce = turnNonceCounterRef.current;
           if (options.onInterruption) {
-            options.onInterruption();
+            options.onInterruption(userTxt, modelTxt, turnId, turnNonce);
           }
           currentUserTextRef.current = "";
           currentModelTextRef.current = "";
+          currentTurnIdRef.current = null;
+          turnNonceCounterRef.current++;
           setWords("");
           setIsSpeaking(false);
           setStatus("listening");
@@ -267,14 +346,20 @@ export function useGeminiVoiceAdapter(options: {
           }
         },
         onError: (err: any) => {
-          setLastError(err.message || String(err));
+          const errorMsg = err.message || String(err);
+          if (isAuthError(errorMsg)) {
+            const friendly = friendlyAuthMessage();
+            lastAuthErrorRef.current = friendly;
+            setLastError(friendly);
+          } else {
+            setLastError(errorMsg);
+          }
           // If we're still initializing, mark the current in-progress milestone as failed
           if (readinessRef.current) {
             const snapshot = readinessRef.current.getSnapshot();
             if (snapshot.overall === "initializing") {
               const inProgress = snapshot.milestones.find((m) => m.status === "in_progress");
               if (inProgress) {
-                const errorMsg = err.message || String(err);
                 const errorCode = classifyError(inProgress.id, errorMsg);
                 readinessRef.current.markFailed(inProgress.id, errorCode, errorMsg);
               }
@@ -291,7 +376,14 @@ export function useGeminiVoiceAdapter(options: {
       try {
         await engine.start();
       } catch (e: any) {
-        setLastError(e.message);
+        const msg = e.message || String(e);
+        if (isAuthError(msg)) {
+          const friendly = friendlyAuthMessage();
+          lastAuthErrorRef.current = friendly;
+          setLastError(friendly);
+        } else {
+          setLastError(e.message);
+        }
         setStatus("error");
         // Engine errors are already routed through onError → readiness
       }
@@ -302,6 +394,12 @@ export function useGeminiVoiceAdapter(options: {
   const sendText = useCallback((text: string) => {
     if (engineRef.current) {
       engineRef.current.sendText(text);
+    }
+  }, []);
+
+  const injectContext = useCallback((text: string) => {
+    if (engineRef.current) {
+      engineRef.current.injectContext(text);
     }
   }, []);
 
@@ -359,6 +457,23 @@ export function useGeminiVoiceAdapter(options: {
     startSession,
     endSession,
     sendText,
+    requestAutonomousResponse: (instruction: string) => {
+      const accepted = engineRef.current?.requestAutonomousResponse(instruction) ?? false;
+      if (accepted) {
+        setIsThinking(true);
+        setStatus("processing");
+      }
+      return accepted;
+    },
+    cancelAutonomousResponse: () => {
+      engineRef.current?.cancelAutonomousResponse();
+      // Cancelled output is not archived as a completed response.
+      currentModelTextRef.current = "";
+      setIsThinking(false);
+      setIsSpeaking(false);
+      setStatus("listening");
+    },
+    injectContext,
     muteMicrophone,
     unmuteMicrophone,
     setOutputVolume,
@@ -410,4 +525,28 @@ function classifyError(milestoneId: string, message: string): ReadinessErrorCode
     default:
       return "UNKNOWN";
   }
+}
+
+/**
+ * Detect Google auth/credential rejections. These are non-retryable:
+ * the key is invalid, expired (AQ.Ab AI Studio keys are ephemeral), or revoked.
+ * Recovery must fail fast and prompt the user to update their key.
+ */
+export function isAuthError(message: string): boolean {
+  const lower = (message || "").toLowerCase();
+  return (
+    lower.includes("invalid authentication credential") ||
+    lower.includes("oauth 2 access token") ||
+    lower.includes("login cookie") ||
+    lower.includes("api key not valid") ||
+    lower.includes("api_key_not_valid") ||
+    lower.includes("unauthenticated") ||
+    lower.includes("401") ||
+    lower.includes("permission denied: consumer")
+  );
+}
+
+/** Friendly user-facing message for auth rejections. */
+function friendlyAuthMessage(): string {
+  return "Your Gemini API key is invalid or expired. AI Studio keys (AQ.Ab...) expire — open Settings and paste a fresh key.";
 }

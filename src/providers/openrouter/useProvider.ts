@@ -1,3 +1,4 @@
+import { reportAutonomyUserActivity } from "@/runtime/autonomousConversation/AutonomyEvents";
 /**
  * useOpenRouter — High-fidelity voice pipeline matching Gemini Live's responsiveness.
  *
@@ -51,6 +52,7 @@ import { resolvePositionPhraseToSeconds } from "@/music/DeicticResolver";
 import { useAdaptiveTurnDetection } from "@/shared/useAdaptiveTurnDetection";
 import { useConversationalPauses } from "@/shared/useConversationalPauses";
 import { useResilience } from "@/resilience";
+import { getDayWiseStore } from "@/lib/storage/DayWiseConversationStore";
 import type { AtmosphereContext } from "@/executive/AtmosphereContext";
 import { atmosphereFromComposer } from "@/executive/AtmosphereContext";
 
@@ -778,6 +780,7 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── TTS helpers ──────────────────────────────────────────────────
   const stopSpeech = () => {
     fetchAbortRef.current?.abort();
+    sentenceQueueRef.current = [];
     import("@/audioRuntime/SpeechCoordinator").then(({ SpeechCoordinator }) => {
       SpeechCoordinator.getInstance().flush();
     });
@@ -975,7 +978,13 @@ export function useOpenRouter(mode: string = "adaptive") {
     if (spokenTextRef.current.trim().length > 0) {
       const interruptedText = spokenTextRef.current.trim() + " - [Interrupted]";
       addMessages([{ role: "assistant", content: interruptedText }]);
-      transcript_.addTurn(interruptedText, false);
+      transcript_.addInterruptedTurn(
+        "",
+        spokenTextRef.current.trim(),
+        undefined,
+        undefined,
+        undefined,
+      );
       wasInterruptedRef.current = true;
     }
 
@@ -1032,6 +1041,9 @@ export function useOpenRouter(mode: string = "adaptive") {
   // ── Core turn: SSE streaming + sentence-chunked TTS ──────────────
   const processTurn = useCallback(
     async (userText: string, apiKey: string, lang: string, isHiddenPrompt: boolean = false) => {
+      turnNonceRef.current += 1;
+      const currentTurnNonce = turnNonceRef.current;
+
       stopSpeech();
       stopThinkingAudio();
       conversationalPauses.resetForNewTurn();
@@ -1076,29 +1088,35 @@ export function useOpenRouter(mode: string = "adaptive") {
 
       // Canonical Cognition Phase 1: Behavior Analysis
       const l2_start = performance.now();
-      const behaviorResult = await behavior.analyzeForTurn(
-        userText,
-        sessionIdRef.current,
-        0, // RMS not available here
-        0,
-        modeRef.current,
-        userIdRef.current,
-        wasInterrupted,
-      );
+      const behaviorResult = isHiddenPrompt
+        ? null
+        : await behavior.analyzeForTurn(
+            userText,
+            sessionIdRef.current,
+            0, // RMS not available here
+            0,
+            modeRef.current,
+            userIdRef.current,
+            wasInterrupted,
+          );
+      if (turnNonceRef.current !== currentTurnNonce) return;
       if (behaviorResult) {
         prompts.processAnalysisForL2(behaviorResult);
       }
       connectionState.updateLatency({ l2_behavior_ms: performance.now() - l2_start });
 
       // Canonical Cognition Phase 2: Cognitive Fusion & Interpretation
-      const cognitiveBlock = await RuntimeManager.getInstance().processCognitiveTurn(
-        userText,
-        behaviorResult,
-        modeRef.current,
-        atmosphereRef.current,
-        { wasInterruption: wasInterrupted },
-        sessionIdRef.current ?? undefined,
-      );
+      const cognitiveBlock = isHiddenPrompt
+        ? userText
+        : await RuntimeManager.getInstance().processCognitiveTurn(
+            userText,
+            behaviorResult,
+            modeRef.current,
+            atmosphereRef.current,
+            { wasInterruption: wasInterrupted },
+            sessionIdRef.current ?? undefined,
+          );
+      if (turnNonceRef.current !== currentTurnNonce) return;
 
       // Atmosphere relevance gate: only request backend grounding this turn when
       // AdaptiveAttention deemed the surrounding world relevant. Prevents prompt
@@ -1122,7 +1140,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       // Append to OR message buffer with the invisible XML tag prepended
       const newMessages: ChatMessage[] = [
         ...messagesRef.current,
-        { role: "user", content: musicContextXML + userText },
+        { role: isHiddenPrompt ? "system" : "user", content: musicContextXML + userText },
       ];
       if (!isHiddenPrompt) {
         addMessages([{ role: "user", content: userText }]);
@@ -1145,21 +1163,27 @@ export function useOpenRouter(mode: string = "adaptive") {
             "X-Gemini-Key": getCredential("aura_gemini_api_key") || "",
           },
           body: JSON.stringify({
-            text: userText,
+            text: isHiddenPrompt ? "" : userText,
+            origin: isHiddenPrompt ? "autonomous" : "user",
             user_id: userIdRef.current,
             session_id: sessionIdRef.current,
-            conversation_history: messagesRef.current.map((m) => ({
+            conversation_history: newMessages.map((m) => ({
               role: m.role,
               content: m.content,
             })),
             client_memories: [], // Delegated to Centralized Cognitive Architecture
             memory_mode: "supabase",
             cognitive_block: boundCognitiveBlock(cognitiveBlock),
-            executive_plan: RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
+            executive_plan: isHiddenPrompt
+              ? undefined
+              : RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
             music_context_text: playbackState.getState().currentTrack
               ? boundMusicContextText(buildMusicContext(userText))
               : undefined,
             include_atmosphere: includeAtmosphere,
+            interruption_note: wasInterrupted
+              ? "[CONTEXT] You were mid-sentence in your previous response when the user interrupted. The user's new words come first — address them directly. Where it flows naturally, weave the unfinished remainder of your previous thought into the SAME combined response. NEVER repeat words the user already heard — skip anything already spoken and continue from the cutoff point. If their interruption changed the topic entirely, drop the old thread instead of forcing it."
+              : undefined,
           }),
         });
 
@@ -1174,7 +1198,7 @@ export function useOpenRouter(mode: string = "adaptive") {
         toolExtractorRef.current.reset();
         let textBuffer = "";
         let fullResponse = "";
-        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/;
+        const TERMINAL_PUNCTUATION = /[.?!।]\s|\n/g;
         let firstTokenReceived = false;
         sentenceQueueRef.current = [];
         let ttsStarted = false;
@@ -1190,6 +1214,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           setStatus("speaking");
 
           const drainQueue = () => {
+            if (turnNonceRef.current !== currentTurnNonce) return;
             if (fetchAbortRef.current?.signal.aborted) return;
             if (segmentSubQueue.length > 0) {
               const seg = segmentSubQueue.shift()!;
@@ -1375,20 +1400,26 @@ export function useOpenRouter(mode: string = "adaptive") {
                   sharedFullResponse += cleanChunk;
                   // Do not overwrite words to preserve user transcript
 
-                  const match = TERMINAL_PUNCTUATION.exec(textBuffer);
-                  if (match) {
-                    const splitIndex = match.index + match[0].length;
-                    const sentence = textBuffer.substring(0, splitIndex).trim();
-                    textBuffer = textBuffer.substring(splitIndex);
-                    sentenceQueueRef.current.push(sentence);
-                    orchestrator.queueProtection.reportChunkAdded(sentence);
-                    tryStartTTS();
+                  TERMINAL_PUNCTUATION.lastIndex = 0;
+                  let puncMatch: RegExpExecArray | null;
+                  let lastPuncIndex = 0;
+                  while ((puncMatch = TERMINAL_PUNCTUATION.exec(textBuffer)) !== null) {
+                    const splitIndex = puncMatch.index + puncMatch[0].length;
+                    const sentence = textBuffer.substring(lastPuncIndex, splitIndex).trim();
+                    if (sentence) {
+                      sentenceQueueRef.current.push(sentence);
+                      orchestrator.queueProtection.reportChunkAdded(sentence);
+                    }
+                    lastPuncIndex = splitIndex;
                   }
+                  if (lastPuncIndex > 0) textBuffer = textBuffer.substring(lastPuncIndex);
+                  if (lastPuncIndex > 0) tryStartTTS();
                 } else if (data.event === "error") {
                   throw new Error(data.error);
                 }
               } catch (e) {
-                // Ignore parse errors for incomplete lines
+                // Provider error events must reach the degraded lane.
+                if (!(e instanceof SyntaxError)) throw e;
               }
             }
           }
@@ -1399,7 +1430,7 @@ export function useOpenRouter(mode: string = "adaptive") {
           transcript_.addTurn(fullResponse, false);
 
           // ── Memory Return Path (first stream loop) ──
-          if (userText) {
+          if (userText && !isHiddenPrompt) {
             const lastAnalysis = behavior.lastAnalysisRef.current;
             const currentEmotionalState: Record<string, number> = {
               frustration: lastAnalysis?.frustration || 0,
@@ -1423,15 +1454,27 @@ export function useOpenRouter(mode: string = "adaptive") {
           throw new Error("Empty response from stream");
         }
       } catch (backendError: any) {
+        if (turnNonceRef.current !== currentTurnNonce) {
+          console.log("[Voice Pipeline] Turn is stale, skipping fallback.");
+          return;
+        }
         if (backendError.name === "AbortError") {
           console.log("[Voice Pipeline] Stream intentionally aborted (e.g. barge-in).");
           return;
         }
         if (hasStartedStreaming) {
-          console.warn("[Voice Pipeline] Backend stream failed mid-response. Aborting turn to prevent repetition.");
+          console.warn(
+            "[Voice Pipeline] Backend stream failed mid-response. Aborting turn to prevent repetition.",
+          );
           if (sharedFullResponse) {
-             addMessages([{ role: "assistant", content: sharedFullResponse + "..." }]);
-             transcript_.addTurn(sharedFullResponse + "...", false);
+            addMessages([{ role: "assistant", content: sharedFullResponse + "..." }]);
+            transcript_.addInterruptedTurn(
+              "",
+              sharedFullResponse + "...",
+              undefined,
+              undefined,
+              undefined,
+            );
           }
           stopSpeech();
           conversationState.reportSpeakingFinished();
@@ -1472,7 +1515,7 @@ export function useOpenRouter(mode: string = "adaptive") {
       // it persists for the rest of the session.
       // Check for deactivation first
       let isFirstDeactivation = false;
-      if (boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
+      if (!isHiddenPrompt && boundlessModeActiveRef.current && detectDeactivationPhrase(userText)) {
         boundlessModeActiveRef.current = false;
         isFirstDeactivation = true;
         console.log(
@@ -1486,7 +1529,12 @@ export function useOpenRouter(mode: string = "adaptive") {
       let explicitModeActivated = boundlessModeActiveRef.current;
       let isFirstActivation = false;
 
-      if (!explicitModeActivated && isJoyfulPassionMode && detectActivationPhrase(userText)) {
+      if (
+        !isHiddenPrompt &&
+        !explicitModeActivated &&
+        isJoyfulPassionMode &&
+        detectActivationPhrase(userText)
+      ) {
         explicitModeActivated = true;
         isFirstActivation = true;
         boundlessModeActiveRef.current = true;
@@ -1537,7 +1585,7 @@ CRITICAL RULES:
         ssplBlock,
         ...(wasInterrupted
           ? [
-              "[SYSTEM NOTE]: The user just interrupted you mid-sentence. Acknowledge the interruption gracefully, listen to what they just said, and adapt your response.",
+              "[SYSTEM NOTE]: The user just interrupted you mid-sentence. Their new words come first — address them directly. Where it flows naturally, weave the unfinished remainder of your previous thought into the SAME combined response. NEVER repeat words the user already heard — continue from the cutoff point.",
             ]
           : []),
         cognitiveBlock,
@@ -1651,6 +1699,7 @@ CRITICAL RULES:
 
             const drainQueue = () => {
               console.log("[AUDIT] Draining chunk. Queue length:", sentenceQueueRef.current.length);
+              if (turnNonceRef.current !== currentTurnNonce) return;
               if (fetchAbortRef.current?.signal.aborted) return;
               if (segmentSubQueue.length > 0) {
                 const seg = segmentSubQueue.shift()!;
@@ -1876,7 +1925,7 @@ CRITICAL RULES:
           console.error("[AUDIT] Stream Aborted. hasStartedStreaming:", hasStartedStreaming);
           sentenceQueueRef.current = [];
           spokenTextRef.current = "";
-          
+
           clearTimeout(fetchTimeout);
           if (e?.name === "AbortError") {
             // Barge-in or timeout aborted this fetch — treat as handled
@@ -1887,10 +1936,18 @@ CRITICAL RULES:
             break;
           }
           if (hasStartedStreaming) {
-            console.warn("[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.");
+            console.warn(
+              "[Voice Pipeline] Frontend LLM stream failed mid-response. Aborting turn to prevent repetition.",
+            );
             if (sharedFullResponse) {
               addMessages([{ role: "assistant", content: sharedFullResponse + "..." }]);
-              transcript_.addTurn(sharedFullResponse + "...", false);
+              transcript_.addInterruptedTurn(
+                "",
+                sharedFullResponse + "...",
+                undefined,
+                undefined,
+                undefined,
+              );
             }
             aborted = true;
             success = false;
@@ -1901,7 +1958,10 @@ CRITICAL RULES:
             } else {
               setStatus("idle");
             }
-            endProviderCall(auraTelemetry, callId, { status: "error", failureDetail: "Stream failed mid-response" });
+            endProviderCall(auraTelemetry, callId, {
+              status: "error",
+              failureDetail: "Stream failed mid-response",
+            });
             break;
           }
           console.warn(`[OpenRouter Voice] Model ${modelToTry} failed:`, e.message);
@@ -1956,7 +2016,7 @@ CRITICAL RULES:
         transcript_.addTurn(completeResponse, false);
 
         // ── Memory Return Path (Bug A) ──
-        if (userText) {
+        if (userText && !isHiddenPrompt) {
           const lastAnalysis = behavior.lastAnalysisRef.current;
           const currentEmotionalState: Record<string, number> = {
             frustration: lastAnalysis?.frustration || 0,
@@ -2016,6 +2076,34 @@ CRITICAL RULES:
       seedRef.current = seedData ? seedData.seed : undefined;
       const lang = localStorage.getItem("aura_voice_language") || "hi-IN";
 
+      // ── Day-wise context restoration: seed the LLM message buffer with
+      // past conversation turns (fresh days) + older-day summaries so the
+      // context never gets lost between visits. Fail-open. ──
+      try {
+        const restored = getDayWiseStore().restoreContext();
+        if (
+          messagesRef.current.length === 0 &&
+          (restored.recentTurns.length > 0 || restored.summaries.length > 0)
+        ) {
+          const seeded: ChatMessage[] = [];
+          if (restored.summaries.length > 0) {
+            seeded.push({
+              role: "system",
+              content: getDayWiseStore().buildContextBlock(restored),
+            });
+          }
+          for (const t of restored.recentTurns.slice(-40)) {
+            seeded.push({ role: t.role, content: t.content });
+          }
+          addMessages(seeded);
+          console.log(
+            `[AURA] Restored ${restored.recentTurns.length} recent turns + ${restored.summaries.length} day summaries from local history.`,
+          );
+        }
+      } catch {
+        // fail-open: context restoration must never block the session start
+      }
+
       if (isUserInitiated) {
         if (messagesRef.current.length === 0) {
           console.log("[AURA] Cold start greeting triggered.");
@@ -2062,6 +2150,7 @@ CRITICAL RULES:
 
       recognition.onspeechstart = () => {
         turnNonceRef.current++;
+        reportAutonomyUserActivity();
         conversationState.reportUserSpeaking();
         import("@/music/MusicService").then(({ musicService }) => {
           musicService.onUserSpeechStart();
@@ -2384,6 +2473,31 @@ CRITICAL RULES:
   }, [isInactive, orchestrator, setupMicAnalyser, speakChunk, stopRecognition]);
 
   return {
+    getSessionId: () => sessionIdRef.current,
+    deliverAutonomous: (instruction: string): boolean => {
+      if (!isSessionActiveRef.current || statusRef.current !== "listening" || isSpeakingRef.current)
+        return false;
+      const key = getOpenRouterKey();
+      if (!key) return false;
+      void processTurn(
+        instruction,
+        key,
+        localStorage.getItem("aura_voice_language") || "hi-IN",
+        true,
+      ).catch((error) => {
+        console.warn("[Autonomy] Provider generation failed", error);
+        setIsThinking(false);
+        setStatus("error");
+      });
+      return true;
+    },
+    cancelAutonomous: () => {
+      turnNonceRef.current++;
+      fetchAbortRef.current?.abort();
+      stopSpeech();
+      setIsThinking(false);
+      if (isSessionActiveRef.current) setStatus("listening");
+    },
     status,
     messages,
     transcript: transcript_.transcript,

@@ -1,4 +1,5 @@
 import { MicrophoneCoordinator } from "@/audioRuntime/MicrophoneCoordinator";
+import { playbackState } from "@/music/PlaybackState";
 
 export class GeminiAudioInput {
   private micCoordinator: MicrophoneCoordinator;
@@ -31,9 +32,14 @@ export class GeminiAudioInput {
     }
   }
 
-  public setVadState(isListening: boolean, isSpeaking: boolean, isGracePeriod: boolean) {
+  public setVadState(
+    isListening: boolean,
+    isSpeaking: boolean,
+    isGracePeriod: boolean,
+    isMusicPlaying: boolean = false,
+  ) {
     this.isAuraSpeaking = isSpeaking;
-    this.micCoordinator.setVadState(isListening, isSpeaking, isGracePeriod);
+    this.micCoordinator.setVadState(isListening, isSpeaking, isGracePeriod, isMusicPlaying);
   }
 
   public stopStreaming() {
@@ -65,7 +71,11 @@ export class GeminiAudioInput {
 
   private handleMicData(msg: any) {
     if (msg.type === "PCM_DATA" && msg.lease && this.onAudioDataCallback) {
-      if (!this.isMuted && !this.isAuraSpeaking) {
+      // Acoustic feedback guard: while music plays through speakers and AURA
+      // is silent, the mic picks up the music. Streaming it to the WS lets the
+      // server-side STT transcribe lyric/noise fragments, producing phantom
+      // turns and runaway repetition. Hold the feed; pausing music restores it.
+      if (!this.isMuted && !this.isAuraSpeaking && !playbackState.getState().isPlaying) {
         const b64 = this.float32ToBase64Pcm(msg.lease.data);
         this.onAudioDataCallback(b64);
       }

@@ -32,6 +32,7 @@ class VadProcessor extends AudioWorkletProcessor {
     this.isListening = false;
     this.isSpeaking = false;
     this.isGracePeriod = false;
+    this.isMusicPlaying = false;
 
     // ── Phase 7.2: statistical VAD state ──
     this.noiseFloor = 0.02;
@@ -57,8 +58,10 @@ class VadProcessor extends AudioWorkletProcessor {
         this.isListening = msg.isListening;
         this.isSpeaking = msg.isSpeaking;
         this.isGracePeriod = msg.isGracePeriod;
-        this.currentThreshold = msg.isSpeaking ? this.bargeInThreshold : this.baseThreshold;
-        if (!msg.isListening && !msg.isSpeaking) {
+        this.isMusicPlaying = msg.isMusicPlaying ?? false;
+        this.currentThreshold =
+          msg.isSpeaking || msg.isMusicPlaying ? this.bargeInThreshold : this.baseThreshold;
+        if (!msg.isListening && !msg.isSpeaking && !msg.isMusicPlaying) {
           this.loudFrameCount = 0;
         }
       }
@@ -125,15 +128,17 @@ class VadProcessor extends AudioWorkletProcessor {
     }
 
     // ── Barge-In Logic (speech probability, RMS sanity clamp) ──
-    if (!this.isListening && !this.isSpeaking) return true;
+    // Barge-in is gated by AURA speech OR music playback to prevent acoustic feedback
+    if (!this.isListening && !this.isSpeaking && !this.isMusicPlaying) return true;
     if (this.isGracePeriod) {
       this.loudFrameCount = 0;
       return true;
     }
 
-    const rmsClamp = this.isSpeaking
-      ? Math.max(this.bargeInThreshold, this.noiseFloor * 4)
-      : Math.max(this.baseThreshold, this.noiseFloor * 3);
+    const rmsClamp =
+      this.isSpeaking || this.isMusicPlaying
+        ? Math.max(this.bargeInThreshold, this.noiseFloor * 4)
+        : Math.max(this.baseThreshold, this.noiseFloor * 3);
 
     if (this.frameProb >= this.PROB_BARGE_IN && rms > rmsClamp) {
       this.loudFrameCount++;

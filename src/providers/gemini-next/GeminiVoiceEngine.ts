@@ -7,6 +7,7 @@ import {
   GeminiSessionState,
   VoiceTelemetry,
 } from "./GeminiTypes";
+import { playbackState } from "../../music/PlaybackState";
 
 export class GeminiVoiceEngine {
   private config: VoiceEngineConfig;
@@ -19,8 +20,16 @@ export class GeminiVoiceEngine {
   private state: GeminiSessionState = "IDLE";
   private isAuraSpeaking: boolean = false;
   private turnCounter: number = 0;
+  private suppressCancelledOutput = false;
+  private autonomousInFlight = false;
   private inputPathVerified: boolean = false;
   private lastAuraSpeechTimestamp: number = 0;
+  private turnNonce: number = 0;
+  // After AURA finishes speaking, her own voice rings/off briefly through the
+  // speakers into the mic. Streaming that echo tail to the server makes its VAD
+  // think the user spoke and the model regenerates the same answer — the
+  // audible repetition bug. Gate mic PCM to the server for this window.
+  private echoTailUntil: number = 0;
 
   // Playback tracking to prevent VAD unmute during buffered audio
   private chunksPlaying: number = 0;
@@ -47,8 +56,12 @@ export class GeminiVoiceEngine {
     if (this.serverTurnComplete && this.chunksPlaying === 0) {
       this.telemetry.isPlaying = false;
       this.isAuraSpeaking = false;
-      this.input.setVadState(true, false, false);
+      this.suppressCancelledOutput = false;
+      this.autonomousInFlight = false;
+      const isMusicPlaying = playbackState.getState().isPlaying;
+      this.input.setVadState(true, false, false, isMusicPlaying);
       this.lastAuraSpeechTimestamp = Date.now();
+      this.echoTailUntil = Date.now() + 600;
       this.events.onTurnComplete?.();
       this.serverTurnComplete = false;
     }
@@ -58,6 +71,8 @@ export class GeminiVoiceEngine {
     if (this.state !== "IDLE" && this.state !== "ERROR" && this.state !== "CLOSED") return;
     this.updateState("CONNECTING");
     this.inputPathVerified = false;
+    this.suppressCancelledOutput = false;
+    this.autonomousInFlight = false;
     this.chunksPlaying = 0;
     this.serverTurnComplete = false;
 
@@ -77,28 +92,41 @@ export class GeminiVoiceEngine {
       this.session = new GeminiSession(this.config, {
         onStateChange: (state) => {
           if (state === "CONNECTING") {
-            this.output.stopPlayback();
+            // Increment nonce on new connection/reconnect to invalidate any pending
+            // callbacks from the previous session. This ensures stale audio chunks
+            // from a disconnected session don't play after reconnect.
+            this.turnNonce++;
             this.chunksPlaying = 0;
+            this.serverTurnComplete = false;
+            this.isAuraSpeaking = false;
+            this.telemetry.isPlaying = false;
+            this.telemetry.lastServerMessageAt = 0;
+            this.output.stopPlayback();
           }
           this.updateState(state);
           // Report gemini_session milestone on CONNECTED
           if (state === "CONNECTED") {
             this.events.onMilestone?.("gemini_session", "complete");
-            this.input.setVadState(true, false, false);
+            const isMusicPlaying = playbackState.getState().isPlaying;
+            this.input.setVadState(true, false, false, isMusicPlaying);
           }
         },
         onAudioChunkReceived: (base64Data) => {
+          if (this.suppressCancelledOutput) return;
           this.telemetry.lastServerMessageAt = Date.now();
           this.telemetry.lastResponseAudioAt = Date.now();
           this.telemetry.isPlaying = true;
           if (!this.isAuraSpeaking) {
             this.isAuraSpeaking = true;
-            this.input.setVadState(false, true, false);
+            const isMusicPlaying = playbackState.getState().isPlaying;
+            this.input.setVadState(false, true, false, isMusicPlaying);
             this.events.onAuraSpeechStart?.();
           }
-          
+
           this.chunksPlaying++;
+          const currentNonce = this.turnNonce;
           this.output.enqueueChunk(base64Data, () => {
+            if (this.turnNonce !== currentNonce) return;
             this.chunksPlaying = Math.max(0, this.chunksPlaying - 1);
             if (this.chunksPlaying === 0) {
               this.telemetry.isPlaying = false;
@@ -108,26 +136,45 @@ export class GeminiVoiceEngine {
           this.events.onAudioChunkReceived?.(base64Data);
         },
         onModelText: (text) => {
+          if (this.suppressCancelledOutput) return;
           this.telemetry.lastServerMessageAt = Date.now();
           if (!this.isAuraSpeaking) {
             this.isAuraSpeaking = true;
-            this.input.setVadState(false, true, false);
+            const isMusicPlaying = playbackState.getState().isPlaying;
+            this.input.setVadState(false, true, false, isMusicPlaying);
             this.events.onAuraSpeechStart?.();
           }
           this.events.onModelText?.(text);
+        },
+        onOutputTranscription: (text) => {
+          if (this.suppressCancelledOutput) return;
+          this.telemetry.lastServerMessageAt = Date.now();
+          if (!this.isAuraSpeaking) {
+            this.isAuraSpeaking = true;
+            const isMusicPlaying = playbackState.getState().isPlaying;
+            this.input.setVadState(false, true, false, isMusicPlaying);
+            this.events.onAuraSpeechStart?.();
+          }
+          this.events.onOutputTranscription?.(text);
         },
         onInputTranscription: (text) => {
           this.telemetry.lastServerMessageAt = Date.now();
           this.events.onInputTranscription?.(text);
         },
         onInterrupted: () => {
+          this.suppressCancelledOutput = false;
+          this.autonomousInFlight = false;
           this.telemetry.lastServerMessageAt = Date.now();
           this.telemetry.isPlaying = false;
           this.isAuraSpeaking = false;
           this.chunksPlaying = 0;
+          // Increment nonce on user interruption to invalidate pending audio callbacks
+          // and prevent the interrupted response from continuing after barge-in.
+          this.turnNonce++;
           this.serverTurnComplete = false;
           this.output.stopPlayback();
-          this.input.setVadState(true, false, false);
+          const isMusicPlaying = playbackState.getState().isPlaying;
+          this.input.setVadState(true, false, false, isMusicPlaying);
           this.lastAuraSpeechTimestamp = Date.now();
           this.events.onInterrupted?.();
         },
@@ -135,10 +182,14 @@ export class GeminiVoiceEngine {
           this.telemetry.lastServerMessageAt = Date.now();
           this.telemetry.lastTurnCompleteAt = Date.now();
           this.turnCounter++;
+          // Generation can finish before buffered audio. Keep its callbacks valid
+          // until playback drains; only explicit cancellation (interruption, reconnect, stop)
+          // invalidates the nonce. DO NOT increment turnNonce here.
           this.serverTurnComplete = true;
           this.checkTurnEnded();
         },
         onToolCall: async (calls) => {
+          if (this.suppressCancelledOutput) return [];
           if (this.events.onToolCall) {
             return this.events.onToolCall(calls);
           }
@@ -164,6 +215,12 @@ export class GeminiVoiceEngine {
       this.events.onMilestone?.("input_path", "in_progress");
       this.input.startStreaming(
         (base64Data) => {
+          // Echo-tail gate: AURA's own output bleeds back into the mic for a
+          // short window after her turn ends. Don't stream it to the server —
+          // server-side VAD would treat it as a user turn and regenerate the
+          // same answer (the repetition bug). The local barge-in guard below
+          // uses the same 600ms window.
+          if (Date.now() < this.echoTailUntil) return;
           this.telemetry.isCapturing = true;
           if (this.session?.getState() === "CONNECTED") {
             this.telemetry.lastInputSendAt = Date.now();
@@ -184,7 +241,14 @@ export class GeminiVoiceEngine {
           }
         },
         () => {
+          // While AURA is speaking, mic PCM is already gated from the server,
+          // so a local barge-in is unactionable there — and is usually her own
+          // voice leaking back. Firing here would churn the turn nonce and
+          // re-send the language enforcement directive mid-turn, causing the
+          // model to re-answer.
+          if (this.isAuraSpeaking && !this.autonomousInFlight) return;
           if (Date.now() - this.lastAuraSpeechTimestamp < 600) return;
+          if (playbackState.getState().isPlaying) return;
           console.log("[GeminiVoiceEngine] Barge-in/speech confirmed via local VAD.");
           this.events.onUserSpeechDetected?.();
         },
@@ -198,6 +262,10 @@ export class GeminiVoiceEngine {
   }
 
   public stop(): void {
+    // Increment nonce on explicit stop to invalidate all pending callbacks
+    this.turnNonce++;
+    this.chunksPlaying = 0;
+    this.serverTurnComplete = false;
     this.telemetry.isCapturing = false;
     this.telemetry.isPlaying = false;
     this.isAuraSpeaking = false;
@@ -226,9 +294,41 @@ export class GeminiVoiceEngine {
     this.output.setVolume(gain);
   }
 
+  public requestAutonomousResponse(text: string): boolean {
+    if (this.isAuraSpeaking || this.autonomousInFlight || this.suppressCancelledOutput)
+      return false;
+    const accepted = this.session?.requestAutonomousResponse(text) ?? false;
+    this.autonomousInFlight = accepted;
+    return accepted;
+  }
+
+  public cancelAutonomousResponse(): void {
+    if (!this.autonomousInFlight) return;
+    this.suppressCancelledOutput = true;
+    this.autonomousInFlight = false;
+    this.turnNonce++;
+    this.output.stopPlayback();
+    this.chunksPlaying = 0;
+    this.isAuraSpeaking = false;
+    this.telemetry.isPlaying = false;
+    this.input.setVadState(true, false, false, playbackState.getState().isPlaying);
+  }
+
   public sendText(text: string): void {
     if (this.session?.getState() === "CONNECTED") {
       this.session.sendRealtimeInput({ text });
+    }
+  }
+
+  /**
+   * Injects internal cognition into the live session without triggering a
+   * model response (see GeminiSession.injectContext). This is how cognitive
+   * blocks / memories / executive directives reach Gemini mid-session —
+   * never via sendText, which causes phantom spoken replies.
+   */
+  public injectContext(text: string): void {
+    if (this.session?.getState() === "CONNECTED") {
+      this.session.injectContext(text);
     }
   }
 

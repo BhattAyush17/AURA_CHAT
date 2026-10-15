@@ -20,6 +20,10 @@ export interface IVoicePipeline {
   warning?: string | null;
   words?: string;
 
+  getSessionId?: () => string | null;
+  deliverAutonomous?: (instruction: string) => Promise<boolean> | boolean;
+  cancelAutonomous?: () => void;
+
   // Session Controls
   startSession: (isUserInitiated?: boolean) => Promise<void> | void;
   endSession: () => Promise<void> | void;

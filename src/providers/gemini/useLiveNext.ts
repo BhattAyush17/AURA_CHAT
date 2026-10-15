@@ -1,3 +1,4 @@
+import { reportAutonomyUserActivity } from "@/runtime/autonomousConversation/AutonomyEvents";
 /**
  * useLiveNext — The modernized AURA voice companion hook using GeminiVoiceEngine.
  * Retains the exact same return signature as the original useLive for drop-in replacement.
@@ -35,6 +36,7 @@ import { isLateNightHour, getSystemPromptForPersonality } from "@/lib/gemini-pro
 
 import { generateSeed } from "@/lib/utils/seed-generator";
 import { saveSyncMeta } from "@/lib/sync-meta";
+import { getDayWiseStore } from "@/lib/storage/DayWiseConversationStore";
 import { claimPrimaryTab, isPrimaryTab, HEARTBEAT_KEY, HEARTBEAT_INTERVAL } from "./types";
 import { executeAuraAction, buildMusicContext } from "@/lib/aura-actions";
 import { assembleCognitiveContext } from "@/lib/aura-context";
@@ -57,6 +59,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   const sessionIdRef = useRef<string | null>(null);
   const userIdRef = useRef<string>("local-user");
   const isStartingRef = useRef(false);
+  const skipGreetingRef = useRef(false);
   const backendAvailable = useRef(true);
   const geminiCallIdRef = useRef<string | null>(null);
   const lastGeminiUsageRef = useRef<{ prompt: number; candidate: number; total: number }>({
@@ -64,6 +67,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
     candidate: 0,
     total: 0,
   });
+  const turnCounterRef = useRef(0);
 
   // Ensure a session exists for telemetry from the moment the hook is consumed.
   if (!auraTelemetry.getSessionId()) {
@@ -73,10 +77,18 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   // Voice Language System
   const [languageState, setLanguageState] = useState<ResolvedVoiceLanguage | null>(null);
   const languageManager = globalLanguageManager;
+  const sendTextRef = useRef<((text: string) => void) | null>(null);
+  // Non-triggering context channel: absorbs internal cognition into the live
+  // session WITHOUT the model responding aloud to its own directives.
+  const injectContextRef = useRef<((text: string) => void) | null>(null);
 
   useEffect(() => {
-    // Register the Gemini adapter so the manager can push configuration updates
-    const adapter = new GeminiVoiceLanguageAdapter();
+    // Register the Gemini adapter so the manager can push configuration updates.
+    // Language enforcement rides the NON-TRIGGERING context channel —
+    // injectContextRef is set once the voice adapter mounts, so resolve lazily.
+    const adapter = new GeminiVoiceLanguageAdapter((text: string) => {
+      injectContextRef.current?.(text);
+    });
     languageManager.setAdapter(adapter);
   }, [languageManager]);
 
@@ -99,8 +111,6 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   const prompts = usePromptOrchestrator();
   const behavior = useBehaviorInjection();
 
-  const sendTextRef = useRef<((text: string) => void) | null>(null);
-
   const handleToolCall = useCallback(async (toolCall: any) => {
     try {
       console.log(`[AURA] 🛠️ Executing Action: ${toolCall.name}`, toolCall.args);
@@ -116,12 +126,12 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   }, []);
 
   const handleTurnComplete = useCallback(
-    async (userText: string, modelText: string) => {
+    async (userText: string, modelText: string, turnId?: string, turnNonce?: number) => {
       // Begin a per-turn request and link the running Gemini call to it.
-      const turnId = transcript_.transcriptRef.current.length
+      const telemetryTurnId = transcript_.transcriptRef.current.length
         ? `t_${transcript_.transcriptRef.current.length}`
         : undefined;
-      const requestId = auraTelemetry.beginRequest({ turnId });
+      const requestId = auraTelemetry.beginRequest({ turnId: telemetryTurnId });
       if (geminiCallIdRef.current) {
         auraTelemetry.attachCallToRequest(geminiCallIdRef.current, requestId);
       }
@@ -131,8 +141,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         const finalInterpreted = interpreted && interpreted !== userText ? interpreted : undefined;
         const finalUserText = finalInterpreted || userText;
 
-        transcript_.addTurn(userText, true, finalInterpreted);
-        ConversationRuntime.getInstance().registerUserTurn(finalUserText);
+        transcript_.addTurn(userText, true, finalInterpreted, turnId, turnNonce);
         conversationState.reportUserFinished();
 
         // Synchronous Cognitive Sync: Let RuntimeManager process the turn deterministically
@@ -180,7 +189,10 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
             if (executivePlan)
               systemDirectives.push(`[SYSTEM: EXECUTIVE DIRECTIVE]\n${executivePlan}`);
             if (systemDirectives.length > 0) {
-              sendTextRef.current(systemDirectives.join("\n\n"));
+              // Injected via the non-triggering channel — the model absorbs
+              // these without responding aloud. sendText here caused phantom
+              // replies to AURA's own directives after every turn.
+              injectContextRef.current?.(systemDirectives.join("\n\n"));
             }
           }
         } catch (e) {
@@ -188,7 +200,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
         }
       }
       if (modelText) {
-        transcript_.addTurn(modelText, false);
+        transcript_.addTurn(modelText, false, undefined, turnId, turnNonce);
         conversationState.reportSpeakingFinished();
       }
 
@@ -221,7 +233,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
           currentEmotionalState,
           undefined,
           sessionIdRef.current ?? undefined,
-          RuntimeManager.getInstance().getLastExecutivePrompt() || undefined
+          RuntimeManager.getInstance().getLastExecutivePrompt() || undefined,
         );
       }
 
@@ -232,10 +244,15 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
     [transcript_, languageManager, behavior.lastAnalysisRef],
   );
 
-  const handleInterruption = useCallback(() => {
-    console.log("🛑 NATIVE BARGE-IN DETECTED: Engine truncated output.");
-    conversationState.handleUserInterruption();
-  }, []);
+  const handleInterruption = useCallback(
+    (userText: string, modelText: string, turnId?: string, turnNonce?: number) => {
+      console.log("🛑 NATIVE BARGE-IN DETECTED: Engine truncated output.");
+      // Persist interrupted transcription with turn/nonce IDs for audit trail
+      transcript_.addInterruptedTurn(userText, modelText, turnId, turnNonce);
+      conversationState.handleUserInterruption();
+    },
+    [transcript_],
+  );
 
   const adapter = useGeminiVoiceAdapter({
     onTurnComplete: handleTurnComplete,
@@ -275,7 +292,11 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       musicService.onAuraSpeechStart();
     },
     onUserSpeechDetected: () => {
+      reportAutonomyUserActivity();
       musicService.onUserSpeechStart();
+      // New turn starting - notify language manager of new turn nonce
+      turnCounterRef.current += 1;
+      languageManager.setTurnNonce(turnCounterRef.current);
     },
     onUsageMetadata: (meta) => {
       if (!geminiCallIdRef.current) return;
@@ -307,7 +328,8 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
 
   useEffect(() => {
     sendTextRef.current = adapter.sendText;
-  }, [adapter.sendText]);
+    injectContextRef.current = adapter.injectContext;
+  }, [adapter.sendText, adapter.injectContext]);
 
   // Start Session
   const startSession = useCallback(async () => {
@@ -367,6 +389,18 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
       ? `${systemInstructionBase}\n\n${initialCognitiveSnapshot}`
       : systemInstructionBase;
 
+    // ── Day-wise context restoration: carry past conversations into the
+    // fresh Gemini session (its live context resets per connection). The
+    // block holds older-day summaries + a recent-turns digest. Fail-open. ──
+    try {
+      const restored = getDayWiseStore().restoreContext();
+      if (restored.summaries.length > 0 || restored.recentTurns.length > 0) {
+        systemInstruction += `\n\n${getDayWiseStore().buildContextBlock(restored)}`;
+      }
+    } catch {
+      // fail-open: context restoration must never block the connection
+    }
+
     if (musicCtx) {
       systemInstruction += `\n\n${musicCtx}`;
     }
@@ -413,14 +447,15 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
 
     musicService.onMicActive();
 
-    if (adapter.engine) {
-      // Let engine finish setup
+    if (adapter.engine && !skipGreetingRef.current) {
+      // Let engine finish setup — only greet on the first session, not on config restarts
       setTimeout(() => {
         if (adapter.engine?.getState() === "CONNECTED") {
           adapter.sendText(prompts.getGreeting(modeRef.current));
         }
       }, 500);
     }
+    skipGreetingRef.current = false;
 
     isStartingRef.current = false;
   }, [adapter, storageManager, prompts, transcript_]);
@@ -453,6 +488,9 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
   }, [isInactive, adapter.status, endSession]);
 
   return {
+    getSessionId: () => sessionIdRef.current,
+    deliverAutonomous: adapter.requestAutonomousResponse,
+    cancelAutonomous: adapter.cancelAutonomousResponse,
     status: adapter.status as UIStatus,
     isSpeaking: adapter.isSpeaking,
     isThinking: adapter.isThinking,
@@ -480,6 +518,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
           modeRef.current = newMode;
         }
         if (adapter.status !== "idle" && (newVoice || newMode)) {
+          skipGreetingRef.current = true;
           endSession().then(() => setTimeout(() => startSession(), 300));
         }
       },
@@ -489,6 +528,7 @@ export function useLive(mode: string = "adaptive", voice: string = "Zephyr") {
     updateVoice: (newVoice: string) => {
       voiceRef.current = newVoice;
       if (adapter.status !== "idle") {
+        skipGreetingRef.current = true;
         endSession().then(() => setTimeout(() => startSession(), 300));
       }
     },

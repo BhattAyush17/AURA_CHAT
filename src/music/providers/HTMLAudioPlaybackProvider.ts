@@ -74,7 +74,7 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
       // Safe to cast as it's a standard property that browsers support.
       (this.audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       this.audio.preload = "auto";
-      
+
       // Target 1: Attach to DOM so Android Chrome doesn't treat it as a detached background leak
       this.audio.style.display = "none";
       document.body.appendChild(this.audio);
@@ -111,7 +111,10 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         });
         navigator.mediaSession.setActionHandler("seekbackward", (details) => {
           if (this.audio) {
-            this.audio.currentTime = Math.max(0, this.audio.currentTime - (details.seekOffset || 10));
+            this.audio.currentTime = Math.max(
+              0,
+              this.audio.currentTime - (details.seekOffset || 10),
+            );
           }
         });
         navigator.mediaSession.setActionHandler("seekforward", (details) => {
@@ -650,11 +653,12 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         // unlockAudio is itself invoked from a user gesture in the UI.
         playbackTelemetry.updateMobileMusicGesture({ lastGestureAt: Date.now() });
         recordEvent("user_gesture", "unlockAudio");
-        
+
         this.audio.muted = true;
         // Provide a silent base64 wav data URI so it doesn't throw a NotSupportedError on empty src
         if (!this.audio.src) {
-           this.audio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+          this.audio.src =
+            "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
         }
         await this.audio.play();
         this.audio.pause();
@@ -674,7 +678,10 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
         if (state.pendingTrack) {
           const track = state.pendingTrack;
           playbackState.update({ pendingTrack: null });
-          console.log("[HTMLAudioPlaybackProvider] Resuming pending track after unlock:", track.title);
+          console.log(
+            "[HTMLAudioPlaybackProvider] Resuming pending track after unlock:",
+            track.title,
+          );
           // Small delay to ensure unlock finishes
           setTimeout(() => {
             import("../MusicService").then(({ musicService }) => {
@@ -685,7 +692,7 @@ export class HTMLAudioPlaybackProvider implements PlaybackProvider {
           });
         }
       } catch (e) {
-         console.warn("[HTMLAudioPlaybackProvider] post-unlock logic failed:", e);
+        console.warn("[HTMLAudioPlaybackProvider] post-unlock logic failed:", e);
       }
     }
   }

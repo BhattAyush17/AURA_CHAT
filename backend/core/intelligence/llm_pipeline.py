@@ -38,6 +38,8 @@ async def stream_openrouter_response(messages: List[Dict[str, str]], system_prom
             "temperature": 0.8,
             "max_tokens": 150,
             "stream": True,
+            "frequency_penalty": 0.1,
+            "presence_penalty": 0.1,
         }
         
         async with client.stream("POST", "https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload) as response:
@@ -45,18 +47,39 @@ async def stream_openrouter_response(messages: List[Dict[str, str]], system_prom
                 yield {"error": f"OpenRouter Error: {response.status_code}"}
                 return
             
+            completed = False
             async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:].strip()
+                if line.startswith("data:"):
+                    data = line[5:].strip()
                     if data == "[DONE]":
                         break
                     try:
                         parsed = json.loads(data)
-                        token = parsed["choices"][0]["delta"].get("content", "")
-                        if token:
-                            yield {"text": token}
-                    except:
-                        pass
+                    except json.JSONDecodeError:
+                        log.warning("llm_stream_invalid_json", model=model)
+                        yield {"error": "Invalid provider stream data"}
+                        return
+                    if parsed.get("error"):
+                        log.warning("llm_stream_provider_error", model=model)
+                        yield {"error": "OpenRouter stream failed"}
+                        return
+                    choices = parsed.get("choices") or []
+                    if not choices:  # Usage-only frame.
+                        continue
+                    choice = choices[0]
+                    token = (choice.get("delta") or {}).get("content", "")
+                    if token:
+                        yield {"text": token}
+                    finish_reason = choice.get("finish_reason")
+                    if finish_reason in ("length", "content_filter", "error"):
+                        log.warning("llm_stream_incomplete", model=model, finish_reason=finish_reason)
+                        yield {"error": f"Response incomplete ({finish_reason})"}
+                        return
+                    if finish_reason:
+                        completed = True
+            if not completed:
+                log.warning("llm_stream_incomplete", model=model, finish_reason="connection_closed")
+                yield {"error": "Provider stream ended before completion"}
 
 async def generate_response(messages: List[Dict[str, str]], system_prompt: str) -> Tuple[str, bool, str]:
     """
@@ -89,7 +112,9 @@ async def generate_response(messages: List[Dict[str, str]], system_prompt: str) 
                         "messages": payload_messages,
                         "temperature": 0.8,
                         "max_tokens": 300,
-                        "route": "fallback"
+                        "route": "fallback",
+                        "frequency_penalty": 0.1,
+                        "presence_penalty": 0.1,
                     }
                     resp = await client.post(
                         "https://openrouter.ai/api/v1/chat/completions",

@@ -135,11 +135,13 @@ export class MicrophoneCoordinator {
         }
 
         this.audioContext = new AudioContext({ sampleRate: 16000 });
-        
+
         // Fight OS-level suspension (e.g. screen off on Android)
         this.audioContext.onstatechange = () => {
           if (this.audioContext?.state === "suspended" && this.stream) {
-            console.warn("[MicrophoneCoordinator] OS suspended AudioContext. Forcing resume to keep VAD alive!");
+            console.warn(
+              "[MicrophoneCoordinator] OS suspended AudioContext. Forcing resume to keep VAD alive!",
+            );
             this.audioContext.resume().catch((err) => {
               console.error("[MicrophoneCoordinator] Failed to force resume AudioContext:", err);
             });
@@ -238,13 +240,19 @@ export class MicrophoneCoordinator {
     }
   }
 
-  public setVadState(isListening: boolean, isSpeaking: boolean, isGracePeriod: boolean) {
+  public setVadState(
+    isListening: boolean,
+    isSpeaking: boolean,
+    isGracePeriod: boolean,
+    isMusicPlaying: boolean = false,
+  ) {
     if (this.workletNode) {
       this.workletNode.port.postMessage({
         type: "SET_STATE",
         isListening,
         isSpeaking,
         isGracePeriod,
+        isMusicPlaying,
       });
     }
   }
@@ -339,14 +347,14 @@ export class MicrophoneCoordinator {
   private handleHardwareInterruption(reason: string) {
     console.warn(`[MicrophoneCoordinator] Hardware interruption detected (${reason}).`);
     this._hardwareInterrupted = true;
-    
+
     // Stop VAD processor
     if (this.workletNode) {
       this.workletNode.disconnect();
       if (this.workletNode.port) this.workletNode.port.close();
       this.workletNode = null;
     }
-    
+
     // Move conversation state out of LISTENING
     conversationState.forceIdle();
 

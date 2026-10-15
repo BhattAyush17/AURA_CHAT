@@ -181,6 +181,12 @@ async function main() {
   console.log("\n══════════════════════════════════════════════════════════════");
   console.log("ALL TARGETS PASSED — End-to-End Simulation complete.");
   console.log("══════════════════════════════════════════════════════════════");
+
+  // Every assertion above already exited non-zero on failure (see assert()).
+  // Component singletons (MusicService, telemetry dispatchers, etc.) register
+  // long-lived timers that keep the Node event loop alive after main() resolves;
+  // this harness is assertion-driven, so exit explicitly now that all passed.
+  process.exit(0);
 }
 
 main().catch((err) => {

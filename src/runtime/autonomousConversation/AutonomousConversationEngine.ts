@@ -150,7 +150,7 @@ function scoreOpportunities(input: AutonomousInput): AutonomousOpportunity {
   );
 
   const silence_value = clamp01(
-    (input.timing.silenceDurationMs > 8000 ? 0.8 : 0) +
+    (!input.backgroundEvaluation && input.timing.silenceDurationMs > 8000 ? 0.8 : 0) +
       (s.user_wants_space ? 0.6 : 0) +
       (input.shared.repairPending ? 0.4 : 0) +
       input.questionFatigue * 0.3 +

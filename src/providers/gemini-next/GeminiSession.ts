@@ -254,6 +254,38 @@ export class GeminiSession {
     }
   }
 
+  /**
+   * Injects context into the live session WITHOUT triggering a model response.
+   *
+   * `sendClientContent({ turns, turnComplete: false })` is the sanctioned way
+   * to deliver internal cognition (memories, cognitive blocks, executive
+   * directives) mid-session: the model absorbs the content but does not
+   * generate a reply until the user's next real turn. This replaces the old
+   * `sendText` injection, which delivered directives as user text and caused
+   * phantom spoken responses to AURA's own system blocks.
+   */
+  /** Explicit response request, distinct from passive context injection. */
+  public requestAutonomousResponse(text: string): boolean {
+    if (this.state !== "CONNECTED" || !this.session) return false;
+    this.session.sendClientContent({
+      turns: [{ role: "user", parts: [{ text }] }],
+      turnComplete: true,
+    });
+    return true;
+  }
+
+  public injectContext(text: string): void {
+    if (this.state !== "CONNECTED" || !this.session) return;
+    try {
+      this.session.sendClientContent({
+        turns: [{ role: "user", parts: [{ text }] }],
+        turnComplete: false,
+      });
+    } catch (e) {
+      console.warn("[GeminiSession] Failed to inject context:", e);
+    }
+  }
+
   public sendClientContent(data: any): void {
     if (this.state !== "CONNECTED" || !this.session) return;
     try {
@@ -273,6 +305,10 @@ export class GeminiSession {
     if (msg.serverContent) {
       if (msg.serverContent.inputTranscription?.text) {
         this.events.onInputTranscription?.(msg.serverContent.inputTranscription.text);
+      }
+
+      if (msg.serverContent.outputTranscription?.text) {
+        this.events.onOutputTranscription?.(msg.serverContent.outputTranscription.text);
       }
 
       if (msg.serverContent.modelTurn?.parts) {

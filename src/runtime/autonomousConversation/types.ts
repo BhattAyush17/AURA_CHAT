@@ -159,6 +159,8 @@ export interface AutonomousRuntimeSignals {
  * RuntimeManager builds this from live, existing signals.
  */
 export interface AutonomousInput {
+  /** Background deliberation: silence alone neither creates nor forbids initiative. */
+  backgroundEvaluation?: boolean;
   planInitiative: Initiative;
   strategy: Strategy;
   literal: LiteralMeaning;
