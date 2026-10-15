@@ -166,7 +166,7 @@ export class ConversationExecutive {
     // leaving the ratchet without a behavioral outlet (Phase 9.4 finding).
     if (
       clarification.required === false &&
-      this.reflection.weights.clarifyBias > 0.5 &&
+      this.reflection.weights.clarifyBias >= 0.5 &&
       confidence.label !== "High"
     ) {
       clarification = {
@@ -188,7 +188,9 @@ export class ConversationExecutive {
     // "too brief" follow-ups extend it. Learning, not a hardcoded rule.
     const brevityBias = this.reflection.weights.brevityBias;
     const BUDGET_LADDER: InformationBudget[] = ["Tiny", "Short", "Normal", "Detailed", "DeepDive"];
-    if (Math.abs(brevityBias) > 0.15) {
+    // A single corroborated complaint already moves the weight by one step
+    // (0.05); requiring 0.15 made three negative turns a no-op.
+    if (Math.abs(brevityBias) >= 0.05) {
       const step = brevityBias > 0 ? -1 : 1;
       const idx = BUDGET_LADDER.indexOf(budget.budget);
       const next = BUDGET_LADDER[Math.max(0, Math.min(BUDGET_LADDER.length - 1, idx + step))];

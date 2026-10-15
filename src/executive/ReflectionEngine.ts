@@ -32,6 +32,10 @@ export interface ReflectionResult {
 
 const MAX_HISTORY = 40;
 
+// Weights step by 0.05; round each mutation so binary-float drift cannot
+// leave e.g. ten steps at 0.4999… and silently miss a `>= 0.5` gate.
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
 interface HistoryEntry {
   strategy: Strategy;
   signals: ReflectionSignal[];
@@ -50,12 +54,16 @@ export class ReflectionEngine {
 
   constructor() {
     try {
+      if (typeof localStorage === "undefined") return;
       const saved = localStorage.getItem("aura_reflection_weights");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (typeof parsed.clarifyBias === "number") this.weights.clarifyBias = parsed.clarifyBias;
-        if (typeof parsed.brevityBias === "number") this.weights.brevityBias = parsed.brevityBias;
-        if (typeof parsed.warmthBias === "number") this.weights.warmthBias = parsed.warmthBias;
+        if (Number.isFinite(parsed.clarifyBias))
+          this.weights.clarifyBias = Math.max(0, Math.min(1, parsed.clarifyBias));
+        if (Number.isFinite(parsed.brevityBias))
+          this.weights.brevityBias = Math.max(-1, Math.min(1, parsed.brevityBias));
+        if (Number.isFinite(parsed.warmthBias))
+          this.weights.warmthBias = Math.max(0, Math.min(1, parsed.warmthBias));
       }
     } catch (e) {
       console.warn("Failed to load reflection weights", e);
@@ -64,6 +72,7 @@ export class ReflectionEngine {
 
   private saveWeights() {
     try {
+      if (typeof localStorage === "undefined") return;
       localStorage.setItem("aura_reflection_weights", JSON.stringify(this.weights));
     } catch (e) {}
   }
@@ -72,6 +81,10 @@ export class ReflectionEngine {
     const signals: ReflectionSignal[] = [];
     const notes: string[] = [];
     const plan = outcome.plan;
+    // An ordinary continuation is unknown, not evidence of success or rejection.
+    if (!outcome.userReactedNegatively && !outcome.userFollowedUp) {
+      return { signals, adjustments: {}, notes: ["outcome unknown; no preference update"] };
+    }
 
     // 1. Did the user reject the turn?
     if (outcome.userReactedNegatively) {
@@ -146,22 +159,36 @@ export class ReflectionEngine {
     });
     if (this.history.length > MAX_HISTORY) this.history.shift();
 
-    // Update persistent weights (small, ratcheted steps)
+    // Require repeated evidence before changing durable preferences.
+    const corroborated = (signal: ReflectionSignal) =>
+      this.history.slice(-8).filter((entry) => entry.signals.includes(signal)).length >= 3;
+    // Positive feedback gently reverses learned biases rather than ratcheting forever.
+    if (outcome.userFollowedUp && !outcome.userReactedNegatively) {
+      this.weights.clarifyBias = round3(this.weights.clarifyBias * 0.95);
+      this.weights.brevityBias = round3(this.weights.brevityBias * 0.95);
+      this.weights.warmthBias = round3(this.weights.warmthBias * 0.95);
+      this.saveWeights();
+    }
+    // Update persistent weights (bounded steps)
     const adjustments: Record<string, number> = {};
-    if (signals.includes("clarified_too_late")) {
-      this.weights.clarifyBias = Math.min(1, this.weights.clarifyBias + 0.05);
+    if (signals.includes("clarified_too_late") && corroborated("clarified_too_late")) {
+      this.weights.clarifyBias = Math.min(1, round3(this.weights.clarifyBias + 0.05));
       adjustments.clarifyBias = this.weights.clarifyBias;
     }
-    if (signals.includes("too_long")) {
-      this.weights.brevityBias = Math.min(1, this.weights.brevityBias + 0.05);
+    if (signals.includes("too_long") && corroborated("too_long")) {
+      this.weights.brevityBias = Math.min(1, round3(this.weights.brevityBias + 0.05));
       adjustments.brevityBias = this.weights.brevityBias;
     }
-    if (signals.includes("too_short")) {
-      this.weights.brevityBias = Math.max(-1, this.weights.brevityBias - 0.05);
+    if (signals.includes("too_short") && corroborated("too_short")) {
+      this.weights.brevityBias = Math.max(-1, round3(this.weights.brevityBias - 0.05));
       adjustments.brevityBias = this.weights.brevityBias;
     }
-    if (outcome.userReactedNegatively && plan.tone.warmth < 0.5) {
-      this.weights.warmthBias = Math.min(1, this.weights.warmthBias + 0.05);
+    if (
+      outcome.userReactedNegatively &&
+      plan.tone.warmth < 0.5 &&
+      corroborated("strategy_ineffective")
+    ) {
+      this.weights.warmthBias = Math.min(1, round3(this.weights.warmthBias + 0.05));
       adjustments.warmthBias = this.weights.warmthBias;
     }
 
